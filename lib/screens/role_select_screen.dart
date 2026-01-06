@@ -38,93 +38,115 @@ class RoleSelectScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xff851ef3),
-      body: SingleChildScrollView(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1200),
-            child: Padding(
-              padding: EdgeInsets.all(size.width * 0.04),
-              child: Column(
-                children: [
-                  /// HEADER
-                  CircleAvatar(
-                    radius: size.width < 600 ? 45 : 55,
-                    backgroundColor: const Color(0xff9c45f8),
-                    child: const Icon(
-                      Icons.school_outlined,
-                      color: Colors.white,
-                      size: 40,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    "School Management System",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: size.width < 600 ? 22 : 28,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    "Select your role to continue",
-                    style: TextStyle(fontSize: 15, color: Colors.white),
-                  ),
-                  const SizedBox(height: 30),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final bool isWeb = constraints.maxWidth >= 900;
 
-                  /// RESPONSIVE LAYOUT
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (isWeb) {
-                        /// 🌐 WEB GRID
-                        return GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: details.length,
-                          gridDelegate:
-                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 520,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            childAspectRatio: 1.75,
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight, // 🔑 KEY FIX
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1200),
+                    child: Padding(
+                      padding: EdgeInsets.all(
+                        constraints.maxWidth < 600 ? 16 : 32,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          /// HEADER
+                          CircleAvatar(
+                            radius: constraints.maxWidth < 600 ? 45 : 55,
+                            backgroundColor: const Color(0xff9c45f8),
+                            child: const Icon(
+                              Icons.school_outlined,
+                              color: Colors.white,
+                              size: 40,
+                            ),
                           ),
-                          itemBuilder: (context, index) {
-                            return HoverCard(
-                              child: RoleCard(data: details[index]),
-                            );
-                          },
-                        );
-                      } else {
-                        /// 📱 MOBILE LIST
-                        return ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: details.length,
-                          separatorBuilder:
-                              (_, __) => const SizedBox(height: 15),
-                          itemBuilder: (context, index) {
-                            return RoleCard(data: details[index]);
-                          },
-                        );
-                      }
-                    },
+                          const SizedBox(height: 16),
+
+                          Text(
+                            "School Management System",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: constraints.maxWidth < 600 ? 22 : 28,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            "Select your role to continue",
+                            style: TextStyle(fontSize: 15, color: Colors.white),
+                          ),
+                          const SizedBox(height: 30),
+
+                          /// ROLE LIST
+                          isWeb
+                              ? GridView.builder(
+                            shrinkWrap: true,
+                            physics:
+                            const NeverScrollableScrollPhysics(),
+                            itemCount: details.length,
+                            gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 520,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                              childAspectRatio: 1.75,
+                            ),
+                            itemBuilder: (context, index) {
+                              return HoverCard(
+                                enabled: isWeb,
+                                child: RoleCard(
+                                  data: details[index],
+                                ),
+                              );
+                            },
+                          )
+                              : ListView.separated(
+                            shrinkWrap: true,
+                            physics:
+                            const NeverScrollableScrollPhysics(),
+                            itemCount: details.length,
+                            separatorBuilder: (_, __) =>
+                            const SizedBox(height: 15),
+                            itemBuilder: (context, index) {
+                              return RoleCard(
+                                data: details[index],
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
+
   }
 }
 
 /// ================= HOVER EFFECT WRAPPER =================
 class HoverCard extends StatefulWidget {
   final Widget child;
+  final bool enabled;
 
-  const HoverCard({super.key, required this.child});
+  const HoverCard({
+    super.key,
+    required this.child,
+    this.enabled = true,
+  });
 
   @override
   State<HoverCard> createState() => _HoverCardState();
@@ -135,6 +157,8 @@ class _HoverCardState extends State<HoverCard> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
@@ -152,6 +176,7 @@ class _HoverCardState extends State<HoverCard> {
     );
   }
 }
+
 
 /// ================= ROLE CARD =================
 class RoleCard extends StatelessWidget {
@@ -176,8 +201,9 @@ class RoleCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min, // 🔑 IMPORTANT
         children: [
-          /// ICON
+          // ICON
           Container(
             height: 46,
             width: 46,
@@ -194,7 +220,7 @@ class RoleCard extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          /// ROLE
+          // ROLE
           Text(
             data["role"],
             style: const TextStyle(
@@ -205,7 +231,7 @@ class RoleCard extends StatelessWidget {
 
           const SizedBox(height: 4),
 
-          /// DESCRIPTION
+          // DESCRIPTION
           Text(
             data["roleDescription"],
             style: const TextStyle(
@@ -214,9 +240,9 @@ class RoleCard extends StatelessWidget {
             ),
           ),
 
-          const Spacer(),
+          const SizedBox(height: 20), // ✅ instead of Spacer()
 
-          /// BUTTON
+          // BUTTON
           SizedBox(
             width: double.infinity,
             height: 44,

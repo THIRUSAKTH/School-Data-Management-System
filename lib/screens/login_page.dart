@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:schoolprojectjan/screens/admin/admin_home.dart';
 
 class LoginPage extends StatefulWidget {
   final Map<String, dynamic> details;
@@ -185,7 +186,27 @@ class _LoginPageState extends State<LoginPage> {
                       width: size.width < 600 ? double.infinity : 220,
                       height: size.width < 600 ? 48 : 52,
                       child: ElevatedButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          final role = widget.details["role"];
+
+                          Widget target;
+
+                          if (role == "Admin") {
+                            target = const AdminHome();
+                          }
+                          // else if (role == "Teacher") {
+                          //   target = const TeacherHome();
+                          // } else if (role == "Parent") {
+                          //   target = const ParentHome();
+                          // } else {
+                          //   target = const StudentHome();
+                          // }
+
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(builder: (_) => AdminHome()),
+                          );
+                        },
                         style: ElevatedButton.styleFrom(
                           elevation: 5,
                           backgroundColor: widget.details["color"],
