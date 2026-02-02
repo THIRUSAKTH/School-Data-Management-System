@@ -176,7 +176,6 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 14),
 
                   /// 🔐 SIGN IN BUTTON (FIXED FOR SMALL MOBILE)
@@ -201,7 +200,6 @@ class _LoginPageState extends State<LoginPage> {
                           // } else {
                           //   target = const StudentHome();
                           // }
-
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(builder: (_) => AdminHome()),
