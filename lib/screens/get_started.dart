@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:schoolprojectjan/school_login_details/school_login_screen.dart';
 import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
 import 'package:schoolprojectjan/screens/role_router/role_select_screen.dart';
 
@@ -20,7 +21,7 @@ class GetStarted extends StatelessWidget {
               context,
               MaterialPageRoute(
                 builder: (context) {
-                  return RoleSelectScreen();
+                  return SchoolLoginScreen();
                 },
               ),
             );
