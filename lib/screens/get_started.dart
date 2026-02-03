@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:schoolprojectjan/screens/login_page.dart';
-import 'package:schoolprojectjan/screens/role_select_screen.dart';
+import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
+import 'package:schoolprojectjan/screens/role_router/role_select_screen.dart';
 
 class GetStarted extends StatelessWidget {
   const GetStarted({super.key});

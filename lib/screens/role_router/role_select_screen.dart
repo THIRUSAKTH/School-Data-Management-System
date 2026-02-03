@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:schoolprojectjan/screens/login_page.dart';
+import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
 
 class RoleSelectScreen extends StatelessWidget {
   RoleSelectScreen({super.key});
