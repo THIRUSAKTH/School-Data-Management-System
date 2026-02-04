@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:schoolprojectjan/school_login_details/create_school_screen.dart';
+import 'package:schoolprojectjan/screens/role_router/role_select_screen.dart';
 
 class SchoolLoginScreen extends StatelessWidget {
   SchoolLoginScreen({super.key});
@@ -107,17 +108,21 @@ class SchoolLoginScreen extends StatelessWidget {
                             ),
                             onPressed: () {
                               // TODO:
-                              // 1. Validate school code
-                              // 2. Fetch school data
-                              // 3. Save schoolId
-                              // 4. Navigate to RoleSelectScreen
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) {
+                                    return RoleSelectScreen();
+                                  },
+                                ),
+                              );
                             },
                             child: const Text(
                               "Continue",
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white
+                                color: Colors.white,
                               ),
                             ),
                           ),

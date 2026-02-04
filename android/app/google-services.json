@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "789022701717",
+    "project_id": "schoolprojectjan",
+    "storage_bucket": "schoolprojectjan.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:789022701717:android:a3a4785eabad3571a0c39c",
+        "android_client_info": {
+          "package_name": "com.skiez.schoolprojectjan"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDrMjI25o0eB-ZMUXBCi4vazard75Eg3HE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
