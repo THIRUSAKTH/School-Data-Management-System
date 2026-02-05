@@ -1,32 +1,25 @@
+import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'school_created_success_screen.dart';
 
 class CreateSchoolScreen extends StatelessWidget {
   CreateSchoolScreen({super.key});
 
   final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController schoolNameController =
-  TextEditingController();
-  final TextEditingController addressController =
-  TextEditingController();
-  final TextEditingController adminNameController =
-  TextEditingController();
-  final TextEditingController emailController =
-  TextEditingController();
-  final TextEditingController mobileController =
-  TextEditingController();
-  final TextEditingController passwordController =
-  TextEditingController();
+  final TextEditingController schoolNameController = TextEditingController();
+  final TextEditingController schoolEmailController = TextEditingController(); // ✅ NEW
+  final TextEditingController addressController = TextEditingController();
+  final TextEditingController adminNameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController mobileController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
 
   String selectedBoard = "State Board";
 
-  final List<String> boards = [
-    "State Board",
-    "CBSE",
-    "ICSE",
-    "IB",
-    "Other",
-  ];
+  final List<String> boards = ["State Board", "CBSE", "ICSE", "IB", "Other"];
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +38,6 @@ class CreateSchoolScreen extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 520),
               child: Column(
                 children: [
-                  /// ICON
                   CircleAvatar(
                     radius: 45,
                     backgroundColor: const Color(0xff9c45f8),
@@ -55,32 +47,20 @@ class CreateSchoolScreen extends StatelessWidget {
                       color: Colors.white,
                     ),
                   ),
-
                   const SizedBox(height: 14),
-
-                  /// TITLE
                   const Text(
                     "Create School Account",
                     style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
                   ),
-
                   const SizedBox(height: 6),
-
                   const Text(
                     "Register your school to get started",
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white70,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.white70),
                   ),
-
                   const SizedBox(height: 30),
-
-                  /// FORM CARD
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -99,14 +79,9 @@ class CreateSchoolScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          /// SECTION: SCHOOL DETAILS
-                          const Text(
-                            "School Details",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
+                          const Text("School Details",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 16)),
                           const SizedBox(height: 12),
 
                           _inputField(
@@ -117,23 +92,27 @@ class CreateSchoolScreen extends StatelessWidget {
 
                           const SizedBox(height: 12),
 
+                          // ✅ SCHOOL EMAIL FIELD ADDED
+                          _inputField(
+                            controller: schoolEmailController,
+                            label: "School Email ID",
+                            icon: Icons.alternate_email,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+
+                          const SizedBox(height: 12),
+
                           DropdownButtonFormField<String>(
                             value: selectedBoard,
                             items: boards
-                                .map(
-                                  (b) => DropdownMenuItem(
-                                value: b,
-                                child: Text(b),
-                              ),
-                            )
+                                .map((b) => DropdownMenuItem(
+                              value: b,
+                              child: Text(b),
+                            ))
                                 .toList(),
-                            onChanged: (value) {
-                              selectedBoard = value!;
-                            },
+                            onChanged: (v) => selectedBoard = v!,
                             decoration: _inputDecoration(
-                              "Board / School Type",
-                              Icons.school,
-                            ),
+                                "Board / School Type", Icons.school),
                           ),
 
                           const SizedBox(height: 12),
@@ -147,14 +126,9 @@ class CreateSchoolScreen extends StatelessWidget {
 
                           const SizedBox(height: 24),
 
-                          /// SECTION: ADMIN DETAILS
-                          const Text(
-                            "Admin Details",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
+                          const Text("Admin Details",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 16)),
                           const SizedBox(height: 12),
 
                           _inputField(
@@ -167,7 +141,7 @@ class CreateSchoolScreen extends StatelessWidget {
 
                           _inputField(
                             controller: emailController,
-                            label: "Email",
+                            label: "Admin Email",
                             icon: Icons.email_outlined,
                             keyboardType: TextInputType.emailAddress,
                           ),
@@ -192,7 +166,6 @@ class CreateSchoolScreen extends StatelessWidget {
 
                           const SizedBox(height: 24),
 
-                          /// CREATE BUTTON
                           SizedBox(
                             width: double.infinity,
                             height: 50,
@@ -203,23 +176,81 @@ class CreateSchoolScreen extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              onPressed: () {
+                              onPressed: () async {
                                 if (_formKey.currentState!.validate()) {
-                                  // TODO:
-                                  // 1. Create School
-                                  // 2. Generate School Code
-                                  // 3. Create Admin user
-                                  // 4. Save data in backend
-                                  // 5. Navigate to RoleSelectScreen
+                                  try {
+                                    final schoolCode =
+                                    _generateSchoolCode(
+                                        schoolNameController.text);
+
+                                    final userCredential = await FirebaseAuth
+                                        .instance
+                                        .createUserWithEmailAndPassword(
+                                      email: emailController.text.trim(),
+                                      password:
+                                      passwordController.text.trim(),
+                                    );
+
+                                    final adminUid =
+                                        userCredential.user!.uid;
+
+                                    final schoolRef = FirebaseFirestore.instance
+                                        .collection('schools')
+                                        .doc();
+
+                                    await schoolRef.set({
+                                      'schoolId': schoolRef.id,
+                                      'schoolCode': schoolCode,
+                                      'schoolName':
+                                      schoolNameController.text,
+                                      'schoolEmail':
+                                      schoolEmailController.text,
+                                      'board': selectedBoard,
+                                      'address': addressController.text,
+                                      'createdAt':
+                                      FieldValue.serverTimestamp(),
+                                    });
+
+                                    await schoolRef
+                                        .collection('admins')
+                                        .doc(adminUid)
+                                        .set({
+                                      'uid': adminUid,
+                                      'name':
+                                      adminNameController.text,
+                                      'email':
+                                      emailController.text,
+                                      'mobile':
+                                      mobileController.text,
+                                      'role': 'Admin',
+                                      'createdAt':
+                                      FieldValue.serverTimestamp(),
+                                    });
+
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            SchoolCreatedSuccessScreen(
+                                              schoolCode: schoolCode,
+                                            ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(
+                                      SnackBar(
+                                          content: Text("Error: $e")),
+                                    );
+                                  }
                                 }
                               },
                               child: const Text(
                                 "Create School Account",
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white
-                                ),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white),
                               ),
                             ),
                           ),
@@ -236,7 +267,6 @@ class CreateSchoolScreen extends StatelessWidget {
     );
   }
 
-  /// INPUT FIELD
   Widget _inputField({
     required TextEditingController controller,
     required String label,
@@ -250,20 +280,30 @@ class CreateSchoolScreen extends StatelessWidget {
       keyboardType: keyboardType,
       obscureText: obscure,
       maxLines: maxLines,
-      validator: (value) =>
-      value == null || value.isEmpty ? "Required field" : null,
+      validator: (v) => v == null || v.isEmpty ? "Required field" : null,
       decoration: _inputDecoration(label, icon),
     );
   }
 
-  /// INPUT DECORATION
   InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
       prefixIcon: Icon(icon),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
+}
+
+/// SCHOOL CODE GENERATOR
+String _generateSchoolCode(String schoolName) {
+  final prefix = schoolName
+      .replaceAll(RegExp(r'[^A-Za-z]'), '')
+      .toUpperCase()
+      .padRight(3, 'X')
+      .substring(0, 3);
+
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  final rand = Random();
+
+  return "$prefix-${List.generate(4, (_) => chars[rand.nextInt(chars.length)]).join()}";
 }

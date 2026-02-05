@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:schoolprojectjan/school_login_details/create_school_screen.dart';
 import 'package:schoolprojectjan/screens/role_router/role_select_screen.dart';
 
 class SchoolLoginScreen extends StatelessWidget {
   SchoolLoginScreen({super.key});
 
+  final TextEditingController schoolEmailController = TextEditingController();
   final TextEditingController schoolCodeController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
       backgroundColor: const Color(0xff851ef3),
       body: SafeArea(
@@ -21,7 +21,6 @@ class SchoolLoginScreen extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
                 children: [
-                  /// ICON
                   CircleAvatar(
                     radius: 50,
                     backgroundColor: const Color(0xff9c45f8),
@@ -34,14 +33,16 @@ class SchoolLoginScreen extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  /// TITLE
-                  const Text(
-                    "School Management System",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  /// ✅ SINGLE LINE RESPONSIVE HEADING
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: const Text(
+                      "School Management System",
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
 
@@ -54,7 +55,6 @@ class SchoolLoginScreen extends StatelessWidget {
 
                   const SizedBox(height: 30),
 
-                  /// CARD
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -69,24 +69,30 @@ class SchoolLoginScreen extends StatelessWidget {
                       ],
                     ),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          "Enter School Code",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                        TextField(
+                          controller: schoolEmailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: InputDecoration(
+                            hintText: "School Email ID",
+                            prefixIcon:
+                            const Icon(Icons.alternate_email),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
 
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
 
                         TextField(
                           controller: schoolCodeController,
-                          textCapitalization: TextCapitalization.characters,
+                          textCapitalization:
+                          TextCapitalization.characters,
                           decoration: InputDecoration(
-                            hintText: "Ex: ABC123",
-                            prefixIcon: const Icon(Icons.vpn_key_outlined),
+                            hintText: "School Code (Ex: ABC-7XQ2)",
+                            prefixIcon:
+                            const Icon(Icons.vpn_key_outlined),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -95,7 +101,6 @@ class SchoolLoginScreen extends StatelessWidget {
 
                         const SizedBox(height: 20),
 
-                        /// CONTINUE BUTTON
                         SizedBox(
                           width: double.infinity,
                           height: 48,
@@ -103,19 +108,67 @@ class SchoolLoginScreen extends StatelessWidget {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.deepPurple,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius:
+                                BorderRadius.circular(12),
                               ),
                             ),
-                            onPressed: () {
-                              // TODO:
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) {
-                                    return RoleSelectScreen();
-                                  },
-                                ),
-                              );
+                            onPressed: () async {
+                              final email = schoolEmailController.text
+                                  .trim()
+                                  .toLowerCase();
+                              final code =
+                              schoolCodeController.text.trim();
+
+                              if (email.isEmpty || code.isEmpty) {
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(
+                                  const SnackBar(
+                                      content: Text(
+                                          "Enter email and school code")),
+                                );
+                                return;
+                              }
+
+                              try {
+                                final query =
+                                await FirebaseFirestore.instance
+                                    .collection('schools')
+                                    .where('schoolEmail',
+                                    isEqualTo: email)
+                                    .where('schoolCode',
+                                    isEqualTo: code)
+                                    .limit(1)
+                                    .get();
+
+                                if (query.docs.isEmpty) {
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            "Invalid school login")),
+                                  );
+                                  return;
+                                }
+
+                                final schoolId =
+                                    query.docs.first.id;
+
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        RoleSelectScreen(
+                                            schoolId: schoolId),
+                                  ),
+                                );
+                              } catch (e) {
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(
+                                  SnackBar(
+                                      content:
+                                      Text("Error: $e")),
+                                );
+                              }
                             },
                             child: const Text(
                               "Continue",
@@ -128,43 +181,46 @@ class SchoolLoginScreen extends StatelessWidget {
                           ),
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
 
-                        /// DIVIDER
                         Row(
                           children: const [
                             Expanded(child: Divider()),
                             Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 8),
-                              child: Text("OR"),
+                              padding:
+                              EdgeInsets.symmetric(horizontal: 10),
+                              child: Text(
+                                "OR",
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
                             ),
                             Expanded(child: Divider()),
                           ],
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
 
-                        /// CREATE SCHOOL BUTTON
                         SizedBox(
                           width: double.infinity,
                           height: 46,
                           child: OutlinedButton(
                             style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.deepPurple),
+                              side: const BorderSide(
+                                  color: Colors.deepPurple),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius:
+                                BorderRadius.circular(12),
                               ),
                             ),
                             onPressed: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) {
-                                    return CreateSchoolScreen();
-                                  },
+                                  builder: (_) =>
+                                      CreateSchoolScreen(),
                                 ),
                               );
-                              // TODO: Navigate to CreateSchoolScreen
                             },
                             child: const Text(
                               "Create New School Account",
@@ -177,14 +233,6 @@ class SchoolLoginScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  /// FOOTER
-                  const Text(
-                    "For school administrators only",
-                    style: TextStyle(fontSize: 12, color: Colors.white70),
                   ),
                 ],
               ),
