@@ -225,7 +225,7 @@ class SchoolLoginScreen extends StatelessWidget {
                             child: const Text(
                               "Create New School Account",
                               style: TextStyle(
-                                color: Colors.blue,
+                                color: Colors.cyan,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
