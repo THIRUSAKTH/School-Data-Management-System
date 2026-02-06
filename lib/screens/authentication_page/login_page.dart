@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:schoolprojectjan/screens/admin/admin_home.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
 import 'package:schoolprojectjan/screens/parents/parent_home.dart';
+import 'package:schoolprojectjan/screens/authentication_page/change_password_screen.dart';
 
 class LoginPage extends StatefulWidget {
   final String schoolId;
@@ -60,7 +62,6 @@ class _LoginPageState extends State<LoginPage> {
             constraints: const BoxConstraints(maxWidth: 420),
             child: Column(
               children: [
-                /// ROLE HEADER
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 30),
                   decoration: BoxDecoration(
@@ -92,7 +93,6 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 28),
 
-                /// LOGIN CARD
                 Container(
                   padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
@@ -197,8 +197,7 @@ class _LoginPageState extends State<LoginPage> {
 
       final uid = user.user!.uid;
 
-      final roleCollection =
-          widget.role.toLowerCase() + "s";
+      final roleCollection = widget.role.toLowerCase() + "s";
 
       final roleDoc = await FirebaseFirestore.instance
           .collection('schools')
@@ -208,19 +207,35 @@ class _LoginPageState extends State<LoginPage> {
           .get();
 
       if (!roleDoc.exists) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Not registered in this school")),
-        );
+        _msg("Not registered in this school");
         return;
       }
 
       Widget target;
 
       if (widget.role == "Admin") {
-        target = const AdminHome();
-      } else if (widget.role == "Teacher") {
+        target = AdminHome(schoolId: widget.schoolId);
+      }
+
+      else if (widget.role == "Teacher") {
+
+        if (roleDoc['firstLogin'] == true) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ChangePasswordScreen(
+                schoolId: widget.schoolId,
+                userId: uid,
+              ),
+            ),
+          );
+          return;
+        }
+
         target = const TeacherHome();
-      } else {
+      }
+
+      else {
         target = const ParentHome();
       }
 
@@ -228,10 +243,14 @@ class _LoginPageState extends State<LoginPage> {
         context,
         MaterialPageRoute(builder: (_) => target),
       );
+
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Login failed: $e")),
-      );
+      _msg("Login failed: $e");
     }
+  }
+
+  void _msg(String text) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(text)));
   }
 }

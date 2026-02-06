@@ -4,7 +4,12 @@ import 'package:schoolprojectjan/screens/admin/notice_post_page.dart';
 import 'admin_dashboard.dart';
 
 class AdminHome extends StatefulWidget {
-  const AdminHome({super.key});
+  final String schoolId; // ✅ required
+
+  const AdminHome({
+    super.key,
+    required this.schoolId,
+  });
 
   @override
   State<AdminHome> createState() => _AdminHomeState();
@@ -13,11 +18,18 @@ class AdminHome extends StatefulWidget {
 class _AdminHomeState extends State<AdminHome> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = const [
-    AdminDashboard(),
-    ClassSectionPage(),
-    NoticePostPage(),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _pages = [
+      AdminDashboard(schoolId: widget.schoolId),
+      const ClassSectionPage(),
+      const NoticePostPage(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,16 +38,13 @@ class _AdminHomeState extends State<AdminHome> {
         index: _currentIndex,
         children: _pages,
       ),
-
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.deepPurple,
         unselectedItemColor: Colors.grey,
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          setState(() => _currentIndex = index);
         },
         items: const [
           BottomNavigationBarItem(

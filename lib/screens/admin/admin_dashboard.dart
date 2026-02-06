@@ -3,10 +3,15 @@ import 'package:schoolprojectjan/screens/admin/admin_attendance_overview.dart';
 import 'package:schoolprojectjan/screens/admin/admin_fee_report_page.dart';
 import 'package:schoolprojectjan/screens/admin/admin_feeupload_page.dart';
 import 'package:schoolprojectjan/screens/admin/student_management.dart';
-import 'package:schoolprojectjan/screens/admin/teacher_management_page.dart';
+import 'package:schoolprojectjan/screens/admin/admin_add_teacher_page.dart';
 
 class AdminDashboard extends StatelessWidget {
-  const AdminDashboard({super.key});
+  final String schoolId; // ✅ ADD THIS
+
+  const AdminDashboard({
+    super.key,
+    required this.schoolId, // ✅ REQUIRED
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -16,79 +21,106 @@ class AdminDashboard extends StatelessWidget {
         width: 250,
         child: ListView(
           children: [
-            DrawerHeader(child: Text("")),
+            const DrawerHeader(child: Text("")),
+
             ListTile(
-              leading: Icon(Icons.fact_check_outlined),
-              title: Text("Attendance Overview"),
+              leading: const Icon(Icons.fact_check_outlined),
+              title: const Text("Attendance Overview"),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) {
-                  return AdminAttendanceOverviewPage();
-                },));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdminAttendanceOverviewPage(),
+                  ),
+                );
               },
             ),
+
             ListTile(
-              leading: Icon(Icons.check_circle),
-              title: Text("Teacher Overview"),
+              leading: const Icon(Icons.check_circle),
+              title: const Text("Teacher Management"),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) {
-                  return TeacherManagementPage();
-                },));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        AdminAddTeacherPage(schoolId: schoolId), // ✅ FIXED
+                  ),
+                );
               },
             ),
+
             ListTile(
-              leading: Icon(Icons.groups_rounded),
-              title: Text("Students Overview"),
+              leading: const Icon(Icons.groups_rounded),
+              title: const Text("Students Overview"),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) {
-                  return StudentManagementPage();
-                },));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StudentManagementPage(),
+                  ),
+                );
               },
             ),
+
             ListTile(
-              leading: Icon(Icons.currency_rupee),
-              title: Text("Fees"),
+              leading: const Icon(Icons.currency_rupee),
+              title: const Text("Fees"),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) {
-                  return AdminFeeUploadPage();
-                },));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdminFeeUploadPage(),
+                  ),
+                );
               },
             ),
+
             ListTile(
-              leading: Icon(Icons.analytics),
-              title: Text("Fees Report"),
+              leading: const Icon(Icons.analytics),
+              title: const Text("Fees Report"),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) {
-                  return AdminFeeReportPage();
-                },));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdminFeeReportPage(),
+                  ),
+                );
               },
             ),
           ],
         ),
       ),
-      appBar: AppBar(backgroundColor: Colors.blue,
+
+      appBar: AppBar(
+        backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         title: const Text("Admin Dashboard"),
         elevation: 0,
         actions: [
-          IconButton(onPressed: (){
-            Navigator.pop(context);
-          }, icon: Icon(Icons.logout))
+          IconButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.logout),
+          )
         ],
       ),
+
       body: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth;
 
-          int crossAxisCount = 2; // mobile
+          int crossAxisCount = 2;
           if (width >= 900) {
-            crossAxisCount = 4; // web
+            crossAxisCount = 4;
           } else if (width >= 600) {
-            crossAxisCount = 3; // tablet
+            crossAxisCount = 3;
           }
 
           return SingleChildScrollView(
@@ -98,14 +130,10 @@ class AdminDashboard extends StatelessWidget {
               children: [
                 const Text(
                   "Overview",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
 
-                /// RESPONSIVE STATS GRID
                 GridView.count(
                   crossAxisCount: crossAxisCount,
                   shrinkWrap: true,
@@ -145,10 +173,7 @@ class AdminDashboard extends StatelessWidget {
 
                 const Text(
                   "Quick Actions",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
 
@@ -162,17 +187,13 @@ class AdminDashboard extends StatelessWidget {
   }
 }
 
-/* =========================================================
-   QUICK ACTIONS
-   ========================================================= */
+/* ========================================================= */
 
 class _QuickActionsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Column(
         children: const [
           ListTile(
@@ -198,9 +219,7 @@ class _QuickActionsCard extends StatelessWidget {
   }
 }
 
-/* =========================================================
-   DASHBOARD CARD
-   ========================================================= */
+/* ========================================================= */
 
 class DashboardCard extends StatelessWidget {
   final String title;
@@ -232,7 +251,7 @@ class DashboardCard extends StatelessWidget {
         ],
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center, // 👈 KEY FIX
+        mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
@@ -249,10 +268,7 @@ class DashboardCard extends StatelessWidget {
 
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -261,10 +277,7 @@ class DashboardCard extends StatelessWidget {
 
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.black54,
-            ),
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

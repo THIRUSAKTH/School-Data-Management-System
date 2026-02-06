@@ -12,7 +12,7 @@ class SchoolLoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff851ef3),
+      backgroundColor:Colors.cyan,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -23,7 +23,7 @@ class SchoolLoginScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 50,
-                    backgroundColor: const Color(0xff9c45f8),
+                    backgroundColor: Colors.cyan.shade200,
                     child: const Icon(
                       Icons.school_outlined,
                       size: 45,
@@ -106,7 +106,7 @@ class SchoolLoginScreen extends StatelessWidget {
                           height: 48,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.deepPurple,
+                              backgroundColor: Colors.cyan,
                               shape: RoundedRectangleBorder(
                                 borderRadius:
                                 BorderRadius.circular(12),
@@ -180,9 +180,7 @@ class SchoolLoginScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 18),
-
                         Row(
                           children: const [
                             Expanded(child: Divider()),
@@ -198,7 +196,6 @@ class SchoolLoginScreen extends StatelessWidget {
                             Expanded(child: Divider()),
                           ],
                         ),
-
                         const SizedBox(height: 18),
 
                         SizedBox(
