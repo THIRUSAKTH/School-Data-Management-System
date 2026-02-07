@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:schoolprojectjan/screens/admin/admin-add-student-page.dart';
 import 'package:schoolprojectjan/screens/admin/admin_attendance_overview.dart';
 import 'package:schoolprojectjan/screens/admin/admin_fee_report_page.dart';
 import 'package:schoolprojectjan/screens/admin/admin_feeupload_page.dart';
@@ -60,7 +61,8 @@ class AdminDashboard extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => StudentManagementPage(),
+                    builder: (_) =>AdminAddStudentPage(schoolId: schoolId),
+
                   ),
                 );
               },
