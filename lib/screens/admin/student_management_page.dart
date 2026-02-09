@@ -15,7 +15,7 @@ class StudentManagementPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Student Management"),
+        title: const Text("Student Management",style: TextStyle(fontWeight: FontWeight.bold,),),
         backgroundColor: Colors.cyan,
         foregroundColor: Colors.white,
       ),

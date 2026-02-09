@@ -35,18 +35,18 @@ class StudentProfilePage extends StatelessWidget {
             .snapshots(),
 
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (!snapshot.hasData || !snapshot.data!.exists) {
+          if (!snapshot.data!.exists) {
             return const Center(child: Text("Student not found"));
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
 
-          final parentId = data['parentId'];
-          final parentEmail = data['parentEmail'];
+          final parentId = data['parentId'];      // ✅ correct field
+          final parentEmail = data['parentEmail']; // ✅ correct field
 
           return Padding(
             padding: const EdgeInsets.all(20),
@@ -57,14 +57,8 @@ class StudentProfilePage extends StatelessWidget {
                 _info("Class", data['class']),
                 _info("Section", data['section']),
                 _info("Roll No", data['rollNo']),
-                _info(
-                  "Parent Email",
-                  parentEmail ?? "Not linked",
-                ),
-                _info(
-                  "Parent ID",
-                  parentId ?? "Not linked",
-                ),
+                _info("Parent Email", parentEmail ?? "Not linked"),
+                _info("Parent ID", parentId ?? "Not linked"),
 
                 const SizedBox(height: 30),
 
@@ -110,10 +104,7 @@ class StudentProfilePage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            value.toString(),
-            style: const TextStyle(fontSize: 16),
-          ),
+          Text(value.toString(), style: const TextStyle(fontSize: 16)),
         ],
       ),
     );
@@ -127,14 +118,15 @@ class StudentProfilePage extends StatelessWidget {
         content: const Text("Are you sure you want to delete this student?"),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
             child: const Text("Cancel"),
+            onPressed: () => Navigator.pop(context),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
+            child: const Text("Delete"),
             onPressed: () async {
               await FirebaseFirestore.instance
                   .collection('schools')
@@ -146,7 +138,6 @@ class StudentProfilePage extends StatelessWidget {
               Navigator.pop(context);
               Navigator.pop(context);
             },
-            child: const Text("Delete"),
           ),
         ],
       ),

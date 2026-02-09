@@ -4,7 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class AdminAddStudentPage extends StatefulWidget {
   final String schoolId;
 
-  const AdminAddStudentPage({super.key, required this.schoolId});
+  const AdminAddStudentPage({
+    super.key,
+    required this.schoolId,
+  });
 
   @override
   State<AdminAddStudentPage> createState() => _AdminAddStudentPageState();
@@ -79,7 +82,10 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           .collection('schools')
           .doc(widget.schoolId);
 
-      final parentEmail = parentEmailController.text.trim().toLowerCase();
+      final parentEmail = parentEmailController.text
+          .trim()
+          .toLowerCase()
+          .replaceAll(' ', '');
 
       // 🔍 Check if parent exists
       final parentQuery = await schoolRef
@@ -88,7 +94,7 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           .limit(1)
           .get();
 
-      String parentId;
+      String parentUid;
 
       // 👨‍👩‍👧 Auto-create parent if not exists
       if (parentQuery.docs.isEmpty) {
@@ -98,25 +104,23 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           'createdAt': FieldValue.serverTimestamp(),
         });
 
-        parentId = parentDoc.id;
+        parentUid = parentDoc.id;
       } else {
-        parentId = parentQuery.docs.first.id;
+        parentUid = parentQuery.docs.first.id;
       }
 
-      // 🎓 Create student
-      // 🎓 Create student (linked properly)
+      // 🎓 Create student with proper link
       await schoolRef.collection('students').add({
         'name': nameController.text.trim(),
         'class': classController.text.trim(),
         'section': sectionController.text.trim(),
         'rollNo': rollController.text.trim(),
 
-        'parentUid': parentId,        // ✅ fixed key
-        'parentEmail': parentEmail,  // optional but useful
+        'parentUid': parentUid,        // ✅ ALWAYS SAME KEY
+        'parentEmail': parentEmail,
 
         'createdAt': FieldValue.serverTimestamp(),
       });
-
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Student added successfully")),
@@ -124,9 +128,8 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
 
       Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Error: $e")));
     }
 
     setState(() => loading = false);
