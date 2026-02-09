@@ -3,7 +3,7 @@ import 'package:schoolprojectjan/screens/admin/admin-add-student-page.dart';
 import 'package:schoolprojectjan/screens/admin/admin_attendance_overview.dart';
 import 'package:schoolprojectjan/screens/admin/admin_fee_report_page.dart';
 import 'package:schoolprojectjan/screens/admin/admin_feeupload_page.dart';
-import 'package:schoolprojectjan/screens/admin/student_management.dart';
+import 'package:schoolprojectjan/screens/admin/student_management_page.dart';
 import 'package:schoolprojectjan/screens/admin/admin_add_teacher_page.dart';
 
 class AdminDashboard extends StatelessWidget {
@@ -55,13 +55,13 @@ class AdminDashboard extends StatelessWidget {
 
             ListTile(
               leading: const Icon(Icons.groups_rounded),
-              title: const Text("Students Overview"),
+              title: const Text("Students Management"),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>AdminAddStudentPage(schoolId: schoolId),
+                    builder: (_) =>StudentManagementPage(schoolId: schoolId),
 
                   ),
                 );

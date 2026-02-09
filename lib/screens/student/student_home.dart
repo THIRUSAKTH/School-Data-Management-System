@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:schoolprojectjan/screens/student/attendance_page.dart';
 import 'package:schoolprojectjan/screens/student/marks_page.dart';
-import 'package:schoolprojectjan/screens/student/student_profile_page.dart';
 import 'student_dashboard.dart';
 
 class StudentHome extends StatefulWidget {
@@ -18,7 +17,6 @@ class _StudentHomeState extends State<StudentHome> {
     StudentDashboard(),
     StudentAttendancePage(),
     StudentMarksPage(),
-    StudentProfilePage(),
   ];
 
   @override

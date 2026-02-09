@@ -104,15 +104,19 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
       }
 
       // 🎓 Create student
+      // 🎓 Create student (linked properly)
       await schoolRef.collection('students').add({
         'name': nameController.text.trim(),
         'class': classController.text.trim(),
         'section': sectionController.text.trim(),
         'rollNo': rollController.text.trim(),
-        'parentId': parentId,
-        'parentEmail': parentEmail,
+
+        'parentUid': parentId,        // ✅ fixed key
+        'parentEmail': parentEmail,  // optional but useful
+
         'createdAt': FieldValue.serverTimestamp(),
       });
+
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Student added successfully")),
