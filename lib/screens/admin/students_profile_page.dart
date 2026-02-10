@@ -45,8 +45,8 @@ class StudentProfilePage extends StatelessWidget {
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
 
-          final parentId = data['parentId'];      // ✅ correct field
-          final parentEmail = data['parentEmail']; // ✅ correct field
+          // ✅ Correct key
+          final parentUid = data['parentUid'];
 
           return Padding(
             padding: const EdgeInsets.all(20),
@@ -57,8 +57,11 @@ class StudentProfilePage extends StatelessWidget {
                 _info("Class", data['class']),
                 _info("Section", data['section']),
                 _info("Roll No", data['rollNo']),
-                _info("Parent Email", parentEmail ?? "Not linked"),
-                _info("Parent ID", parentId ?? "Not linked"),
+                _info("Parent Email", data['parentEmail']),
+                _info(
+                  "Parent UID",
+                  parentUid != null ? parentUid : "Not linked",
+                ),
 
                 const SizedBox(height: 30),
 
@@ -77,9 +80,7 @@ class StudentProfilePage extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    onPressed: () {
-                      // edit screen later
-                    },
+                    onPressed: () {},
                   ),
                 ),
               ],
@@ -115,17 +116,14 @@ class StudentProfilePage extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("Delete Student"),
-        content: const Text("Are you sure you want to delete this student?"),
+        content: const Text("Are you sure?"),
         actions: [
           TextButton(
             child: const Text("Cancel"),
             onPressed: () => Navigator.pop(context),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text("Delete"),
             onPressed: () async {
               await FirebaseFirestore.instance

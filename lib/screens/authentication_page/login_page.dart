@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:schoolprojectjan/screens/admin/admin_home.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
-import 'package:schoolprojectjan/screens/parents/parent_home.dart';
+import 'package:schoolprojectjan/screens/parents/parent_home_page.dart';
 import 'package:schoolprojectjan/screens/authentication_page/change_password_screen.dart';
 
 class LoginPage extends StatefulWidget {
@@ -236,7 +236,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       else {
-        target = const ParentHome();
+        target = const ParentHomePage();
       }
 
       Navigator.pushReplacement(

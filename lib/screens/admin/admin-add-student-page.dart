@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AdminAddStudentPage extends StatefulWidget {
   final String schoolId;
@@ -87,43 +88,48 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           .toLowerCase()
           .replaceAll(' ', '');
 
-      // 🔍 Check if parent exists
+      String parentUid;
+
+      // 🔍 Check parent in Firestore
       final parentQuery = await schoolRef
           .collection('parents')
           .where('email', isEqualTo: parentEmail)
           .limit(1)
           .get();
 
-      String parentUid;
-
-      // 👨‍👩‍👧 Auto-create parent if not exists
       if (parentQuery.docs.isEmpty) {
-        final parentDoc = await schoolRef.collection('parents').add({
+        // ✅ CREATE FIREBASE AUTH USER
+        final userCredential =
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: parentEmail,
+          password: 'parent@123', // default password
+        );
+
+        parentUid = userCredential.user!.uid;
+
+        // ✅ SAVE PARENT PROFILE
+        await schoolRef.collection('parents').doc(parentUid).set({
           'email': parentEmail,
           'firstLogin': true,
           'createdAt': FieldValue.serverTimestamp(),
         });
-
-        parentUid = parentDoc.id;
       } else {
         parentUid = parentQuery.docs.first.id;
       }
 
-      // 🎓 Create student with proper link
+      // 🎓 CREATE STUDENT (LINKED)
       await schoolRef.collection('students').add({
         'name': nameController.text.trim(),
         'class': classController.text.trim(),
         'section': sectionController.text.trim(),
         'rollNo': rollController.text.trim(),
-
-        'parentUid': parentUid,        // ✅ ALWAYS SAME KEY
+        'parentUid': parentUid, // ✅ SAME UID
         'parentEmail': parentEmail,
-
         'createdAt': FieldValue.serverTimestamp(),
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Student added successfully")),
+        const SnackBar(content: Text("Student & Parent created successfully")),
       );
 
       Navigator.pop(context);

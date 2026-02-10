@@ -19,7 +19,6 @@ class StudentManagementPage extends StatelessWidget {
         backgroundColor: Colors.cyan,
         foregroundColor: Colors.white,
       ),
-
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: Colors.cyan,
         icon: const Icon(Icons.person_add, color: Colors.white),
