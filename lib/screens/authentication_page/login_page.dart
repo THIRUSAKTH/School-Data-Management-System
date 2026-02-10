@@ -62,6 +62,7 @@ class _LoginPageState extends State<LoginPage> {
             constraints: const BoxConstraints(maxWidth: 420),
             child: Column(
               children: [
+                /// HEADER
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 30),
                   decoration: BoxDecoration(
@@ -93,6 +94,7 @@ class _LoginPageState extends State<LoginPage> {
 
                 const SizedBox(height: 28),
 
+                /// LOGIN CARD
                 Container(
                   padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
@@ -139,9 +141,10 @@ class _LoginPageState extends State<LoginPage> {
                           child: const Text(
                             "Sign In",
                             style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white),
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
@@ -188,6 +191,8 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  // ================= LOGIN LOGIC =================
+
   Future<void> _loginUser() async {
     try {
       final user = await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -196,7 +201,6 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       final uid = user.user!.uid;
-
       final roleCollection = widget.role.toLowerCase() + "s";
 
       final roleDoc = await FirebaseFirestore.instance
@@ -211,14 +215,19 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      Widget target;
-
+      /// ADMIN
       if (widget.role == "Admin") {
-        target = AdminHome(schoolId: widget.schoolId);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AdminHome(schoolId: widget.schoolId),
+          ),
+        );
+        return;
       }
 
-      else if (widget.role == "Teacher") {
-
+      /// TEACHER
+      if (widget.role == "Teacher") {
         if (roleDoc['firstLogin'] == true) {
           Navigator.pushReplacement(
             context,
@@ -232,17 +241,34 @@ class _LoginPageState extends State<LoginPage> {
           return;
         }
 
-        target = const TeacherHome();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const TeacherHome()),
+        );
+        return;
       }
 
-      else {
-        target = const ParentHomePage();
-      }
+      /// PARENT
+      if (widget.role == "Parent") {
+        if (roleDoc['firstLogin'] == true) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ChangePasswordScreen(
+                schoolId: widget.schoolId,
+                userId: uid,
+              ),
+            ),
+          );
+          return;
+        }
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => target),
-      );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ParentHomePage()),
+        );
+        return;
+      }
 
     } catch (e) {
       _msg("Login failed: $e");
