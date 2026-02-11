@@ -36,8 +36,8 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           child: ListView(
             children: [
               _field(nameController, "Student Name"),
-              _field(classController, "Class (eg: 8)"),
-              _field(sectionController, "Section (eg: A)"),
+              _field(classController, "Class"),
+              _field(sectionController, "Section"),
               _field(rollController, "Roll Number"),
               _field(parentEmailController, "Parent Email"),
 
@@ -85,12 +85,11 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
 
       final parentEmail = parentEmailController.text
           .trim()
-          .toLowerCase()
-          .replaceAll(' ', '');
+          .toLowerCase();
 
       String parentUid;
 
-      // 🔍 Check parent in Firestore
+      // 🔍 Check parent Firestore
       final parentQuery = await schoolRef
           .collection('parents')
           .where('email', isEqualTo: parentEmail)
@@ -98,41 +97,55 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           .get();
 
       if (parentQuery.docs.isEmpty) {
-        // ✅ CREATE FIREBASE AUTH USER
-        final userCredential =
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+
+        // ⚠️ SAVE ADMIN SESSION
+        final adminUser = FirebaseAuth.instance.currentUser;
+
+        // 👨‍👩‍👧 CREATE AUTH ACCOUNT FOR PARENT
+        final credential = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(
           email: parentEmail,
-          password: 'parent@123', // default password
+          password: "parent@123",
         );
 
-        parentUid = userCredential.user!.uid;
+        parentUid = credential.user!.uid;
 
-        // ✅ SAVE PARENT PROFILE
+        // 📄 CREATE PARENT PROFILE
         await schoolRef.collection('parents').doc(parentUid).set({
           'email': parentEmail,
           'firstLogin': true,
           'createdAt': FieldValue.serverTimestamp(),
         });
+
+        // 🔐 LOGIN BACK AS ADMIN
+        if (adminUser != null) {
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: adminUser.email!,
+            password: "YOUR_ADMIN_PASSWORD",
+          );
+        }
+
       } else {
         parentUid = parentQuery.docs.first.id;
       }
 
-      // 🎓 CREATE STUDENT (LINKED)
+      // 🎓 CREATE STUDENT (PERFECTLY LINKED)
       await schoolRef.collection('students').add({
         'name': nameController.text.trim(),
         'class': classController.text.trim(),
         'section': sectionController.text.trim(),
         'rollNo': rollController.text.trim(),
-        'parentUid': parentUid, // ✅ SAME UID
+        'parentUid': parentUid,
         'parentEmail': parentEmail,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Student & Parent created successfully")),
+        const SnackBar(content: Text("Student linked with parent successfully")),
       );
 
       Navigator.pop(context);
+
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text("Error: $e")));

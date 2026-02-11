@@ -22,8 +22,8 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
 
   Color get roleColor {
     switch (widget.role) {
@@ -58,135 +58,63 @@ class _LoginPageState extends State<LoginPage> {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              children: [
-                /// HEADER
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 30),
-                  decoration: BoxDecoration(
-                    color: roleColor,
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(roleIcon, size: 50, color: Colors.white),
-                      const SizedBox(height: 12),
-                      Text(
-                        "${widget.role} Login",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+          child: Column(
+            children: [
+              Icon(roleIcon, size: 70, color: Colors.white),
+              const SizedBox(height: 10),
+              Text("${widget.role} Login",
+                  style: const TextStyle(
+                      fontSize: 22,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold)),
+
+              const SizedBox(height: 30),
+
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
                 ),
+                child: Column(
+                  children: [
+                    _field(emailController, "Email"),
+                    const SizedBox(height: 15),
+                    _field(passwordController, "Password", hide: true),
 
-                const SizedBox(height: 28),
+                    const SizedBox(height: 25),
 
-                /// LOGIN CARD
-                Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
-                        blurRadius: 15,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      _input(
-                        controller: emailController,
-                        hint: "Email Address",
-                        icon: Icons.email_outlined,
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      _input(
-                        controller: passwordController,
-                        hint: "Password",
-                        icon: Icons.lock_outline,
-                        hide: true,
-                      ),
-
-                      const SizedBox(height: 22),
-
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: roleColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          onPressed: _loginUser,
-                          child: const Text(
-                            "Sign In",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: roleColor,
                         ),
+                        onPressed: _loginUser,
+                        child: const Text("Sign In",
+                            style: TextStyle(color: Colors.white)),
                       ),
-
-                      const SizedBox(height: 12),
-
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(
-                          "Back to Role Selection",
-                          style: TextStyle(color: roleColor),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              )
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _input({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    bool hide = false,
-  }) {
+  Widget _field(TextEditingController c, String hint, {bool hide = false}) {
     return TextField(
-      controller: controller,
+      controller: c,
       obscureText: hide,
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, color: roleColor),
         filled: true,
         fillColor: Colors.grey.shade100,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -195,12 +123,12 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _loginUser() async {
     try {
-      final user = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final result = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
 
-      final uid = user.user!.uid;
+      final uid = result.user!.uid;
       final roleCollection = widget.role.toLowerCase() + "s";
 
       final roleDoc = await FirebaseFirestore.instance
@@ -215,18 +143,17 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      /// ADMIN
+      // -------- ADMIN --------
       if (widget.role == "Admin") {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => AdminHome(schoolId: widget.schoolId),
-          ),
+              builder: (_) => AdminHome(schoolId: widget.schoolId)),
         );
         return;
       }
 
-      /// TEACHER
+      // -------- TEACHER --------
       if (widget.role == "Teacher") {
         if (roleDoc['firstLogin'] == true) {
           Navigator.pushReplacement(
@@ -235,6 +162,7 @@ class _LoginPageState extends State<LoginPage> {
               builder: (_) => ChangePasswordScreen(
                 schoolId: widget.schoolId,
                 userId: uid,
+                role: "Teacher",
               ),
             ),
           );
@@ -248,7 +176,7 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      /// PARENT
+      // -------- PARENT --------
       if (widget.role == "Parent") {
         if (roleDoc['firstLogin'] == true) {
           Navigator.pushReplacement(
@@ -257,6 +185,7 @@ class _LoginPageState extends State<LoginPage> {
               builder: (_) => ChangePasswordScreen(
                 schoolId: widget.schoolId,
                 userId: uid,
+                role: "Parent",
               ),
             ),
           );
@@ -267,16 +196,13 @@ class _LoginPageState extends State<LoginPage> {
           context,
           MaterialPageRoute(builder: (_) => const ParentHomePage()),
         );
-        return;
       }
-
     } catch (e) {
-      _msg("Login failed: $e");
+      _msg(e.toString());
     }
   }
 
-  void _msg(String text) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(text)));
+  void _msg(String t) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t)));
   }
 }

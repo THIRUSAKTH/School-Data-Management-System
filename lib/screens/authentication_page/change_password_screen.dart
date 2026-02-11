@@ -6,11 +6,13 @@ import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
 class ChangePasswordScreen extends StatefulWidget {
   final String schoolId;
   final String userId;
+  final String role; // Teacher or Parent
 
   const ChangePasswordScreen({
     super.key,
     required this.schoolId,
     required this.userId,
+    required this.role,
   });
 
   @override
@@ -18,13 +20,14 @@ class ChangePasswordScreen extends StatefulWidget {
 }
 
 class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
-  final TextEditingController newPasswordController = TextEditingController();
-  final TextEditingController confirmPasswordController =
-  TextEditingController();
+  final oldPasswordController = TextEditingController();
+  final newPasswordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
 
   bool loading = false;
   bool hide1 = true;
   bool hide2 = true;
+  bool hide3 = true;
 
   @override
   Widget build(BuildContext context) {
@@ -33,75 +36,76 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.lock_reset,
-                      size: 70, color: Colors.deepPurple),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_reset,
+                    size: 70, color: Colors.deepPurple),
 
-                  const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-                  const Text(
-                    "Change Your Password",
-                    style:
-                    TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+                const Text(
+                  "Change Your Password",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
 
-                  const SizedBox(height: 6),
+                const SizedBox(height: 6),
 
-                  const Text(
-                    "This is required on first login for security",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.black54),
-                  ),
+                const Text(
+                  "Enter old password first",
+                  style: TextStyle(color: Colors.black54),
+                ),
 
-                  const SizedBox(height: 24),
+                const SizedBox(height: 18),
 
-                  _passwordField(
-                    controller: newPasswordController,
-                    hint: "New Password",
-                    hide: hide1,
-                    toggle: () => setState(() => hide1 = !hide1),
-                  ),
+                _passwordField(
+                  controller: oldPasswordController,
+                  hint: "Old Password",
+                  hide: hide1,
+                  toggle: () => setState(() => hide1 = !hide1),
+                ),
 
-                  const SizedBox(height: 14),
+                const SizedBox(height: 12),
 
-                  _passwordField(
-                    controller: confirmPasswordController,
-                    hint: "Confirm Password",
-                    hide: hide2,
-                    toggle: () => setState(() => hide2 = !hide2),
-                  ),
+                _passwordField(
+                  controller: newPasswordController,
+                  hint: "New Password",
+                  hide: hide2,
+                  toggle: () => setState(() => hide2 = !hide2),
+                ),
 
-                  const SizedBox(height: 22),
+                const SizedBox(height: 12),
 
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                      ),
-                      onPressed: loading ? null : _updatePassword,
-                      child: loading
-                          ? const CircularProgressIndicator(
-                          color: Colors.white)
-                          : const Text(
-                        "Update Password",
-                        style: TextStyle(color: Colors.white),
-                      ),
+                _passwordField(
+                  controller: confirmPasswordController,
+                  hint: "Confirm Password",
+                  hide: hide3,
+                  toggle: () => setState(() => hide3 = !hide3),
+                ),
+
+                const SizedBox(height: 22),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepPurple,
                     ),
+                    onPressed: loading ? null : _updatePassword,
+                    child: loading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text("Update Password",
+                        style: TextStyle(color: Colors.white)),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -135,6 +139,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   Future<void> _updatePassword() async {
+    final oldPass = oldPasswordController.text.trim();
     final newPass = newPasswordController.text.trim();
     final confirmPass = confirmPasswordController.text.trim();
 
@@ -151,21 +156,39 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     setState(() => loading = true);
 
     try {
-      await FirebaseAuth.instance.currentUser!.updatePassword(newPass);
+      final user = FirebaseAuth.instance.currentUser!;
+      final email = user.email!;
+
+      // 🔐 Re-authentication (THIS FIXES YOUR ERROR)
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: oldPass,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+
+      // ✅ Update password
+      await user.updatePassword(newPass);
+
+      // ✅ Update Firestore firstLogin flag
+      final collection =
+      widget.role == "Teacher" ? "teachers" : "parents";
 
       await FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
-          .collection('teachers')
+          .collection(collection)
           .doc(widget.userId)
           .update({'firstLogin': false});
+
+      _msg("Password updated successfully");
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const TeacherHome()),
       );
     } catch (e) {
-      _msg("Error: $e");
+      _msg("Error: ${e.toString()}");
     }
 
     setState(() => loading = false);
