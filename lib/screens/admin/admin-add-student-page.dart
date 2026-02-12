@@ -5,10 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 class AdminAddStudentPage extends StatefulWidget {
   final String schoolId;
 
-  const AdminAddStudentPage({
-    super.key,
-    required this.schoolId,
-  });
+  const AdminAddStudentPage({super.key, required this.schoolId});
 
   @override
   State<AdminAddStudentPage> createState() => _AdminAddStudentPageState();
@@ -28,7 +25,13 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Add Student")),
+      appBar: AppBar(
+        title: const Text(
+          "Add Student",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -47,11 +50,12 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: loading ? null : _addStudent,
-                  child: loading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("Create Student"),
+                  child:
+                      loading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text("Create Student"),
                 ),
-              )
+              ),
             ],
           ),
         ),
@@ -83,30 +87,28 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           .collection('schools')
           .doc(widget.schoolId);
 
-      final parentEmail = parentEmailController.text
-          .trim()
-          .toLowerCase();
+      final parentEmail = parentEmailController.text.trim().toLowerCase();
 
       String parentUid;
 
       // 🔍 Check parent Firestore
-      final parentQuery = await schoolRef
-          .collection('parents')
-          .where('email', isEqualTo: parentEmail)
-          .limit(1)
-          .get();
+      final parentQuery =
+          await schoolRef
+              .collection('parents')
+              .where('email', isEqualTo: parentEmail)
+              .limit(1)
+              .get();
 
       if (parentQuery.docs.isEmpty) {
-
         // ⚠️ SAVE ADMIN SESSION
         final adminUser = FirebaseAuth.instance.currentUser;
 
         // 👨‍👩‍👧 CREATE AUTH ACCOUNT FOR PARENT
         final credential = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(
-          email: parentEmail,
-          password: "parent@123",
-        );
+              email: parentEmail,
+              password: "parent@123",
+            );
 
         parentUid = credential.user!.uid;
 
@@ -124,7 +126,6 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
             password: "YOUR_ADMIN_PASSWORD",
           );
         }
-
       } else {
         parentUid = parentQuery.docs.first.id;
       }
@@ -141,14 +142,16 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Student linked with parent successfully")),
+        const SnackBar(
+          content: Text("Student linked with parent successfully"),
+        ),
       );
 
       Navigator.pop(context);
-
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Error: $e")));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
 
     setState(() => loading = false);
