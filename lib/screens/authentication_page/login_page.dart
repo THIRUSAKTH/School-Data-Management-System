@@ -194,8 +194,12 @@ class _LoginPageState extends State<LoginPage> {
 
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const ParentHomePage()),
+          MaterialPageRoute(
+            builder: (_) => const ParentHomePage(),
+            settings: RouteSettings(arguments: widget.schoolId),
+          ),
         );
+
       }
     } catch (e) {
       _msg(e.toString());
