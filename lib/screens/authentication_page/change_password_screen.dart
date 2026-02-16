@@ -185,7 +185,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const TeacherHome()),
+        MaterialPageRoute(builder: (_) => const TeacherHome(schoolId: '',)),
       );
     } catch (e) {
       _msg("Error: ${e.toString()}");

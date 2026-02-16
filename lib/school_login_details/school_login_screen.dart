@@ -204,7 +204,7 @@ class SchoolLoginScreen extends StatelessWidget {
                           child: OutlinedButton(
                             style: OutlinedButton.styleFrom(
                               side: const BorderSide(
-                                  color: Colors.deepPurple),
+                                  color: Colors.black),
                               shape: RoundedRectangleBorder(
                                 borderRadius:
                                 BorderRadius.circular(12),

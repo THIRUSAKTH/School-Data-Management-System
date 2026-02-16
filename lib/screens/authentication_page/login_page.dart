@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:schoolprojectjan/screens/admin/admin_home.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
@@ -25,10 +25,12 @@ class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
+  bool hidePassword = true;
+
   Color get roleColor {
     switch (widget.role) {
       case "Admin":
-        return Colors.deepPurple;
+        return Colors.cyan;
       case "Teacher":
         return Colors.green;
       case "Parent":
@@ -62,11 +64,14 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               Icon(roleIcon, size: 70, color: Colors.white),
               const SizedBox(height: 10),
-              Text("${widget.role} Login",
-                  style: const TextStyle(
-                      fontSize: 22,
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold)),
+              Text(
+                "${widget.role} Login",
+                style: const TextStyle(
+                  fontSize: 22,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
 
               const SizedBox(height: 30),
 
@@ -92,8 +97,10 @@ class _LoginPageState extends State<LoginPage> {
                           backgroundColor: roleColor,
                         ),
                         onPressed: _loginUser,
-                        child: const Text("Sign In",
-                            style: TextStyle(color: Colors.white)),
+                        child: const Text(
+                          "Sign In",
+                          style: TextStyle(color: Colors.white),
+                        ),
                       ),
                     ),
                   ],
@@ -106,24 +113,43 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  // ================= INPUT =================
+
   Widget _field(TextEditingController c, String hint, {bool hide = false}) {
     return TextField(
       controller: c,
-      obscureText: hide,
+      obscureText: hide ? hidePassword : false,
       decoration: InputDecoration(
         hintText: hint,
         filled: true,
         fillColor: Colors.grey.shade100,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        suffixIcon: hide
+            ? IconButton(
+          icon: Icon(
+            hidePassword
+                ? Icons.visibility_off
+                : Icons.visibility,
+          ),
+          onPressed: () {
+            setState(() {
+              hidePassword = !hidePassword;
+            });
+          },
+        )
+            : null,
       ),
     );
   }
 
-  // ================= LOGIN LOGIC =================
+  // ================= LOGIN =================
 
   Future<void> _loginUser() async {
     try {
-      final result = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final result = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
@@ -143,17 +169,20 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // -------- ADMIN --------
+      // ---------- ADMIN ----------
       if (widget.role == "Admin") {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-              builder: (_) => AdminHome(schoolId: widget.schoolId)),
+            builder: (_) => AdminHome(
+              schoolId: widget.schoolId,
+            ),
+          ),
         );
         return;
       }
 
-      // -------- TEACHER --------
+      // ---------- TEACHER ----------
       if (widget.role == "Teacher") {
         if (roleDoc['firstLogin'] == true) {
           Navigator.pushReplacement(
@@ -171,12 +200,16 @@ class _LoginPageState extends State<LoginPage> {
 
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const TeacherHome()),
+          MaterialPageRoute(
+            builder: (_) => TeacherHome(
+              schoolId: widget.schoolId,
+            ),
+          ),
         );
         return;
       }
 
-      // -------- PARENT --------
+      // ---------- PARENT ----------
       if (widget.role == "Parent") {
         if (roleDoc['firstLogin'] == true) {
           Navigator.pushReplacement(
@@ -195,18 +228,20 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => const ParentHomePage(),
-            settings: RouteSettings(arguments: widget.schoolId),
+            builder: (_) => ParentHomePage(
+              schoolId: widget.schoolId,
+            ),
           ),
         );
-
       }
+
     } catch (e) {
-      _msg(e.toString());
+      _msg("Login failed: ${e.toString()}");
     }
   }
 
   void _msg(String t) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(t)));
   }
 }

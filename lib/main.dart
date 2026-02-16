@@ -23,7 +23,7 @@ class MyApp extends StatelessWidget {
       home: GetStarted(),
       routes: {
         '/parentLogin': (_) => const ParentLoginPage(),
-        '/parentHome': (_) => const ParentHomePage(),
+        '/parentHome': (_) => const ParentHomePage(schoolId: '',),
       },
     );
   }

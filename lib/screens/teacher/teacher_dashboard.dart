@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:schoolprojectjan/screens/teacher/mark_attendance_page.dart';
 
 class TeacherDashboard extends StatelessWidget {
-  const TeacherDashboard({super.key});
+  final String schoolId;
+
+  const TeacherDashboard({
+    super.key,
+    required this.schoolId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -16,25 +22,9 @@ class TeacherDashboard extends StatelessWidget {
           style: TextStyle(color: Colors.black, fontSize: 16),
         ),
         actions: [
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_none, color: Colors.black),
-                onPressed: () {},
-              ),
-              Positioned(
-                right: 12,
-                top: 12,
-                child: Container(
-                  height: 8,
-                  width: 8,
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              )
-            ],
+          IconButton(
+            icon: const Icon(Icons.notifications_none, color: Colors.black),
+            onPressed: () {},
           )
         ],
       ),
@@ -43,17 +33,14 @@ class TeacherDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// TEACHER NAME + DATE
+            /// TEACHER NAME
             const Text(
               "Prof. Anderson",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
-              "Friday, January 2, 2026",
+              DateTime.now().toString().split(' ')[0],
               style: TextStyle(color: Colors.grey.shade600),
             ),
 
@@ -67,26 +54,38 @@ class TeacherDashboard extends StatelessWidget {
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
               childAspectRatio: 1.1,
-              children: const [
+              children: [
                 _ActionCard(
                   title: "Mark Attendance",
                   icon: Icons.fact_check,
                   color: Colors.purple,
+                  schoolId: schoolId,
+                  className: "10",
+                  section: "A",
                 ),
                 _ActionCard(
                   title: "Post Homework",
                   icon: Icons.menu_book,
                   color: Colors.green,
+                  schoolId: schoolId,
+                  className: "10",
+                  section: "A",
                 ),
                 _ActionCard(
                   title: "View Timetable",
                   icon: Icons.calendar_month,
                   color: Colors.orange,
+                  schoolId: schoolId,
+                  className: "10",
+                  section: "A",
                 ),
                 _ActionCard(
                   title: "Announcements",
                   icon: Icons.notifications,
                   color: Colors.blue,
+                  schoolId: schoolId,
+                  className: "10",
+                  section: "A",
                 ),
               ],
             ),
@@ -96,44 +95,21 @@ class TeacherDashboard extends StatelessWidget {
             /// TODAY SCHEDULE
             const Text(
               "Today's Schedule",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
 
-            _scheduleTile(
-              time: "08:00",
-              subject: "Mathematics",
-              className: "Grade 10-A",
-              room: "Room 201",
-            ),
-            _scheduleTile(
-              time: "09:00",
-              subject: "Mathematics",
-              className: "Grade 10-B",
-              room: "Room 201",
-            ),
-            _scheduleTile(
-              time: "11:00",
-              subject: "Algebra",
-              className: "Grade 9-A",
-              room: "Room 105",
-            ),
+            _scheduleTile("08:00", "Mathematics", "10-A", "Room 201"),
+            _scheduleTile("09:00", "Mathematics", "10-B", "Room 201"),
+            _scheduleTile("11:00", "Algebra", "9-A", "Room 105"),
           ],
         ),
       ),
     );
   }
 
-  /// SCHEDULE TILE
-  Widget _scheduleTile({
-    required String time,
-    required String subject,
-    required String className,
-    required String room,
-  }) {
+  Widget _scheduleTile(
+      String time, String subject, String className, String room) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -162,40 +138,64 @@ class TeacherDashboard extends StatelessWidget {
   }
 }
 
-/// ACTION CARD
+/// ================= ACTION CARD =================
+
 class _ActionCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Color color;
+  final String schoolId;
+  final String className;
+  final String section;
 
   const _ActionCard({
     required this.title,
     required this.icon,
     required this.color,
+    required this.schoolId,
+    required this.className,
+    required this.section,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: Colors.white, size: 32),
-          const Spacer(),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () {
+        if (title == "Mark Attendance") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MarkAttendancePage(
+                schoolId: schoolId,
+                className: className,
+                section: section,
+              ),
             ),
-          ),
-        ],
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: Colors.white, size: 32),
+            const Spacer(),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

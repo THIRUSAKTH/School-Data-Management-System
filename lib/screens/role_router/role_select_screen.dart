@@ -8,7 +8,7 @@ class RoleSelectScreen extends StatelessWidget {
 
   final List<Map<String, dynamic>> details = [
     {
-      "color": Colors.deepPurple,
+      "color": Colors.cyan,
       "role": "Admin",
       "roleDescription": "School Management & Administration",
       "text": "Sign in as Admin",
@@ -32,7 +32,7 @@ class RoleSelectScreen extends StatelessWidget {
     final bool isWeb = MediaQuery.of(context).size.width >= 900;
 
     return Scaffold(
-      backgroundColor: const Color(0xff851ef3),
+      backgroundColor:Colors.cyan,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Center(
@@ -44,7 +44,7 @@ class RoleSelectScreen extends StatelessWidget {
                   children: [
                     const CircleAvatar(
                       radius: 50,
-                      backgroundColor: Color(0xff9c45f8),
+                      backgroundColor: Colors.cyanAccent,
                       child: Icon(
                         Icons.school_outlined,
                         color: Colors.white,

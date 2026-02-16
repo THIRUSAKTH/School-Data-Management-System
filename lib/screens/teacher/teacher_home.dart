@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:schoolprojectjan/screens/teacher/class_students_page.dart';
-import 'package:schoolprojectjan/screens/teacher/teacher_timetable_page.dart';
-import 'homework_post_page.dart';
 import 'teacher_dashboard.dart';
 
 class TeacherHome extends StatefulWidget {
-  const TeacherHome({super.key});
+  final String schoolId;
+
+  const TeacherHome({
+    super.key,
+    required this.schoolId,
+  });
 
   @override
   State<TeacherHome> createState() => _TeacherHomeState();
@@ -14,12 +16,18 @@ class TeacherHome extends StatefulWidget {
 class _TeacherHomeState extends State<TeacherHome> {
   int _index = 0;
 
-  final List<Widget> _pages = const [
-    TeacherDashboard(),
-    ClassStudentsPage(),
-    HomeworkPostPage(),
-    TeacherTimetablePage(),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      TeacherDashboard(schoolId: widget.schoolId),
+      const Center(child: Text("Attendance Page")),
+      const Center(child: Text("Homework Page")),
+      const Center(child: Text("Timetable Page")),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,8 +55,8 @@ class _TeacherHomeState extends State<TeacherHome> {
             label: "Homework",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined),
-            label: "TimeTable",
+            icon: Icon(Icons.calendar_month),
+            label: "Timetable",
           ),
         ],
       ),
