@@ -18,16 +18,19 @@ class MarkAttendancePage extends StatefulWidget {
 }
 
 class _MarkAttendancePageState extends State<MarkAttendancePage> {
-  Map<String, bool> attendance = {};
+  final Map<String, bool> _attendance = {};
+
+  String get today =>
+      DateTime.now().toIso8601String().split("T")[0];
 
   @override
   Widget build(BuildContext context) {
-    final classKey = "${widget.className}_${widget.section}";
-
     return Scaffold(
       appBar: AppBar(
-        title: Text("Attendance ${widget.className}-${widget.section}"),
         backgroundColor: Colors.green,
+        title: Text(
+          "Attendance ${widget.className}-${widget.section}",
+        ),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -36,31 +39,45 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
             .collection('students')
             .where('class', isEqualTo: widget.className)
             .where('section', isEqualTo: widget.section)
+            .orderBy('rollNo')
             .snapshots(),
-        builder: (context, snap) {
-          if (!snap.hasData) {
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (snap.data!.docs.isEmpty) {
+          if (snapshot.data!.docs.isEmpty) {
             return const Center(child: Text("No students found"));
           }
 
           return ListView(
-            children: snap.data!.docs.map((doc) {
+            padding: const EdgeInsets.only(bottom: 100),
+            children: snapshot.data!.docs.map((doc) {
               final studentId = doc.id;
               final name = doc['name'];
 
-              attendance.putIfAbsent(studentId, () => false);
+              _attendance.putIfAbsent(studentId, () => true);
 
-              return CheckboxListTile(
-                title: Text(name),
-                value: attendance[studentId],
-                onChanged: (v) {
-                  setState(() {
-                    attendance[studentId] = v!;
-                  });
-                },
+              return Card(
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: ListTile(
+                  title: Text(
+                    name,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  trailing: Switch(
+                    value: _attendance[studentId]!,
+                    activeColor: Colors.green,
+                    onChanged: (v) {
+                      setState(() {
+                        _attendance[studentId] = v;
+                      });
+                    },
+                  ),
+                ),
               );
             }).toList(),
           );
@@ -76,20 +93,25 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
   }
 
   Future<void> _saveAttendance() async {
-    final date = DateTime.now().toString().split(' ')[0];
-    final classKey = "${widget.className}_${widget.section}";
-
-    await FirebaseFirestore.instance
+    final ref = FirebaseFirestore.instance
         .collection('schools')
         .doc(widget.schoolId)
         .collection('attendance')
-        .doc(date)
-        .set({
-      classKey: attendance,
+        .doc(today);
+
+    // create date doc
+    await ref.set({
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text("Attendance saved")));
+    // save class attendance
+    await ref
+        .collection('${widget.className}-${widget.section}')
+        .doc('records')
+        .set(_attendance);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Attendance saved successfully")),
+    );
   }
 }
