@@ -36,17 +36,21 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
             .collection('schools')
             .doc(widget.schoolId)
             .collection('students')
-            .where('class', isEqualTo: widget.className)
-            .where('section', isEqualTo: widget.section)
-            .orderBy('rollNo')
-            .snapshots(),
+            .where('class', isEqualTo: widget.className.trim())
+            .where('section', isEqualTo: widget.section.trim())
+            .snapshots(), // 🔥 removed orderBy (avoid index issue)
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text("No students found"));
+            return const Center(
+              child: Text(
+                "No students found for this class",
+                style: TextStyle(fontSize: 16),
+              ),
+            );
           }
 
           final students = snapshot.data!.docs;
@@ -57,16 +61,39 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
             itemBuilder: (context, index) {
               final doc = students[index];
               final id = doc.id;
-              final name = doc['name'];
+              final data = doc.data() as Map<String, dynamic>;
 
-              attendance.putIfAbsent(id, () => true); // default present
+              final name = data['name'] ?? "No Name";
+              final rollNo = data['rollNo'] ?? "";
+
+              attendance.putIfAbsent(id, () => true); // default Present
 
               return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                margin: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 6),
                 child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.green.withOpacity(0.2),
+                    child: Text(
+                      rollNo.toString(),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green),
+                    ),
+                  ),
                   title: Text(
                     name,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    attendance[id]! ? "Present" : "Absent",
+                    style: TextStyle(
+                      color: attendance[id]!
+                          ? Colors.green
+                          : Colors.red,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   trailing: Switch(
                     value: attendance[id]!,
@@ -94,21 +121,27 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
   }
 
   Future<void> _saveAttendance() async {
-    final dateRef = FirebaseFirestore.instance
-        .collection('schools')
-        .doc(widget.schoolId)
-        .collection('attendance')
-        .doc(today);
+    try {
+      final ref = FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('attendance')
+          .doc(today);
 
-    await dateRef.set({
-      'class_${widget.className}_${widget.section}': attendance,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      await ref.set({
+        '${widget.className}_${widget.section}': attendance,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Attendance saved successfully")),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Attendance saved successfully")),
+      );
 
-    Navigator.pop(context);
+      Navigator.pop(context);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
   }
 }
