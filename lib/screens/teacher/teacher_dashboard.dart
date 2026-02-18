@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:schoolprojectjan/screens/teacher/mark_attendance_page.dart';
+import 'select_class_attendance_page.dart';
 
 class TeacherDashboard extends StatelessWidget {
   final String schoolId;
@@ -11,6 +11,9 @@ class TeacherDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final today =
+        "${DateTime.now().day}-${DateTime.now().month}-${DateTime.now().year}";
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
@@ -33,14 +36,13 @@ class TeacherDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// TEACHER NAME
             const Text(
               "Prof. Anderson",
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
             Text(
-              DateTime.now().toString().split(' ')[0],
+              today,
               style: TextStyle(color: Colors.grey.shade600),
             ),
 
@@ -59,40 +61,40 @@ class TeacherDashboard extends StatelessWidget {
                   title: "Mark Attendance",
                   icon: Icons.fact_check,
                   color: Colors.purple,
-                  schoolId: schoolId,
-                  className: "10",
-                  section: "A",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SelectClassAttendancePage(
+                          schoolId: schoolId,
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 _ActionCard(
                   title: "Post Homework",
                   icon: Icons.menu_book,
                   color: Colors.green,
-                  schoolId: schoolId,
-                  className: "10",
-                  section: "A",
+                  onTap: () {},
                 ),
                 _ActionCard(
                   title: "View Timetable",
                   icon: Icons.calendar_month,
                   color: Colors.orange,
-                  schoolId: schoolId,
-                  className: "10",
-                  section: "A",
+                  onTap: () {},
                 ),
                 _ActionCard(
                   title: "Announcements",
                   icon: Icons.notifications,
                   color: Colors.blue,
-                  schoolId: schoolId,
-                  className: "10",
-                  section: "A",
+                  onTap: () {},
                 ),
               ],
             ),
 
             const SizedBox(height: 24),
 
-            /// TODAY SCHEDULE
             const Text(
               "Today's Schedule",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -144,37 +146,20 @@ class _ActionCard extends StatelessWidget {
   final String title;
   final IconData icon;
   final Color color;
-  final String schoolId;
-  final String className;
-  final String section;
+  final VoidCallback onTap;
 
   const _ActionCard({
     required this.title,
     required this.icon,
     required this.color,
-    required this.schoolId,
-    required this.className,
-    required this.section,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(18),
-      onTap: () {
-        if (title == "Mark Attendance") {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => MarkAttendancePage(
-                schoolId: schoolId,
-                className: className,
-                section: section,
-              ),
-            ),
-          );
-        }
-      },
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(

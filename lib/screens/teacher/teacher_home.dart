@@ -21,11 +21,12 @@ class _TeacherHomeState extends State<TeacherHome> {
   @override
   void initState() {
     super.initState();
+
     _pages = [
       TeacherDashboard(schoolId: widget.schoolId),
-      const Center(child: Text("Attendance Page")),
-      const Center(child: Text("Homework Page")),
-      const Center(child: Text("Timetable Page")),
+      const Center(child: Text("Attendance Coming Soon")),
+      const Center(child: Text("Homework Coming Soon")),
+      const Center(child: Text("Timetable Coming Soon")),
     ];
   }
 
