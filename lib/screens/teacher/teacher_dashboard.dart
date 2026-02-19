@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'select_class_attendance_page.dart';
+import 'attendance_report_page.dart'; // you will create next
 
 class TeacherDashboard extends StatelessWidget {
   final String schoolId;
@@ -21,9 +22,9 @@ class TeacherDashboard extends StatelessWidget {
         elevation: 0,
         backgroundColor: Colors.white,
         title: const Text(
-          "Welcome back,",
-          style: TextStyle(color: Colors.black, fontSize: 16),
-        ),
+          "Teacher Dashboard",
+          style: TextStyle(color: Colors.black,fontWeight: FontWeight.bold),
+        ),centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none, color: Colors.black),
@@ -31,31 +32,32 @@ class TeacherDashboard extends StatelessWidget {
           )
         ],
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "Prof. Anderson",
+              "Welcome Teacher 👋",
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 6),
-            Text(
-              today,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
+            const SizedBox(height: 4),
+            Text(today, style: TextStyle(color: Colors.grey.shade600)),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 22),
 
-            /// ACTION GRID
-            GridView.count(
-              crossAxisCount: 2,
+            /// ===== ACTION GRID =====
+            GridView(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 1.1,
+              gridDelegate:
+              const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 1.15,
+              ),
               children: [
                 _ActionCard(
                   title: "Mark Attendance",
@@ -65,76 +67,74 @@ class TeacherDashboard extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => SelectClassAttendancePage(
-                          schoolId: schoolId,
-                        ),
+                        builder: (_) =>
+                            SelectClassAttendancePage(schoolId: schoolId),
                       ),
                     );
                   },
                 ),
+
+                _ActionCard(
+                  title: "Attendance Report",
+                  icon: Icons.bar_chart,
+                  color: Colors.indigo,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            AttendanceReportPage(schoolId: schoolId),
+                      ),
+                    );
+                  },
+                ),
+
                 _ActionCard(
                   title: "Post Homework",
                   icon: Icons.menu_book,
                   color: Colors.green,
                   onTap: () {},
                 ),
-                _ActionCard(
-                  title: "View Timetable",
-                  icon: Icons.calendar_month,
-                  color: Colors.orange,
-                  onTap: () {},
-                ),
+
                 _ActionCard(
                   title: "Announcements",
                   icon: Icons.notifications,
-                  color: Colors.blue,
+                  color: Colors.orange,
                   onTap: () {},
                 ),
               ],
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 26),
 
+            /// ===== SCHEDULE (OPTIONAL) =====
             const Text(
-              "Today's Schedule",
+              "Today's Classes",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
 
-            _scheduleTile("08:00", "Mathematics", "10-A", "Room 201"),
-            _scheduleTile("09:00", "Mathematics", "10-B", "Room 201"),
-            _scheduleTile("11:00", "Algebra", "9-A", "Room 105"),
+            _scheduleTile("08:00", "Math", "10-A"),
+            _scheduleTile("09:00", "Math", "10-B"),
+            _scheduleTile("11:00", "Algebra", "9-A"),
           ],
         ),
       ),
     );
   }
 
-  Widget _scheduleTile(
-      String time, String subject, String className, String room) {
+  Widget _scheduleTile(String time, String subject, String className) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: Colors.deepPurple.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Center(
-            child: Text(
-              time,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.deepPurple,
-              ),
-            ),
-          ),
+        leading: CircleAvatar(
+          backgroundColor: Colors.deepPurple.withOpacity(.15),
+          child: Text(time,
+              style: const TextStyle(fontSize: 12, color: Colors.deepPurple)),
         ),
         title: Text(subject, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text("$className • $room"),
+        subtitle: Text("Class $className"),
       ),
     );
   }
@@ -165,6 +165,13 @@ class _ActionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(.3),
+              blurRadius: 8,
+              offset: const Offset(0, 5),
+            )
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
