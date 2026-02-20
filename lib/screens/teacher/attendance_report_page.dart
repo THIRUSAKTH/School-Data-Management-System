@@ -20,9 +20,11 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: AppBar(iconTheme: IconThemeData(color: Colors.white
+
+      ),
         backgroundColor: Colors.indigo,
-        title: const Text("Attendance Report"),
+        title: const Text("Attendance Report",style: TextStyle(color: Colors.white,fontWeight: FontWeight.bold),),
       ),
 
       body: Column(

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'select_class_attendance_page.dart';
-import 'attendance_report_page.dart'; // you will create next
+import 'attendance_report_page.dart';
 
 class TeacherDashboard extends StatelessWidget {
   final String schoolId;
@@ -23,8 +23,8 @@ class TeacherDashboard extends StatelessWidget {
         backgroundColor: Colors.white,
         title: const Text(
           "Teacher Dashboard",
-          style: TextStyle(color: Colors.black,fontWeight: FontWeight.bold),
-        ),centerTitle: true,
+          style: TextStyle(color: Colors.black),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none, color: Colors.black),
@@ -32,7 +32,6 @@ class TeacherDashboard extends StatelessWidget {
           )
         ],
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -42,22 +41,19 @@ class TeacherDashboard extends StatelessWidget {
               "Welcome Teacher 👋",
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(today, style: TextStyle(color: Colors.grey.shade600)),
 
-            const SizedBox(height: 22),
+            const SizedBox(height: 20),
 
-            /// ===== ACTION GRID =====
-            GridView(
+            /// ACTION GRID
+            GridView.count(
+              crossAxisCount: 2,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 1.15,
-              ),
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 1.1,
               children: [
                 _ActionCard(
                   title: "Mark Attendance",
@@ -105,18 +101,17 @@ class TeacherDashboard extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 26),
+            const SizedBox(height: 24),
 
-            /// ===== SCHEDULE (OPTIONAL) =====
             const Text(
               "Today's Classes",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
 
-            _scheduleTile("08:00", "Math", "10-A"),
-            _scheduleTile("09:00", "Math", "10-B"),
-            _scheduleTile("11:00", "Algebra", "9-A"),
+            _scheduleTile("08:00", "Math", "Class 10-A"),
+            _scheduleTile("09:00", "Math", "Class 10-B"),
+            _scheduleTile("11:00", "Algebra", "Class 9-A"),
           ],
         ),
       ),
@@ -125,16 +120,15 @@ class TeacherDashboard extends StatelessWidget {
 
   Widget _scheduleTile(String time, String subject, String className) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Colors.deepPurple.withOpacity(.15),
-          child: Text(time,
-              style: const TextStyle(fontSize: 12, color: Colors.deepPurple)),
+          backgroundColor: Colors.deepPurple.withOpacity(0.1),
+          child: Text(time, style: const TextStyle(fontSize: 12)),
         ),
         title: Text(subject, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text("Class $className"),
+        subtitle: Text(className),
       ),
     );
   }
@@ -165,13 +159,6 @@ class _ActionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(.3),
-              blurRadius: 8,
-              offset: const Offset(0, 5),
-            )
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
