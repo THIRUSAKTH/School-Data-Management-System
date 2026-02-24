@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
-import 'package:schoolprojectjan/screens/admin/student_management_page.dart';
-import 'package:schoolprojectjan/screens/admin/admin_attendance_overview.dart';
-import 'package:schoolprojectjan/screens/admin/admin_feeupload_page.dart';
-import 'package:schoolprojectjan/screens/admin/admin_fee_report_page.dart';
+import 'student_management_page.dart';
+import 'admin_attendance_overview.dart';
+import 'admin_feeupload_page.dart';
+import 'admin_fee_report_page.dart';
 
-import 'teacher_management_page.dart'; // ✅ NEW HUB PAGE
+import 'teacher_management_page.dart';
+import 'create_class_page.dart';
+import 'class_management_page.dart';
 
 class AdminDashboard extends StatelessWidget {
   final String schoolId;
@@ -37,7 +39,7 @@ class AdminDashboard extends StatelessWidget {
               context,
               Icons.school,
               "Teachers",
-              TeacherManagementPage(schoolId: schoolId), // ⭐ UPDATED
+              TeacherManagementPage(schoolId: schoolId),
             ),
 
             _drawerItem(
@@ -45,6 +47,21 @@ class AdminDashboard extends StatelessWidget {
               Icons.groups,
               "Students",
               StudentManagementPage(schoolId: schoolId),
+            ),
+
+            // ⭐ CLASS SYSTEM
+            _drawerItem(
+              context,
+              Icons.add_box,
+              "Create Class",
+              CreateClassPage(schoolId: schoolId),
+            ),
+
+            _drawerItem(
+              context,
+              Icons.class_,
+              "Manage Classes",
+              ClassManagementPage(schoolId: schoolId),
             ),
 
             _drawerItem(
@@ -80,14 +97,17 @@ class AdminDashboard extends StatelessWidget {
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: GridView.count(
-          crossAxisCount: MediaQuery.of(context).size.width > 800 ? 4 : 2,
+          crossAxisCount:
+          MediaQuery.of(context).size.width > 800 ? 4 : 2,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
           children: const [
             DashboardCard("Students", "520", Icons.people, Colors.blue),
             DashboardCard("Teachers", "42", Icons.school, Colors.purple),
-            DashboardCard("Fees Pending", "₹1,24,000", Icons.currency_rupee, Colors.orange),
-            DashboardCard("Attendance", "94%", Icons.check_circle, Colors.green),
+            DashboardCard("Fees Pending", "₹1,24,000",
+                Icons.currency_rupee, Colors.orange),
+            DashboardCard("Attendance", "94%",
+                Icons.check_circle, Colors.green),
           ],
         ),
       ),
@@ -114,7 +134,7 @@ class AdminDashboard extends StatelessWidget {
   }
 }
 
-/* ================================================= */
+/* ================= DASHBOARD CARD ================= */
 
 class DashboardCard extends StatelessWidget {
   final String title;
@@ -159,7 +179,8 @@ class DashboardCard extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          Text(title, style: const TextStyle(color: Colors.grey)),
+          Text(title,
+              style: const TextStyle(color: Colors.grey)),
         ],
       ),
     );

@@ -61,8 +61,6 @@ class TeacherListPage extends StatelessWidget {
 
                   title: Text(
                     name,
-
-
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
 
