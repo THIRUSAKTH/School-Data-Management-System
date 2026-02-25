@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:schoolprojectjan/screens/admin/select_class_for_attendance_page.dart';
 
 import 'student_management_page.dart';
 import 'admin_attendance_overview.dart';
 import 'admin_feeupload_page.dart';
 import 'admin_fee_report_page.dart';
-
 import 'teacher_management_page.dart';
 import 'create_class_page.dart';
 import 'class_management_page.dart';
@@ -12,10 +12,7 @@ import 'class_management_page.dart';
 class AdminDashboard extends StatelessWidget {
   final String schoolId;
 
-  const AdminDashboard({
-    super.key,
-    required this.schoolId,
-  });
+  const AdminDashboard({super.key, required this.schoolId});
 
   @override
   Widget build(BuildContext context) {
@@ -24,74 +21,69 @@ class AdminDashboard extends StatelessWidget {
 
       drawer: Drawer(
         child: ListView(
+          padding: EdgeInsets.zero,
           children: [
+
+            /// 🔷 HEADER
             const DrawerHeader(
               decoration: BoxDecoration(color: Colors.blue),
-              child: Center(
-                child: Text(
-                  "Admin Panel",
-                  style: TextStyle(color: Colors.white, fontSize: 20),
-                ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.admin_panel_settings,
+                      color: Colors.white, size: 40),
+                  SizedBox(height: 8),
+                  Text(
+                    "Admin Panel",
+                    style: TextStyle(color: Colors.white, fontSize: 20),
+                  ),
+                ],
               ),
             ),
 
-            _drawerItem(
-              context,
-              Icons.school,
-              "Teachers",
-              TeacherManagementPage(schoolId: schoolId),
-            ),
+            /// 👩‍🏫 MANAGEMENT
+            _sectionTitle("Management"),
 
-            _drawerItem(
-              context,
-              Icons.groups,
-              "Students",
-              StudentManagementPage(schoolId: schoolId),
-            ),
+            _drawerItem(context, Icons.school, "Teachers",
+                TeacherManagementPage(schoolId: schoolId)),
 
-            // ⭐ CLASS SYSTEM
-            _drawerItem(
-              context,
-              Icons.add_box,
-              "Create Class",
-              CreateClassPage(schoolId: schoolId),
-            ),
+            _drawerItem(context, Icons.groups, "Students",
+                StudentManagementPage(schoolId: schoolId)),
 
-            _drawerItem(
-              context,
-              Icons.class_,
-              "Manage Classes",
-              ClassManagementPage(schoolId: schoolId),
-            ),
+            /// 🏫 CLASS SYSTEM
+            _sectionTitle("Class System"),
 
-            _drawerItem(
-              context,
-              Icons.fact_check,
-              "Attendance Overview",
-              AdminAttendanceOverviewPage(),
-            ),
+            _drawerItem(context, Icons.add_box, "Create Class",
+                CreateClassPage(schoolId: schoolId)),
 
-            _drawerItem(
-              context,
-              Icons.currency_rupee,
-              "Upload Fees",
-              AdminFeeUploadPage(),
-            ),
+            _drawerItem(context, Icons.class_, "Manage Classes",
+                ClassManagementPage(schoolId: schoolId)),
 
-            _drawerItem(
-              context,
-              Icons.analytics,
-              "Fees Report",
-              AdminFeeReportPage(),
-            ),
+            /// 📊 ATTENDANCE
+            _sectionTitle("Attendance"),
+
+            _drawerItem(context, Icons.fact_check, "Attendance Overview",
+                AdminAttendanceOverviewPage()),
+
+            _drawerItem(context, Icons.bar_chart, "Attendance Reports",
+                SelectClassForAttendancePage(schoolId: schoolId)),
+
+            /// 💰 FEES
+            _sectionTitle("Fees"),
+
+            _drawerItem(context, Icons.currency_rupee, "Upload Fees",
+                AdminFeeUploadPage()),
+
+            _drawerItem(context, Icons.analytics, "Fees Report",
+                AdminFeeReportPage()),
           ],
         ),
       ),
 
       appBar: AppBar(
+        title: const Text("Admin Dashboard"),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
-        title: const Text("Admin Dashboard"),
       ),
 
       body: Padding(
@@ -114,6 +106,8 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
+  /// ================= UI HELPERS =================
+
   Widget _drawerItem(
       BuildContext context,
       IconData icon,
@@ -121,7 +115,7 @@ class AdminDashboard extends StatelessWidget {
       Widget page,
       ) {
     return ListTile(
-      leading: Icon(icon),
+      leading: Icon(icon, color: Colors.blueGrey),
       title: Text(title),
       onTap: () {
         Navigator.pop(context);
@@ -130,6 +124,20 @@ class AdminDashboard extends StatelessWidget {
           MaterialPageRoute(builder: (_) => page),
         );
       },
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 0, 4),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: Colors.grey,
+        ),
+      ),
     );
   }
 }
