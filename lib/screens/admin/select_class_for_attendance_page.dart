@@ -25,7 +25,7 @@ class _SelectClassForAttendancePageState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Select Class for Attendance"),
+        title: const Text("Select Class for Attendance",style: TextStyle(fontWeight: FontWeight.bold),),
       ),
       body: Column(
         children: [
