@@ -31,7 +31,7 @@ class _SelectClassForAttendancePageState
         children: [
           /// 📅 Simple month display (we can upgrade later)
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(7.9),
             child: Text(
               "Month: $selectedMonth / $selectedYear",
               style: const TextStyle(fontWeight: FontWeight.bold),
