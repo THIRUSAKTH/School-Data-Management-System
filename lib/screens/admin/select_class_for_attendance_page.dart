@@ -18,72 +18,118 @@ class SelectClassForAttendancePage extends StatefulWidget {
 class _SelectClassForAttendancePageState
     extends State<SelectClassForAttendancePage> {
 
+  String searchText = "";
   int selectedMonth = DateTime.now().month;
   int selectedYear = DateTime.now().year;
+
+  final months = const [
+    "Jan","Feb","Mar","Apr","May","Jun",
+    "Jul","Aug","Sep","Oct","Nov","Dec"
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Select Class for Attendance",style: TextStyle(fontWeight: FontWeight.bold),),
-      ),
+      appBar: AppBar(title: const Text("Attendance Reports")),
       body: Column(
         children: [
-          /// 📅 Simple month display (we can upgrade later)
+
+          /// 🔍 Search Bar
           Padding(
-            padding: const EdgeInsets.all(7.9),
-            child: Text(
-              "Month: $selectedMonth / $selectedYear",
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            padding: const EdgeInsets.all(10),
+            child: TextField(
+              decoration: const InputDecoration(
+                hintText: "Search class (10 A)",
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (value) =>
+                  setState(() => searchText = value.toLowerCase()),
             ),
           ),
+
+          /// 📅 Month + Year Picker
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+
+              DropdownButton<int>(
+                value: selectedMonth,
+                items: List.generate(12, (index) {
+                  return DropdownMenuItem(
+                    value: index + 1,
+                    child: Text(months[index]),
+                  );
+                }),
+                onChanged: (value) =>
+                    setState(() => selectedMonth = value!),
+              ),
+
+              const SizedBox(width: 20),
+
+              DropdownButton<int>(
+                value: selectedYear,
+                items: List.generate(5, (index) {
+                  int year = 2024 + index;
+                  return DropdownMenuItem(
+                    value: year,
+                    child: Text(year.toString()),
+                  );
+                }),
+                onChanged: (value) =>
+                    setState(() => selectedYear = value!),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          /// 📚 Class List
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('schools')
                   .doc(widget.schoolId)
                   .collection('classes')
-                  .orderBy('class')
                   .snapshots(),
               builder: (context, snapshot) {
+
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                if (snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text("No classes created yet"));
+
+                final filtered = snapshot.data!.docs.where((doc) {
+                  final name =
+                  "${doc['class']} ${doc['section']}".toLowerCase();
+                  return name.contains(searchText);
+                }).toList();
+
+                if (filtered.isEmpty) {
+                  return const Center(child: Text("No matching classes"));
                 }
-                return ListView.builder(
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    final doc = snapshot.data!.docs[index];
-                    final classId = doc.id;
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      child: ListTile(
-                        title: Text(
-                          "Class ${doc['class']} - ${doc['section']}",
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        trailing:
-                        const Icon(Icons.arrow_forward_ios),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  AdminMonthlyAttendancePage(
-                                    schoolId: widget.schoolId,
-                                    classId: classId,
-                                    month: selectedMonth,
-                                    year: selectedYear,
-                                  ),
-                            ),
-                          );
-                        },
-                      ),
+
+                return ListView(
+                  children: filtered.map((doc) {
+                    return ListTile(
+                      title: Text(
+                          "Class ${doc['class']} - ${doc['section']}"),
+                      trailing: const Icon(Icons.arrow_forward_ios),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                AdminMonthlyAttendancePage(
+                                  schoolId: widget.schoolId,
+                                  classId: doc.id,
+                                  month: selectedMonth,
+                                  year: selectedYear,
+                                ),
+                          ),
+                        );
+                      },
                     );
-                  },
+                  }).toList(),
                 );
               },
             ),
