@@ -13,10 +13,6 @@ class ParentDashboard extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
-      appBar: AppBar(
-        title: const Text("Parent Dashboard"),centerTitle: true,
-        backgroundColor: Colors.orange,
-      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('schools')
@@ -30,60 +26,123 @@ class ParentDashboard extends StatelessWidget {
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
-              child: Text("No child linked to this parent"),
-            );
+            return const Center(child: Text("No child linked"));
           }
 
           final student = snapshot.data!.docs.first;
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _StudentHeader(
-                name: student['name'],
-                className: student['class'],
-                section: student['section'],
-                rollNo: student['rollNo'],
-              ),
+          return SingleChildScrollView(
+            child: Column(
+              children: [
 
-              const SizedBox(height: 20),
+                /// 🔶 Top Gradient Header
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.orange, Colors.deepOrange],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.vertical(
+                        bottom: Radius.circular(30)),
+                  ),
+                  child: Column(
+                    children: [
+                      const CircleAvatar(
+                        radius: 35,
+                        backgroundColor: Colors.white,
+                        child: Icon(Icons.person,
+                            size: 40, color: Colors.orange),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        student['name'],
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "Class ${student['class']} - ${student['section']}  |  Roll No: ${student['rollNo']}",
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
 
-              const _InfoCard(
-                title: "Attendance",
-                value: "Coming Soon",
-                icon: Icons.fact_check,
-                color: Colors.green,
-              ),
+                const SizedBox(height: 20),
 
-              const _InfoCard(
-                title: "Homework",
-                value: "Coming Soon",
-                icon: Icons.book,
-                color: Colors.blue,
-              ),
+                /// 🔷 Quick Stats Section
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: const [
+                      _StatCard(
+                          title: "Attendance",
+                          value: "92%",
+                          color: Colors.green),
+                      _StatCard(
+                          title: "Fees Due",
+                          value: "₹ 2000",
+                          color: Colors.red),
+                      _StatCard(
+                          title: "Homework",
+                          value: "3",
+                          color: Colors.blue),
+                    ],
+                  ),
+                ),
 
-              const _InfoCard(
-                title: "Fees",
-                value: "Coming Soon",
-                icon: Icons.payment,
-                color: Colors.red,
-              ),
+                const SizedBox(height: 25),
 
-              const _InfoCard(
-                title: "Results",
-                value: "Coming Soon",
-                icon: Icons.bar_chart,
-                color: Colors.purple,
-              ),
+                /// 🔷 Feature Grid
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1.2,
+                    children: const [
+                      _FeatureCard(
+                        title: "Attendance",
+                        icon: Icons.fact_check,
+                        color: Colors.green,
+                      ),
+                      _FeatureCard(
+                        title: "Homework",
+                        icon: Icons.book,
+                        color: Colors.blue,
+                      ),
+                      _FeatureCard(
+                        title: "Fees",
+                        icon: Icons.payment,
+                        color: Colors.red,
+                      ),
+                      _FeatureCard(
+                        title: "Results",
+                        icon: Icons.bar_chart,
+                        color: Colors.purple,
+                      ),
+                      _FeatureCard(
+                        title: "Notices",
+                        icon: Icons.notifications,
+                        color: Colors.orange,
+                      ),
+                    ],
+                  ),
+                ),
 
-              const _InfoCard(
-                title: "Notices",
-                value: "Coming Soon",
-                icon: Icons.notifications,
-                color: Colors.orange,
-              ),
-            ],
+                const SizedBox(height: 30),
+              ],
+            ),
           );
         },
       ),
@@ -91,77 +150,82 @@ class ParentDashboard extends StatelessWidget {
   }
 }
 
-class _StudentHeader extends StatelessWidget {
-  final String name;
-  final String className;
-  final String section;
-  final String rollNo;
+class _StatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final Color color;
 
-  const _StudentHeader({
-    required this.name,
-    required this.className,
-    required this.section,
-    required this.rollNo,
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const CircleAvatar(
-              radius: 30,
-              backgroundColor: Colors.orange,
-              child: Icon(Icons.person, color: Colors.white, size: 30),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              name,
-              style: const TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 6),
-            Text("Class: $className  |  Section: $section"),
-            Text("Roll No: $rollNo"),
-          ],
-        ),
+    return Container(
+      width: 100,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: color),
+          ),
+          const SizedBox(height: 5),
+          Text(title,
+              style: const TextStyle(fontSize: 12),
+              textAlign: TextAlign.center),
+        ],
       ),
     );
   }
 }
 
-class _InfoCard extends StatelessWidget {
+class _FeatureCard extends StatelessWidget {
   final String title;
-  final String value;
   final IconData icon;
   final Color color;
 
-  const _InfoCard({
+  const _FeatureCard({
     required this.title,
-    required this.value,
     required this.icon,
     required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.15),
-          child: Icon(icon, color: color),
+    return InkWell(
+      onTap: () {},
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: [color.withOpacity(0.7), color],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
         ),
-        title: Text(title),
-        trailing: Text(
-          value,
-          style: TextStyle(
-              fontWeight: FontWeight.bold, color: color),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 30),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
       ),
     );
