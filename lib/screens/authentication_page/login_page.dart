@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:schoolprojectjan/screens/admin/admin_home.dart';
+import 'package:schoolprojectjan/screens/parents/parent_dashboard.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
 import 'package:schoolprojectjan/screens/parents/parent_home_page.dart';
 import 'package:schoolprojectjan/screens/authentication_page/change_password_screen.dart';
@@ -228,7 +229,7 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => ParentHomePage(
+            builder: (_) => ParentDashboard(
               schoolId: widget.schoolId,
             ),
           ),
