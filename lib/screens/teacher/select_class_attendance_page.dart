@@ -21,7 +21,7 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Select Class")),
+      appBar: AppBar(title: const Text("Select Class",style: TextStyle(fontWeight: FontWeight.bold),)),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
