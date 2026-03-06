@@ -1,162 +1,196 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class ParentDashboard extends StatefulWidget {
-  const ParentDashboard({super.key, required String schoolId});
+  final String schoolId;
 
+  const ParentDashboard({super.key, required this.schoolId});
 
   @override
   State<ParentDashboard> createState() => _ParentDashboardState();
 }
 
 class _ParentDashboardState extends State<ParentDashboard> {
+
+  final String parentUid = FirebaseAuth.instance.currentUser!.uid;
+
+  String? selectedStudentId;
+
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
 
-      /// 🔻 Bottom Navigation
       bottomNavigationBar: BottomNavigationBar(
         selectedItemColor: Colors.orange,
         unselectedItemColor: Colors.grey,
         currentIndex: 0,
         items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart), label: "Reports"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person), label: "Profile"),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: "Reports"),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
         ],
       ),
 
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('schools')
+            .doc(widget.schoolId)
+            .collection('students')
+            .where('parentUid', isEqualTo: parentUid)
+            .snapshots(),
+        builder: (context, snapshot) {
 
-            /// 🔶 Gradient Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.orange, Colors.deepOrange],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius:
-                BorderRadius.vertical(bottom: Radius.circular(30)),
-              ),
-              child: Column(
-                children: const [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.person,
-                        size: 45, color: Colors.orange),
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    "Arun Kumar",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text("No child linked to this parent"));
+          }
+
+          final students = snapshot.data!.docs;
+
+          selectedStudentId ??= students.first.id;
+
+          final student = students.firstWhere(
+                (doc) => doc.id == selectedStudentId,
+          );
+
+          String name = student['name'] ?? "Student";
+          String className = student['class'] ?? "";
+          String section = student['section'] ?? "";
+          String rollNo = student['rollNo'] ?? "";
+
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.orange, Colors.deepOrange],
                     ),
+                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
                   ),
-                  SizedBox(height: 6),
-                  Text(
-                    "Class 10 - A | Roll No: 15",
-                    style: TextStyle(color: Colors.white70),
+                  child: Column(
+                    children: [
+
+                      const CircleAvatar(
+                        radius: 40,
+                        backgroundColor: Colors.white,
+                        child: Icon(Icons.person,
+                            size: 45, color: Colors.orange),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 6),
+
+                      Text(
+                        "Class $className - $section | Roll No: $rollNo",
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: DropdownButtonFormField<String>(
+                    value: selectedStudentId,
+                    decoration: const InputDecoration(
+                      labelText: "Select Child",
+                      border: OutlineInputBorder(),
+                    ),
+                    items: students.map((doc) {
+                      return DropdownMenuItem(
+                        value: doc.id,
+                        child: Text(
+                          "${doc['name']} (Class ${doc['class']}-${doc['section']})",
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedStudentId = value;
+                      });
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: const [
+                      _StatCard(
+                        title: "Attendance",
+                        value: "92%",
+                        color: Colors.green,
+                      ),
+                      _StatCard(
+                        title: "Fees Due",
+                        value: "₹2000",
+                        color: Colors.red,
+                      ),
+                      _StatCard(
+                        title: "Homework",
+                        value: "3",
+                        color: Colors.blue,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    childAspectRatio: 1.15,
+                    children: const [
+                      _FeatureCard(title: "Attendance", icon: Icons.fact_check, color: Colors.green),
+                      _FeatureCard(title: "Homework", icon: Icons.book, color: Colors.blue),
+                      _FeatureCard(title: "Fees", icon: Icons.payment, color: Colors.red),
+                      _FeatureCard(title: "Results", icon: Icons.bar_chart, color: Colors.purple),
+                      _FeatureCard(title: "Notices", icon: Icons.notifications, color: Colors.orange),
+                      _FeatureCard(title: "Performance", icon: Icons.analytics, color: Colors.indigo),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+              ],
             ),
-
-            const SizedBox(height: 20),
-
-            /// 🔷 Quick Stats
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment:
-                MainAxisAlignment.spaceBetween,
-                children: const [
-                  _StatCard(
-                    title: "Attendance",
-                    value: "92%",
-                    color: Colors.green,
-                  ),
-                  _StatCard(
-                    title: "Fees Due",
-                    value: "₹2000",
-                    color: Colors.red,
-                  ),
-                  _StatCard(
-                    title: "Homework",
-                    value: "3",
-                    color: Colors.blue,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            /// 🔷 Dashboard Grid
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: GridView.count(
-                shrinkWrap: true,
-                physics:
-                const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                crossAxisSpacing: 14,
-                mainAxisSpacing: 14,
-                childAspectRatio: 1.15,
-                children: const [
-                  _FeatureCard(
-                    title: "Attendance",
-                    icon: Icons.fact_check,
-                    color: Colors.green,
-                  ),
-                  _FeatureCard(
-                    title: "Homework",
-                    icon: Icons.book,
-                    color: Colors.blue,
-                  ),
-                  _FeatureCard(
-                    title: "Fees",
-                    icon: Icons.payment,
-                    color: Colors.red,
-                  ),
-                  _FeatureCard(
-                    title: "Results",
-                    icon: Icons.bar_chart,
-                    color: Colors.purple,
-                  ),
-                  _FeatureCard(
-                    title: "Notices",
-                    icon: Icons.notifications,
-                    color: Colors.orange,
-                  ),
-                  _FeatureCard(
-                    title: "Performance",
-                    icon: Icons.analytics,
-                    color: Colors.indigo,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 30),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 }
-
-/// ---------------- STAT CARD ----------------
 
 class _StatCard extends StatelessWidget {
   final String title;
@@ -200,8 +234,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-/// ---------------- FEATURE CARD ----------------
-
 class _FeatureCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -235,8 +267,7 @@ class _FeatureCard extends StatelessWidget {
           ],
         ),
         child: Column(
-          mainAxisAlignment:
-          MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: Colors.white, size: 32),
             const SizedBox(height: 12),
