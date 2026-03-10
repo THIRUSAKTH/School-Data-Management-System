@@ -261,7 +261,7 @@ class _FeatureCard extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: color.withOpacity(0.3),
-              blurRadius: 9.9,
+              blurRadius: 10,
               offset: const Offset(0, 6),
             )
           ],
