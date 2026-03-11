@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:schoolprojectjan/screens/admin/school_settings_page.dart';
 import 'package:schoolprojectjan/screens/admin/select_class_for_attendance_page.dart';
 import 'student_management_page.dart';
 import 'admin_attendance_overview.dart';
@@ -23,14 +24,63 @@ class AdminDashboard extends StatelessWidget {
       drawer: _buildDrawer(context),
 
       appBar: AppBar(
-        title: const Text(
-          "Admin Dashboard",
-          style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold),
-        ),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         centerTitle: true,
+        title: StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('schools')
+              .doc(schoolId)
+              .snapshots(),
+          builder: (context, snapshot) {
+
+            if (!snapshot.hasData) {
+              return const Text(
+                "Admin Dashboard",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              );
+            }
+
+            final school = snapshot.data!;
+            String schoolName = school['schoolName'] ?? "School";
+            String logoUrl = school['logoUrl'] ?? "";
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+
+                /// SCHOOL LOGO
+                if (logoUrl.isNotEmpty)
+                  CircleAvatar(
+                    backgroundImage: NetworkImage(logoUrl),
+                    radius: 16,
+                  ),
+
+                if (logoUrl.isNotEmpty)
+                  const SizedBox(width: 10),
+
+                /// SCHOOL NAME + DASHBOARD
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      schoolName,
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    const Text(
+                      "Admin Dashboard",
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70),
+                    )
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
       ),
 
       /// 🔷 UPDATED BODY ONLY
@@ -205,6 +255,12 @@ class AdminDashboard extends StatelessWidget {
 
           _drawerItem(context, Icons.analytics,
               "Fees Report", AdminFeeReportPage()),
+          _drawerItem(
+            context,
+            Icons.settings,
+            "School Settings",
+            SchoolSettingsPage(schoolId: schoolId),
+          ),
         ],
       ),
     );
