@@ -112,7 +112,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("School details updated")),
+      const SnackBar(content: Text("School details updated",style: TextStyle(fontWeight: FontWeight.bold),)),
     );
   }
 
@@ -137,7 +137,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
         child: Column(
           children: [
 
-            /// LOGO PREVIEW
+
             GestureDetector(
               onTap: pickLogo,
               child: CircleAvatar(
