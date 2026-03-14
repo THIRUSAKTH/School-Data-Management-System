@@ -3,9 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:schoolprojectjan/screens/admin/admin_home.dart';
+import 'package:schoolprojectjan/screens/admin/welcome_screen.dart';
 import 'package:schoolprojectjan/screens/parents/parent_dashboard.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
-import 'package:schoolprojectjan/screens/parents/parent_home_page.dart';
 import 'package:schoolprojectjan/screens/authentication_page/change_password_screen.dart';
 
 class LoginPage extends StatefulWidget {
@@ -23,11 +23,13 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
 
   bool hidePassword = true;
 
+  /// ROLE COLOR
   Color get roleColor {
     switch (widget.role) {
       case "Admin":
@@ -41,6 +43,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// ROLE ICON
   IconData get roleIcon {
     switch (widget.role) {
       case "Admin":
@@ -56,6 +59,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       backgroundColor: roleColor,
       body: Center(
@@ -63,8 +67,11 @@ class _LoginPageState extends State<LoginPage> {
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
+
               Icon(roleIcon, size: 70, color: Colors.white),
+
               const SizedBox(height: 10),
+
               Text(
                 "${widget.role} Login",
                 style: const TextStyle(
@@ -84,8 +91,11 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 child: Column(
                   children: [
+
                     _field(emailController, "Email"),
+
                     const SizedBox(height: 15),
+
                     _field(passwordController, "Password", hide: true),
 
                     const SizedBox(height: 25),
@@ -104,6 +114,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
+
                   ],
                 ),
               )
@@ -114,7 +125,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ================= INPUT =================
+  /// ================= INPUT FIELD =================
 
   Widget _field(TextEditingController c, String hint, {bool hide = false}) {
     return TextField(
@@ -145,10 +156,12 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ================= LOGIN =================
+  /// ================= LOGIN FUNCTION =================
 
   Future<void> _loginUser() async {
+
     try {
+
       final result = await FirebaseAuth.instance
           .signInWithEmailAndPassword(
         email: emailController.text.trim(),
@@ -156,6 +169,7 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       final uid = result.user!.uid;
+
       final roleCollection = widget.role.toLowerCase() + "s";
 
       final roleDoc = await FirebaseFirestore.instance
@@ -170,22 +184,36 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      // ---------- ADMIN ----------
+      /// ---------- ADMIN LOGIN ----------
       if (widget.role == "Admin") {
+
+        final schoolDoc = await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(widget.schoolId)
+            .get();
+
+        String schoolName = schoolDoc['schoolName'] ?? "School";
+        String logoUrl = schoolDoc['logoUrl'] ?? "";
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => AdminHome(
+            builder: (_) => WelcomeScreen(
               schoolId: widget.schoolId,
+              schoolName: schoolName,
+              logoUrl: logoUrl,
             ),
           ),
         );
+
         return;
       }
 
-      // ---------- TEACHER ----------
+      /// ---------- TEACHER LOGIN ----------
       if (widget.role == "Teacher") {
+
         if (roleDoc['firstLogin'] == true) {
+
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -196,6 +224,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           );
+
           return;
         }
 
@@ -207,12 +236,15 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         );
+
         return;
       }
 
-      // ---------- PARENT ----------
+      /// ---------- PARENT LOGIN ----------
       if (widget.role == "Parent") {
+
         if (roleDoc['firstLogin'] == true) {
+
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -223,6 +255,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           );
+
           return;
         }
 
@@ -237,9 +270,13 @@ class _LoginPageState extends State<LoginPage> {
       }
 
     } catch (e) {
+
       _msg("Login failed: ${e.toString()}");
+
     }
   }
+
+  /// ================= SNACKBAR =================
 
   void _msg(String t) {
     ScaffoldMessenger.of(context)

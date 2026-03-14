@@ -11,22 +11,25 @@ import 'create_class_page.dart';
 import 'class_management_page.dart';
 
 class AdminDashboard extends StatelessWidget {
+
   final String schoolId;
 
   const AdminDashboard({super.key, required this.schoolId});
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
+
       backgroundColor: const Color(0xFFF4F6FA),
 
-      /// 🔷 Drawer (UNCHANGED)
       drawer: _buildDrawer(context),
+
+      /// ================= APPBAR =================
 
       appBar: AppBar(
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
-        centerTitle: true,
         title: StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance
               .collection('schools')
@@ -34,63 +37,67 @@ class AdminDashboard extends StatelessWidget {
               .snapshots(),
           builder: (context, snapshot) {
 
-            if (!snapshot.hasData) {
-              return const Text(
-                "Admin Dashboard",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              );
+            String schoolName = "School";
+            String logoUrl = "";
+
+            if (snapshot.hasData && snapshot.data!.exists) {
+              final school = snapshot.data!;
+              schoolName = school['schoolName'] ?? "School";
+              logoUrl = school['logoUrl'] ?? "";
             }
 
-            final school = snapshot.data!;
-            String schoolName = school['schoolName'] ?? "School";
-            String logoUrl = school['logoUrl'] ?? "";
-
             return Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
 
-                /// SCHOOL LOGO
                 if (logoUrl.isNotEmpty)
                   CircleAvatar(
                     backgroundImage: NetworkImage(logoUrl),
-                    radius: 16,
+                    radius: 18,
                   ),
 
-                if (logoUrl.isNotEmpty)
-                  const SizedBox(width: 10),
+                const SizedBox(width: 10),
 
-                /// SCHOOL NAME + DASHBOARD
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      schoolName,
-                      style: const TextStyle(
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+
+                      Text(
+                        schoolName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    const Text(
-                      "Admin Dashboard",
-                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const Text(
+                        "Admin Dashboard",
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Colors.white70),
-                    )
-                  ],
-                ),
+                          color: Colors.white70,
+                        ),
+                      )
+                    ],
+                  ),
+                )
               ],
             );
           },
         ),
       ),
 
-      /// 🔷 UPDATED BODY ONLY
+      /// ================= BODY =================
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            /// ================= SUMMARY CARDS =================
+            /// SUMMARY CARDS
+
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,
@@ -147,11 +154,13 @@ class AdminDashboard extends StatelessWidget {
 
             const SizedBox(height: 28),
 
-            /// ================= ATTENDANCE INFO BOX =================
+            /// TODAY OVERVIEW
+
             const Text(
               "Today's Overview",
-              style:
-              TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 12),
@@ -182,18 +191,19 @@ class AdminDashboard extends StatelessWidget {
 
             const SizedBox(height: 28),
 
-            /// ================= QUICK ACTIONS =================
+            /// QUICK ACTIONS
+
             const Text(
               "Quick Actions",
-              style:
-              TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 12),
 
             Row(
-              mainAxisAlignment:
-              MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _quickAction(Icons.person_add, "Add Student"),
                 _quickAction(Icons.school, "Add Teacher"),
@@ -208,27 +218,77 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
-  /// ================= Drawer (UNCHANGED) =================
+  /// ================= DRAWER =================
 
   Widget _buildDrawer(BuildContext context) {
+
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
 
-          const DrawerHeader(
-            decoration: BoxDecoration(color: Colors.blue),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.admin_panel_settings,
-                    color: Colors.white, size: 40),
-                SizedBox(height: 8),
-                Text("Admin Panel",
-                    style:
-                    TextStyle(color: Colors.white, fontSize: 20)),
-              ],
-            ),
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('schools')
+                .doc(schoolId)
+                .snapshots(),
+            builder: (context, snapshot) {
+
+              String schoolName = "School";
+              String logoUrl = "";
+
+              if (snapshot.hasData && snapshot.data!.exists) {
+                final school = snapshot.data!;
+                schoolName = school['schoolName'] ?? "School";
+                logoUrl = school['logoUrl'] ?? "";
+              }
+
+              return DrawerHeader(
+                decoration: const BoxDecoration(
+                  color: Colors.blue,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+
+                    CircleAvatar(
+                      radius: 32,
+                      backgroundColor: Colors.white,
+                      backgroundImage: logoUrl.isNotEmpty
+                          ? NetworkImage(logoUrl)
+                          : null,
+                      child: logoUrl.isEmpty
+                          ? const Icon(Icons.school, size: 32)
+                          : null,
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Text(
+                      schoolName,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    const Text(
+                      "Admin Panel",
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
 
           _drawerItem(context, Icons.school, "Teachers",
@@ -244,23 +304,24 @@ class AdminDashboard extends StatelessWidget {
               ClassManagementPage(schoolId: schoolId)),
 
           _drawerItem(context, Icons.fact_check,
-              "Attendance Overview", AdminAttendanceOverviewPage()),
+              "Attendance Overview",
+              AdminAttendanceOverviewPage()),
 
           _drawerItem(context, Icons.bar_chart,
               "Attendance Reports",
               SelectClassForAttendancePage(schoolId: schoolId)),
 
           _drawerItem(context, Icons.currency_rupee,
-              "Upload Fees", AdminFeeUploadPage()),
+              "Upload Fees",
+              AdminFeeUploadPage()),
 
           _drawerItem(context, Icons.analytics,
-              "Fees Report", AdminFeeReportPage()),
-          _drawerItem(
-            context,
-            Icons.settings,
-            "School Settings",
-            SchoolSettingsPage(schoolId: schoolId),
-          ),
+              "Fees Report",
+              AdminFeeReportPage()),
+
+          _drawerItem(context, Icons.settings,
+              "School Settings",
+              SchoolSettingsPage(schoolId: schoolId)),
         ],
       ),
     );
@@ -272,6 +333,7 @@ class AdminDashboard extends StatelessWidget {
       String title,
       Widget page,
       ) {
+
     return ListTile(
       leading: Icon(icon, color: Colors.blueGrey),
       title: Text(title),
@@ -285,7 +347,7 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
-  /// ================= Animated Live Card =================
+  /// ================= LIVE CARD =================
 
   Widget _liveAnimatedCard({
     required String title,
@@ -293,12 +355,14 @@ class AdminDashboard extends StatelessWidget {
     required Color color,
     required Stream<QuerySnapshot> stream,
   }) {
+
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
       builder: (context, snapshot) {
 
-        int count =
-        snapshot.hasData ? snapshot.data!.docs.length : 0;
+        int count = snapshot.hasData
+            ? snapshot.data!.docs.length
+            : 0;
 
         return TweenAnimationBuilder(
           tween: Tween<double>(begin: 0, end: 1),
@@ -316,33 +380,34 @@ class AdminDashboard extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
                 BoxShadow(
-                  color:
-                  Colors.black.withOpacity(0.05),
+                  color: Colors.black.withOpacity(0.05),
                   blurRadius: 8,
                 )
               ],
             ),
             child: Column(
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+
                 CircleAvatar(
                   backgroundColor:
                   color.withOpacity(.15),
-                  child:
-                  Icon(icon, color: color),
+                  child: Icon(icon, color: color),
                 ),
+
                 const Spacer(),
+
                 Text(
                   count.toString(),
                   style: const TextStyle(
                       fontSize: 24,
-                      fontWeight:
-                      FontWeight.bold),
+                      fontWeight: FontWeight.bold),
                 ),
-                Text(title,
-                    style: const TextStyle(
-                        color: Colors.grey)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                      color: Colors.grey),
+                ),
               ],
             ),
           ),
@@ -350,6 +415,8 @@ class AdminDashboard extends StatelessWidget {
       },
     );
   }
+
+  //dc/ ================= QUICK ACTION =================
 
   Widget _quickAction(IconData icon, String label) {
     return Container(
