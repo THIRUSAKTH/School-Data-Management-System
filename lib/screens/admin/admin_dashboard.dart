@@ -24,9 +24,6 @@ class AdminDashboard extends StatelessWidget {
       backgroundColor: const Color(0xFFF4F6FA),
 
       drawer: _buildDrawer(context),
-
-      /// ================= APPBAR =================
-
       appBar: AppBar(
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
@@ -88,7 +85,6 @@ class AdminDashboard extends StatelessWidget {
         ),
       ),
 
-      /// ================= BODY =================
 
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -416,7 +412,7 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
-  //dc/ ================= QUICK ACTION =================
+  //dcDES/ ================= QUICK ACTION =================
 
   Widget _quickAction(IconData icon, String label) {
     return Container(
