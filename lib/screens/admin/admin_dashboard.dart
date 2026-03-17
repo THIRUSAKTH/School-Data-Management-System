@@ -240,6 +240,7 @@ class AdminDashboard extends StatelessWidget {
               }
 
               return DrawerHeader(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: const BoxDecoration(
                   color: Colors.blue,
                 ),
@@ -247,38 +248,42 @@ class AdminDashboard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
 
+                    /// LOGO
                     CircleAvatar(
-                      radius: 32,
+                      radius: 26, // slightly reduced
                       backgroundColor: Colors.white,
                       backgroundImage: logoUrl.isNotEmpty
                           ? NetworkImage(logoUrl)
                           : null,
                       child: logoUrl.isEmpty
-                          ? const Icon(Icons.school, size: 32)
+                          ? const Icon(Icons.school, size: 26)
                           : null,
                     ),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
 
-                    Text(
-                      schoolName,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    /// SCHOOL NAME
+                    Flexible(
+                      child: Text(
+                        schoolName,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
 
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
 
                     const Text(
                       "Admin Panel",
                       style: TextStyle(
                         color: Colors.white70,
-                        fontSize: 13,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -351,62 +356,55 @@ class AdminDashboard extends StatelessWidget {
     required Color color,
     required Stream<QuerySnapshot> stream,
   }) {
-
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
       builder: (context, snapshot) {
 
-        int count = snapshot.hasData
-            ? snapshot.data!.docs.length
-            : 0;
+        int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
 
-        return TweenAnimationBuilder(
-          tween: Tween<double>(begin: 0, end: 1),
-          duration: const Duration(milliseconds: 500),
-          builder: (context, double value, child) {
-            return Transform.scale(
-              scale: value,
-              child: child,
+        return TweenAnimationBuilder<int>(
+          tween: IntTween(begin: 0, end: count),
+          duration: const Duration(milliseconds: 800),
+          builder: (context, value, child) {
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                  )
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+
+                  CircleAvatar(
+                    backgroundColor: color.withOpacity(.15),
+                    child: Icon(icon, color: color),
+                  ),
+
+                  const Spacer(),
+
+                  Text(
+                    value.toString(),
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  Text(
+                    title,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
             );
           },
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                )
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-
-                CircleAvatar(
-                  backgroundColor:
-                  color.withOpacity(.15),
-                  child: Icon(icon, color: color),
-                ),
-
-                const Spacer(),
-
-                Text(
-                  count.toString(),
-                  style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  title,
-                  style: const TextStyle(
-                      color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
         );
       },
     );
