@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fl_chart/fl_chart.dart';
+
 import 'package:schoolprojectjan/screens/admin/school_settings_page.dart';
 import 'package:schoolprojectjan/screens/admin/select_class_for_attendance_page.dart';
 import 'student_management_page.dart';
@@ -11,19 +13,18 @@ import 'create_class_page.dart';
 import 'class_management_page.dart';
 
 class AdminDashboard extends StatelessWidget {
-
   final String schoolId;
 
   const AdminDashboard({super.key, required this.schoolId});
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-
       backgroundColor: const Color(0xFFF4F6FA),
 
       drawer: _buildDrawer(context),
+
+      /// ================= APPBAR =================
       appBar: AppBar(
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
@@ -33,7 +34,6 @@ class AdminDashboard extends StatelessWidget {
               .doc(schoolId)
               .snapshots(),
           builder: (context, snapshot) {
-
             String schoolName = "School";
             String logoUrl = "";
 
@@ -45,7 +45,6 @@ class AdminDashboard extends StatelessWidget {
 
             return Row(
               children: [
-
                 if (logoUrl.isNotEmpty)
                   CircleAvatar(
                     backgroundImage: NetworkImage(logoUrl),
@@ -58,42 +57,35 @@ class AdminDashboard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
                       Text(
                         schoolName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
-
                       const Text(
                         "Admin Dashboard",
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white70,
-                        ),
-                      )
+                            fontSize: 12, color: Colors.white70),
+                      ),
                     ],
                   ),
-                )
+                ),
               ],
             );
           },
         ),
       ),
 
-
+      /// ================= BODY =================
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            /// SUMMARY CARDS
-
+            /// ================= CARDS =================
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,
@@ -101,45 +93,41 @@ class AdminDashboard extends StatelessWidget {
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
               children: [
-
                 _liveAnimatedCard(
-                  title: "Students",
-                  icon: Icons.people,
-                  color: Colors.blue,
-                  stream: FirebaseFirestore.instance
+                  "Students",
+                  Icons.people,
+                  Colors.blue,
+                  FirebaseFirestore.instance
                       .collection('schools')
                       .doc(schoolId)
                       .collection('students')
                       .snapshots(),
                 ),
-
                 _liveAnimatedCard(
-                  title: "Teachers",
-                  icon: Icons.school,
-                  color: Colors.purple,
-                  stream: FirebaseFirestore.instance
+                  "Teachers",
+                  Icons.school,
+                  Colors.purple,
+                  FirebaseFirestore.instance
                       .collection('schools')
                       .doc(schoolId)
                       .collection('teachers')
                       .snapshots(),
                 ),
-
                 _liveAnimatedCard(
-                  title: "Fees Records",
-                  icon: Icons.currency_rupee,
-                  color: Colors.orange,
-                  stream: FirebaseFirestore.instance
+                  "Fees Records",
+                  Icons.currency_rupee,
+                  Colors.orange,
+                  FirebaseFirestore.instance
                       .collection('schools')
                       .doc(schoolId)
                       .collection('fees')
                       .snapshots(),
                 ),
-
                 _liveAnimatedCard(
-                  title: "Attendance Days",
-                  icon: Icons.check_circle,
-                  color: Colors.green,
-                  stream: FirebaseFirestore.instance
+                  "Attendance Days",
+                  Icons.check_circle,
+                  Colors.green,
+                  FirebaseFirestore.instance
                       .collection('schools')
                       .doc(schoolId)
                       .collection('attendance')
@@ -150,13 +138,11 @@ class AdminDashboard extends StatelessWidget {
 
             const SizedBox(height: 28),
 
-            /// TODAY OVERVIEW
-
+            /// ================= OVERVIEW =================
             const Text(
               "Today's Overview",
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold),
+              style:
+              TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 12),
@@ -187,25 +173,30 @@ class AdminDashboard extends StatelessWidget {
 
             const SizedBox(height: 28),
 
-            /// QUICK ACTIONS
-
+            /// ================= QUICK ACTION =================
             const Text(
               "Quick Actions",
-              style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold),
+              style:
+              TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 12),
 
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment:
+              MainAxisAlignment.spaceBetween,
               children: [
                 _quickAction(Icons.person_add, "Add Student"),
                 _quickAction(Icons.school, "Add Teacher"),
                 _quickAction(Icons.bar_chart, "Reports"),
               ],
             ),
+
+            const SizedBox(height: 30),
+
+            /// ================= CHARTS =================
+            attendanceChart(),
+            feesChart(),
 
             const SizedBox(height: 40),
           ],
@@ -215,9 +206,7 @@ class AdminDashboard extends StatelessWidget {
   }
 
   /// ================= DRAWER =================
-
   Widget _buildDrawer(BuildContext context) {
-
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
@@ -241,16 +230,13 @@ class AdminDashboard extends StatelessWidget {
 
               return DrawerHeader(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: const BoxDecoration(
-                  color: Colors.blue,
-                ),
+                decoration: const BoxDecoration(color: Colors.blue),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
 
-                    /// LOGO
                     CircleAvatar(
-                      radius: 26, // slightly reduced
+                      radius: 26,
                       backgroundColor: Colors.white,
                       backgroundImage: logoUrl.isNotEmpty
                           ? NetworkImage(logoUrl)
@@ -262,7 +248,6 @@ class AdminDashboard extends StatelessWidget {
 
                     const SizedBox(height: 6),
 
-                    /// SCHOOL NAME
                     Flexible(
                       child: Text(
                         schoolName,
@@ -294,32 +279,21 @@ class AdminDashboard extends StatelessWidget {
 
           _drawerItem(context, Icons.school, "Teachers",
               TeacherManagementPage(schoolId: schoolId)),
-
           _drawerItem(context, Icons.groups, "Students",
               StudentManagementPage(schoolId: schoolId)),
-
           _drawerItem(context, Icons.add_box, "Create Class",
               CreateClassPage(schoolId: schoolId)),
-
           _drawerItem(context, Icons.class_, "Manage Classes",
               ClassManagementPage(schoolId: schoolId)),
-
           _drawerItem(context, Icons.fact_check,
-              "Attendance Overview",
-              AdminAttendanceOverviewPage()),
-
+              "Attendance Overview", AdminAttendanceOverviewPage()),
           _drawerItem(context, Icons.bar_chart,
               "Attendance Reports",
               SelectClassForAttendancePage(schoolId: schoolId)),
-
           _drawerItem(context, Icons.currency_rupee,
-              "Upload Fees",
-              AdminFeeUploadPage()),
-
+              "Upload Fees", AdminFeeUploadPage()),
           _drawerItem(context, Icons.analytics,
-              "Fees Report",
-              AdminFeeReportPage()),
-
+              "Fees Report", AdminFeeReportPage()),
           _drawerItem(context, Icons.settings,
               "School Settings",
               SchoolSettingsPage(schoolId: schoolId)),
@@ -328,13 +302,7 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
-  Widget _drawerItem(
-      BuildContext context,
-      IconData icon,
-      String title,
-      Widget page,
-      ) {
-
+  Widget _drawerItem(BuildContext context, IconData icon, String title, Widget page) {
     return ListTile(
       leading: Icon(icon, color: Colors.blueGrey),
       title: Text(title),
@@ -348,18 +316,11 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
-  /// ================= LIVE CARD =================
-
-  Widget _liveAnimatedCard({
-    required String title,
-    required IconData icon,
-    required Color color,
-    required Stream<QuerySnapshot> stream,
-  }) {
+  /// ================= ANIMATED CARD =================
+  Widget _liveAnimatedCard(String title, IconData icon, Color color, Stream<QuerySnapshot> stream) {
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
       builder: (context, snapshot) {
-
         int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
 
         return TweenAnimationBuilder<int>(
@@ -381,26 +342,17 @@ class AdminDashboard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
                   CircleAvatar(
                     backgroundColor: color.withOpacity(.15),
                     child: Icon(icon, color: color),
                   ),
-
                   const Spacer(),
-
                   Text(
                     value.toString(),
                     style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                    ),
+                        fontSize: 26, fontWeight: FontWeight.bold),
                   ),
-
-                  Text(
-                    title,
-                    style: const TextStyle(color: Colors.grey),
-                  ),
+                  Text(title, style: const TextStyle(color: Colors.grey)),
                 ],
               ),
             );
@@ -410,32 +362,188 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
-  //dcDES/ ================= QUICK ACTION =================
+  /// ================= CHARTS =================
+  Widget attendanceChart() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('schools')
+          .doc(schoolId)
+          .collection('attendance')
+          .snapshots(),
+      builder: (context, snapshot) {
+
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        /// 🔷 GROUP BY DATE
+        Map<String, int> dailyCount = {};
+
+        for (var doc in snapshot.data!.docs) {
+          String date = doc['date'] ?? "unknown";
+
+          if (dailyCount.containsKey(date)) {
+            dailyCount[date] = dailyCount[date]! + 1;
+          } else {
+            dailyCount[date] = 1;
+          }
+        }
+
+        /// 🔷 CONVERT TO SPOTS
+        List<FlSpot> spots = [];
+        int index = 0;
+
+        dailyCount.forEach((key, value) {
+          spots.add(FlSpot(index.toDouble(), value.toDouble()));
+          index++;
+        });
+
+        return Container(
+          height: 200,
+          margin: const EdgeInsets.only(top: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: _box(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
+              const Text(
+                "Attendance Analytics",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 12),
+
+              Expanded(
+                child: LineChart(
+                  LineChartData(
+                    gridData: FlGridData(show: false),
+                    borderData: FlBorderData(show: false),
+                    titlesData: FlTitlesData(show: false),
+                    lineBarsData: [
+                      LineChartBarData(
+                        isCurved: true,
+                        spots: spots.isEmpty
+                            ? [FlSpot(0, 0)]
+                            : spots,
+                        barWidth: 3,
+                        dotData: FlDotData(show: false),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget feesChart() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('schools')
+          .doc(schoolId)
+          .collection('fees')
+          .snapshots(),
+      builder: (context, snapshot) {
+
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        /// 🔷 GROUP BY DATE
+        Map<String, double> dailyFees = {};
+
+        for (var doc in snapshot.data!.docs) {
+          String date = doc['date'] ?? "unknown";
+          double amount = (doc['amount'] ?? 0).toDouble();
+
+          if (dailyFees.containsKey(date)) {
+            dailyFees[date] = dailyFees[date]! + amount;
+          } else {
+            dailyFees[date] = amount;
+          }
+        }
+
+        /// 🔷 CONVERT TO BARS
+        List<BarChartGroupData> bars = [];
+        int index = 0;
+
+        dailyFees.forEach((key, value) {
+          bars.add(
+            BarChartGroupData(
+              x: index,
+              barRods: [
+                BarChartRodData(toY: value),
+              ],
+            ),
+          );
+          index++;
+        });
+
+        return Container(
+          height: 200,
+          margin: const EdgeInsets.only(top: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: _box(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
+              const Text(
+                "Fees Collection",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 12),
+
+              Expanded(
+                child: BarChart(
+                  BarChartData(
+                    borderData: FlBorderData(show: false),
+                    titlesData: FlTitlesData(show: false),
+                    barGroups: bars.isEmpty
+                        ? [
+                      BarChartGroupData(
+                          x: 0,
+                          barRods: [BarChartRodData(toY: 0)])
+                    ]
+                        : bars,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  BoxDecoration _box() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 8,
+        )
+      ],
+    );
+  }
 
   Widget _quickAction(IconData icon, String label) {
     return Container(
       width: 100,
-      padding:
-      const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius:
-        BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color:
-            Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-          )
-        ],
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: _box(),
       child: Column(
         children: [
           Icon(icon, color: Colors.blue),
           const SizedBox(height: 8),
-          Text(label,
-              style:
-              const TextStyle(fontSize: 12)),
+          Text(label, style: const TextStyle(fontSize: 12)),
         ],
       ),
     );
