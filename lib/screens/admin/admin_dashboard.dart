@@ -291,7 +291,7 @@ class AdminDashboard extends StatelessWidget {
               "Attendance Reports",
               SelectClassForAttendancePage(schoolId: schoolId)),
           _drawerItem(context, Icons.currency_rupee,
-              "Upload Fees", AdminFeeUploadPage()),
+              "Upload Fees", AdminFeeUploadPage(schoolId:schoolId,)),
           _drawerItem(context, Icons.analytics,
               "Fees Report", AdminFeeReportPage()),
           _drawerItem(context, Icons.settings,
@@ -376,27 +376,13 @@ class AdminDashboard extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        /// 🔷 GROUP BY DATE
-        Map<String, int> dailyCount = {};
-
-        for (var doc in snapshot.data!.docs) {
-          String date = doc['date'] ?? "unknown";
-
-          if (dailyCount.containsKey(date)) {
-            dailyCount[date] = dailyCount[date]! + 1;
-          } else {
-            dailyCount[date] = 1;
-          }
-        }
-
-        /// 🔷 CONVERT TO SPOTS
         List<FlSpot> spots = [];
         int index = 0;
 
-        dailyCount.forEach((key, value) {
-          spots.add(FlSpot(index.toDouble(), value.toDouble()));
+        for (var doc in snapshot.data!.docs) {
+          spots.add(FlSpot(index.toDouble(), 1)); // simple count
           index++;
-        });
+        }
 
         return Container(
           height: 200,
@@ -406,29 +392,19 @@ class AdminDashboard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
-              const Text(
-                "Attendance Analytics",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-
+              const Text("Attendance Analytics",
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-
               Expanded(
                 child: LineChart(
                   LineChartData(
-                    gridData: FlGridData(show: false),
-                    borderData: FlBorderData(show: false),
                     titlesData: FlTitlesData(show: false),
+                    borderData: FlBorderData(show: false),
                     lineBarsData: [
                       LineChartBarData(
                         isCurved: true,
-                        spots: spots.isEmpty
-                            ? [FlSpot(0, 0)]
-                            : spots,
-                        barWidth: 3,
-                        dotData: FlDotData(show: false),
-                      ),
+                        spots: spots.isEmpty ? [FlSpot(0, 0)] : spots,
+                      )
                     ],
                   ),
                 ),
@@ -453,35 +429,30 @@ class AdminDashboard extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        /// 🔷 GROUP BY DATE
-        Map<String, double> dailyFees = {};
-
-        for (var doc in snapshot.data!.docs) {
-          String date = doc['date'] ?? "unknown";
-          double amount = (doc['amount'] ?? 0).toDouble();
-
-          if (dailyFees.containsKey(date)) {
-            dailyFees[date] = dailyFees[date]! + amount;
-          } else {
-            dailyFees[date] = amount;
-          }
-        }
-
-        /// 🔷 CONVERT TO BARS
         List<BarChartGroupData> bars = [];
         int index = 0;
 
-        dailyFees.forEach((key, value) {
+        for (var doc in snapshot.data!.docs) {
+
+          double amount = 0;
+
+          try {
+            amount = (doc.get('amount') as num).toDouble();
+          } catch (e) {
+            amount = 0;
+          }
+
           bars.add(
             BarChartGroupData(
               x: index,
               barRods: [
-                BarChartRodData(toY: value),
+                BarChartRodData(toY: amount),
               ],
             ),
           );
+
           index++;
-        });
+        }
 
         return Container(
           height: 200,
@@ -491,19 +462,14 @@ class AdminDashboard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
-              const Text(
-                "Fees Collection",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-
+              const Text("Fees Collection",
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-
               Expanded(
                 child: BarChart(
                   BarChartData(
-                    borderData: FlBorderData(show: false),
                     titlesData: FlTitlesData(show: false),
+                    borderData: FlBorderData(show: false),
                     barGroups: bars.isEmpty
                         ? [
                       BarChartGroupData(

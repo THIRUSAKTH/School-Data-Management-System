@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminFeeUploadPage extends StatefulWidget {
-  const AdminFeeUploadPage({super.key});
+  final String schoolId;
+
+  const AdminFeeUploadPage({super.key, required this.schoolId});
 
   @override
-  State<AdminFeeUploadPage> createState() => _AdminFeeUploadPageState();
+  State<AdminFeeUploadPage> createState() =>
+      _AdminFeeUploadPageState();
 }
 
-class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
+class _AdminFeeUploadPageState
+    extends State<AdminFeeUploadPage> {
+
   final _amountController = TextEditingController();
 
   String selectedClass = "Class 6";
@@ -38,16 +44,21 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+
             _sectionTitle("Class & Section"),
             const SizedBox(height: 8),
 
             Row(
               children: [
-                Expanded(child: _dropdown("Class", selectedClass, classes,
-                        (v) => setState(() => selectedClass = v))),
+                Expanded(
+                  child: _dropdown("Class", selectedClass, classes,
+                          (v) => setState(() => selectedClass = v)),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: _dropdown("Section", selectedSection, sections,
-                        (v) => setState(() => selectedSection = v))),
+                Expanded(
+                  child: _dropdown("Section", selectedSection, sections,
+                          (v) => setState(() => selectedSection = v)),
+                ),
               ],
             ),
 
@@ -103,14 +114,13 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
     );
   }
 
-  /* =========================================================
-     UI HELPERS
-     ========================================================= */
+  /// ================= UI HELPERS =================
 
   Widget _sectionTitle(String text) {
     return Text(
       text,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      style: const TextStyle(
+          fontSize: 18, fontWeight: FontWeight.bold),
     );
   }
 
@@ -123,12 +133,10 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
     return DropdownButtonFormField<String>(
       value: value,
       items: items
-          .map(
-            (e) => DropdownMenuItem(
-          value: e,
-          child: Text(e),
-        ),
-      )
+          .map((e) => DropdownMenuItem(
+        value: e,
+        child: Text(e),
+      ))
           .toList(),
       onChanged: (v) => onChanged(v!),
       decoration: InputDecoration(
@@ -145,9 +153,11 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
         final picked = await showDatePicker(
           context: context,
           firstDate: DateTime.now(),
-          lastDate: DateTime.now().add(const Duration(days: 365)),
+          lastDate:
+          DateTime.now().add(const Duration(days: 365)),
           initialDate: DateTime.now(),
         );
+
         if (picked != null) {
           setState(() => dueDate = picked);
         }
@@ -167,33 +177,78 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
     );
   }
 
-  /* =========================================================
-     ACTION
-     ========================================================= */
+  /// ================= MAIN LOGIC =================
 
-  void _publishFee() {
-    if (_amountController.text.isEmpty) {
+  Future<void> _publishFee() async {
+
+    if (_amountController.text.isEmpty || dueDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter fee amount")),
+        const SnackBar(content: Text("Fill all fields")),
       );
       return;
     }
 
-    final feeData = {
-      "class": selectedClass,
-      "section": selectedSection,
-      "type": selectedFeeType,
-      "amount": _amountController.text,
-      "dueDate": dueDate?.toIso8601String(),
-    };
+    final amount = double.tryParse(_amountController.text);
 
-    debugPrint("Fee Uploaded: $feeData");
+    if (amount == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Enter valid amount")),
+      );
+      return;
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Fee published successfully")),
-    );
+    try {
 
-    _amountController.clear();
-    setState(() => dueDate = null);
+      /// 1️⃣ SAVE CLASS LEVEL FEE
+      final feeDoc = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('fees')
+          .add({
+        "class": selectedClass,
+        "section": selectedSection,
+        "type": selectedFeeType,
+        "amount": amount,
+        "dueDate": Timestamp.fromDate(dueDate!),
+        "createdAt": Timestamp.now(),
+      });
+
+      /// 2️⃣ FETCH STUDENTS
+      final students = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('students')
+          .where('class', isEqualTo: selectedClass)
+          .where('section', isEqualTo: selectedSection)
+          .get();
+
+      /// 3️⃣ CREATE STUDENT-WISE RECORD
+      for (var student in students.docs) {
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(widget.schoolId)
+            .collection('student_fees')
+            .add({
+          "studentId": student.id,
+          "feeId": feeDoc.id,
+          "amount": amount,
+          "status": "pending",
+          "dueDate": Timestamp.fromDate(dueDate!),
+          "createdAt": Timestamp.now(),
+        });
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Fee published successfully")),
+      );
+
+      _amountController.clear();
+      setState(() => dueDate = null);
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
   }
 }
