@@ -33,7 +33,7 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
           children: [
 
             /// CLASS FIELD
-            _field(classController, "Class (eg: 6)"),
+            _field(classController, "Class (eg: 1)"),
 
             const SizedBox(height: 12),
 
@@ -50,21 +50,16 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
                 child: const Text("Load Students"),
                 onPressed: () {
 
-                  String rawClass = classController.text.trim();
+                  String className = classController.text.trim();
                   String section = sectionController.text.trim().toUpperCase();
 
                   /// ✅ VALIDATION
-                  if (rawClass.isEmpty || section.isEmpty) {
+                  if (className.isEmpty || section.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("Enter class & section")),
                     );
                     return;
                   }
-
-                  /// ✅ AUTO FORMAT CLASS
-                  String className = rawClass.startsWith("Class")
-                      ? rawClass
-                      : "Class $rawClass";
 
                   /// DEBUG PRINT
                   print("Class: $className");
@@ -76,7 +71,7 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
                     MaterialPageRoute(
                       builder: (_) => MarkAttendancePage(
                         schoolId: widget.schoolId,
-                        className: className,
+                        className: className, // ✅ FIXED
                         section: section,
                       ),
                     ),
@@ -89,9 +84,11 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
       ),
     );
   }
+
   Widget _field(TextEditingController c, String hint) {
     return TextField(
       controller: c,
+      keyboardType: TextInputType.number,
       decoration: InputDecoration(
         labelText: hint,
         border: const OutlineInputBorder(),
