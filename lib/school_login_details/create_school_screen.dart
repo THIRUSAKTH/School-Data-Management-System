@@ -24,7 +24,7 @@ class CreateSchoolScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xff851ef3),
+      backgroundColor: Colors.cyan,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -40,7 +40,7 @@ class CreateSchoolScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 45,
-                    backgroundColor: const Color(0xff9c45f8),
+                    backgroundColor: Colors.cyan.shade200,
                     child: const Icon(
                       Icons.school_outlined,
                       size: 40,
@@ -171,7 +171,7 @@ class CreateSchoolScreen extends StatelessWidget {
                             height: 50,
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.deepPurple,
+                                backgroundColor: Colors.,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
