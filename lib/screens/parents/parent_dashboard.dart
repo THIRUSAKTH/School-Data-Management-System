@@ -269,7 +269,7 @@ class _FeatureCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.white, size: 32),
+            Icon(icon, color: Colors.white, size: 32.5),
             const SizedBox(height: 12),
             Text(
               title,
