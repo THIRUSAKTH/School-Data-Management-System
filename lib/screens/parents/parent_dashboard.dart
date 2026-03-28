@@ -252,7 +252,7 @@ class _FeatureCard extends StatelessWidget {
       onTap: () {},
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(21),
           gradient: LinearGradient(
             colors: [color.withOpacity(0.7), color],
             begin: Alignment.topLeft,
