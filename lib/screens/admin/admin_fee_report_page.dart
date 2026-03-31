@@ -1,178 +1,202 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminFeeReportPage extends StatelessWidget {
-  const AdminFeeReportPage({super.key});
+  final String schoolId;
 
-  // Mock summary data (later from Firebase)
-  Map<String, dynamic> get summary => {
-    "total": 850000,
-    "collected": 620000,
-    "pending": 230000,
-  };
-
-  // Mock class-wise fee data
-  final List<Map<String, dynamic>> classFees = const [
-    {"class": "6-A", "collected": 45000, "total": 60000},
-    {"class": "6-B", "collected": 52000, "total": 65000},
-    {"class": "7-A", "collected": 61000, "total": 70000},
-    {"class": "7-B", "collected": 58000, "total": 72000},
-    {"class": "8-A", "collected": 67000, "total": 80000},
-  ];
+  const AdminFeeReportPage({super.key, required this.schoolId});
 
   @override
   Widget build(BuildContext context) {
-    final percent =
-    ((summary["collected"] / summary["total"]) * 100).round();
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6FA),
+      backgroundColor: const Color(0xFFF4F7FB),
       appBar: AppBar(
-        title: const Text("Fee Collection Report"),
-        elevation: 0,
+        title: const Text("Fee Report"),
+        centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            /// SUMMARY CARDS
-            _summarySection(percent),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('schools')
+            .doc(schoolId)
+            .collection('fees')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            const SizedBox(height: 24),
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text("No fee data available"));
+          }
 
-            const Text(
-              "Class-wise Fee Status",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          final docs = snapshot.data!.docs;
+
+          double total = 0;
+          double collected = 0;
+
+          List<Map<String, dynamic>> classData = [];
+
+          for (var doc in docs) {
+            final raw = doc.data() as Map<String, dynamic>;
+
+            /// ✅ SUPPORT OLD + NEW DATA
+            double totalValue =
+            (raw['total'] ?? raw['amount'] ?? 0).toDouble();
+
+            double collectedValue =
+            (raw['collected'] ?? 0).toDouble();
+
+            total += totalValue;
+            collected += collectedValue;
+
+            classData.add({
+              "class": raw['class'] ?? 'Unknown',
+              "total": totalValue,
+              "collected": collectedValue,
+            });
+          }
+
+          double percent =
+          total == 0 ? 0 : (collected / total) * 100;
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _summary(total, collected, percent),
+                const SizedBox(height: 20),
+                _title("Class-wise Report"),
+                const SizedBox(height: 10),
+                ...classData.map((e) => _classCard(e)).toList(),
+              ],
             ),
-            const SizedBox(height: 12),
-
-            ...classFees.map(_classFeeCard).toList(),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  /* =========================================================
-     SUMMARY SECTION
-     ========================================================= */
+  /// ================= SUMMARY =================
 
-  Widget _summarySection(int percent) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth > 600;
-
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: isWide
-              ? Row(children: _summaryItems(percent))
-              : Column(children: _summaryItems(percent)),
-        );
-      },
-    );
-  }
-
-  List<Widget> _summaryItems(int percent) => [
-    _summaryTile(
-      "Total Fees",
-      "₹${summary["total"]}",
-      Icons.account_balance_wallet,
-      Colors.blue,
-    ),
-    _summaryTile(
-      "Collected",
-      "₹${summary["collected"]}",
-      Icons.check_circle,
-      Colors.green,
-    ),
-    _summaryTile(
-      "Pending",
-      "₹${summary["pending"]}",
-      Icons.warning,
-      Colors.red,
-    ),
-    const SizedBox(height: 12),
-    Column(
-      children: [
-        Text(
-          "$percent%",
-          style: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-            color: percent >= 75 ? Colors.green : Colors.red,
-          ),
+  Widget _summary(double total, double collected, double percent) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF4FACFE), Color(0xFF00F2FE)],
         ),
-        const Text("Collected"),
-      ],
-    ),
-  ];
-
-  Widget _summaryTile(
-      String title, String value, IconData icon, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 20, bottom: 12),
-      child: Row(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
         children: [
-          CircleAvatar(
-            backgroundColor: color.withOpacity(0.15),
-            child: Icon(icon, color: color),
+          Text(
+            "₹${collected.toInt()} / ₹${total.toInt()}",
+            style: const TextStyle(
+              fontSize: 22,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-              Text(title, style: const TextStyle(color: Colors.black54)),
-            ],
+          const SizedBox(height: 10),
+
+          LinearProgressIndicator(
+            value: percent.isNaN ? 0 : percent / 100,
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(10),
+            color: Colors.white,
+            backgroundColor: Colors.white24,
+          ),
+
+          const SizedBox(height: 10),
+
+          Text(
+            "${percent.toStringAsFixed(1)}% Collected",
+            style: const TextStyle(color: Colors.white),
           ),
         ],
       ),
     );
   }
 
-  /* =========================================================
-     CLASS-WISE CARD
-     ========================================================= */
+  /// ================= TITLE =================
 
-  Widget _classFeeCard(Map<String, dynamic> data) {
-    final percent =
-    ((data["collected"] / data["total"]) * 100).round();
+  Widget _title(String text) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
 
-    return Card(
+  /// ================= CLASS CARD =================
+
+  Widget _classCard(Map<String, dynamic> data) {
+    double collected = (data['collected'] ?? 0).toDouble();
+    double total = (data['total'] ?? 1).toDouble();
+
+    double percent = (collected / total) * 100;
+
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: const Icon(Icons.class_),
-        title: Text("Class ${data["class"]}"),
-        subtitle: Text(
-          "₹${data["collected"]} / ₹${data["total"]}",
-        ),
-        trailing: Text(
-          "$percent%",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: percent >= 75 ? Colors.green : Colors.red,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+          )
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.blue.shade50,
+            child: const Icon(Icons.school, color: Colors.blue),
           ),
-        ),
-        onTap: () {
-          // 🔜 Next page: student-wise fee details
-          debugPrint("Open fee details for ${data["class"]}");
-        },
+          const SizedBox(width: 10),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Class ${data['class'] ?? 'Unknown'}",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  "₹${collected.toInt()} / ₹${total.toInt()}",
+                ),
+              ],
+            ),
+          ),
+          Column(
+            children: [
+              Text(
+                "${percent.toStringAsFixed(0)}%",
+                style: TextStyle(
+                  color: percent >= 75 ? Colors.green : Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 60,
+                child: LinearProgressIndicator(
+                  value: percent.isNaN ? 0 : percent / 100,
+                  backgroundColor: Colors.grey.shade300,
+                  color: percent >= 75 ? Colors.green : Colors.red,
+                ),
+              ),
+            ],
+          )
+        ],
       ),
     );
   }

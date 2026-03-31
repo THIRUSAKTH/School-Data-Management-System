@@ -286,14 +286,14 @@ class AdminDashboard extends StatelessWidget {
           _drawerItem(context, Icons.class_, "Manage Classes",
               ClassManagementPage(schoolId: schoolId)),
           _drawerItem(context, Icons.fact_check,
-              "Attendance Overview", AdminAttendanceOverviewPage()),
+              "Attendance Overview", AdminAttendanceOverviewPage(schoolId: schoolId,)),
           _drawerItem(context, Icons.bar_chart,
               "Attendance Reports",
               SelectClassForAttendancePage(schoolId: schoolId)),
           _drawerItem(context, Icons.currency_rupee,
               "Upload Fees", AdminFeeUploadPage(schoolId:schoolId,)),
           _drawerItem(context, Icons.analytics,
-              "Fees Report", AdminFeeReportPage()),
+              "Fees Report", AdminFeeReportPage(schoolId:schoolId,)),
           _drawerItem(context, Icons.settings,
               "School Settings",
               SchoolSettingsPage(schoolId: schoolId)),
@@ -441,7 +441,6 @@ class AdminDashboard extends StatelessWidget {
           } catch (e) {
             amount = 0;
           }
-
           bars.add(
             BarChartGroupData(
               x: index,
@@ -450,10 +449,8 @@ class AdminDashboard extends StatelessWidget {
               ],
             ),
           );
-
           index++;
         }
-
         return Container(
           height: 200,
           margin: const EdgeInsets.only(top: 20),
