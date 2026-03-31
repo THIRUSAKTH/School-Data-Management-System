@@ -68,6 +68,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
             child: Column(
               children: [
 
+                /// HEADER
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
@@ -110,6 +111,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
                 const SizedBox(height: 20),
 
+                /// STUDENT SELECT
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: DropdownButtonFormField<String>(
@@ -136,50 +138,164 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
                 const SizedBox(height: 20),
 
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
-                      _StatCard(
-                        title: "Attendance",
-                        value: "92%",
-                        color: Colors.green,
-                      ),
-                      _StatCard(
-                        title: "Fees Due",
-                        value: "₹2000",
-                        color: Colors.red,
-                      ),
-                      _StatCard(
-                        title: "Homework",
-                        value: "3",
-                        color: Colors.blue,
-                      ),
-                    ],
-                  ),
-                ),
+                /// ================= FEES + STATS =================
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('schools')
+                      .doc(widget.schoolId)
+                      .collection('student_fees')
+                      .where('studentId', isEqualTo: selectedStudentId)
+                      .snapshots(),
+                  builder: (context, feeSnapshot) {
 
-                const SizedBox(height: 30),
+                    if (!feeSnapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 14,
-                    mainAxisSpacing: 14,
-                    childAspectRatio: 1.15,
-                    children: const [
-                      _FeatureCard(title: "Attendance", icon: Icons.fact_check, color: Colors.green),
-                      _FeatureCard(title: "Homework", icon: Icons.book, color: Colors.blue),
-                      _FeatureCard(title: "Fees", icon: Icons.payment, color: Colors.red),
-                      _FeatureCard(title: "Results", icon: Icons.bar_chart, color: Colors.purple),
-                      _FeatureCard(title: "Notices", icon: Icons.notifications, color: Colors.orange),
-                      _FeatureCard(title: "Performance", icon: Icons.analytics, color: Colors.indigo),
-                    ],
-                  ),
+                    double totalDue = 0;
+                    double totalPaid = 0;
+
+                    for (var doc in feeSnapshot.data!.docs) {
+                      final data = doc.data() as Map<String, dynamic>;
+
+                      double amount = (data['amount'] ?? 0).toDouble();
+                      String status = data['status'] ?? "pending";
+
+                      if (status == "paid") {
+                        totalPaid += amount;
+                      } else {
+                        totalDue += amount;
+                      }
+                    }
+
+                    return Column(
+                      children: [
+
+                        /// STATS
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const _StatCard(
+                                title: "Attendance",
+                                value: "92%",
+                                color: Colors.green,
+                              ),
+                              _StatCard(
+                                title: "Fees Due",
+                                value: "₹${totalDue.toInt()}",
+                                color: Colors.red,
+                              ),
+                              _StatCard(
+                                title: "Paid",
+                                value: "₹${totalPaid.toInt()}",
+                                color: Colors.blue,
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 25),
+
+                        /// TITLE
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              "Fee Details",
+                              style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        /// LIST
+                        if (feeSnapshot.data!.docs.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text("No fees assigned"),
+                          )
+                        else
+                          Column(
+                            children: feeSnapshot.data!.docs.map((doc) {
+                              final data =
+                              doc.data() as Map<String, dynamic>;
+
+                              double amount =
+                              (data['amount'] ?? 0).toDouble();
+                              String status =
+                                  data['status'] ?? "pending";
+
+                              Timestamp? dueTs = data['dueDate'];
+                              DateTime? dueDate = dueTs?.toDate();
+
+                              bool isOverdue = dueDate != null &&
+                                  dueDate.isBefore(DateTime.now()) &&
+                                  status != "paid";
+
+                              return Container(
+                                margin: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 6),
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius:
+                                  BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 6,
+                                    )
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "₹${amount.toInt()}",
+                                          style: const TextStyle(
+                                              fontWeight:
+                                              FontWeight.bold),
+                                        ),
+                                        if (dueDate != null)
+                                          Text(
+                                            "Due: ${dueDate.day}-${dueDate.month}-${dueDate.year}",
+                                            style: TextStyle(
+                                              color: isOverdue
+                                                  ? Colors.red
+                                                  : Colors.grey,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    Text(
+                                      status.toUpperCase(),
+                                      style: TextStyle(
+                                        color: status == "paid"
+                                            ? Colors.green
+                                            : Colors.red,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                      ],
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 30),
@@ -191,6 +307,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
     );
   }
 }
+
+/// ================= STAT CARD =================
 
 class _StatCard extends StatelessWidget {
   final String title;
@@ -229,57 +347,6 @@ class _StatCard extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _FeatureCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-
-  const _FeatureCard({
-    required this.title,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(20),
-      onTap: () {},
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(21),
-          gradient: LinearGradient(
-            colors: [color.withOpacity(0.7), color],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 6),
-            )
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 32.5),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

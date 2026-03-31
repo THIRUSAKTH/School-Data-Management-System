@@ -31,13 +31,14 @@ class _AdminFeeUploadPageState
     "Other"
   ];
 
+  bool isLoading = false;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
         title: const Text("Upload Fees"),
-        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -96,16 +97,18 @@ class _AdminFeeUploadPageState
               width: double.infinity,
               height: 48,
               child: ElevatedButton.icon(
-                icon: const Icon(Icons.upload),
-                label: const Text("Publish Fee"),
+                icon: isLoading
+                    ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.upload),
+                label: Text(isLoading ? "Publishing..." : "Publish Fee"),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.deepPurple,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
                 ),
-                onPressed: _publishFee,
+                onPressed: isLoading ? null : _publishFee,
               ),
             ),
           ],
@@ -114,13 +117,12 @@ class _AdminFeeUploadPageState
     );
   }
 
-  /// ================= UI HELPERS =================
+  /// ================= UI =================
 
   Widget _sectionTitle(String text) {
     return Text(
       text,
-      style: const TextStyle(
-          fontSize: 18, fontWeight: FontWeight.bold),
+      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
     );
   }
 
@@ -133,10 +135,7 @@ class _AdminFeeUploadPageState
     return DropdownButtonFormField<String>(
       value: value,
       items: items
-          .map((e) => DropdownMenuItem(
-        value: e,
-        child: Text(e),
-      ))
+          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
           .toList(),
       onChanged: (v) => onChanged(v!),
       decoration: InputDecoration(
@@ -153,8 +152,7 @@ class _AdminFeeUploadPageState
         final picked = await showDatePicker(
           context: context,
           firstDate: DateTime.now(),
-          lastDate:
-          DateTime.now().add(const Duration(days: 365)),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
           initialDate: DateTime.now(),
         );
 
@@ -180,26 +178,21 @@ class _AdminFeeUploadPageState
   /// ================= MAIN LOGIC =================
 
   Future<void> _publishFee() async {
-
     if (_amountController.text.isEmpty || dueDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Fill all fields")),
-      );
+      _msg("Fill all fields");
       return;
     }
 
     final amount = double.tryParse(_amountController.text);
-
     if (amount == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Enter valid amount")),
-      );
+      _msg("Enter valid amount");
       return;
     }
 
-    try {
+    setState(() => isLoading = true);
 
-      /// 1️⃣ SAVE CLASS LEVEL FEE
+    try {
+      /// 🔥 1. CREATE FEE RECORD
       final feeDoc = await FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
@@ -208,12 +201,15 @@ class _AdminFeeUploadPageState
         "class": selectedClass,
         "section": selectedSection,
         "type": selectedFeeType,
-        "amount": amount,
+
+        "total": amount,
+        "collected": 0,
+
         "dueDate": Timestamp.fromDate(dueDate!),
         "createdAt": Timestamp.now(),
       });
 
-      /// 2️⃣ FETCH STUDENTS
+      /// 🔥 2. FETCH STUDENTS
       final students = await FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
@@ -222,7 +218,7 @@ class _AdminFeeUploadPageState
           .where('section', isEqualTo: selectedSection)
           .get();
 
-      /// 3️⃣ CREATE STUDENT-WISE RECORD
+      /// 🔥 3. CREATE STUDENT FEE RECORDS
       for (var student in students.docs) {
         await FirebaseFirestore.instance
             .collection('schools')
@@ -238,17 +234,20 @@ class _AdminFeeUploadPageState
         });
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Fee published successfully")),
-      );
+      _msg("Fee published successfully");
 
       _amountController.clear();
       setState(() => dueDate = null);
 
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      _msg("Error: $e");
     }
+
+    setState(() => isLoading = false);
+  }
+
+  void _msg(String t) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(t)));
   }
 }
