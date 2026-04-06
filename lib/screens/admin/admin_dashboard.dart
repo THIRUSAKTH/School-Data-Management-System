@@ -322,7 +322,6 @@ class AdminDashboard extends StatelessWidget {
       stream: stream,
       builder: (context, snapshot) {
         int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-
         return TweenAnimationBuilder<int>(
           tween: IntTween(begin: 0, end: count),
           duration: const Duration(milliseconds: 800),
@@ -428,14 +427,10 @@ class AdminDashboard extends StatelessWidget {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-
         List<BarChartGroupData> bars = [];
         int index = 0;
-
         for (var doc in snapshot.data!.docs) {
-
           double amount = 0;
-
           try {
             amount = (doc.get('amount') as num).toDouble();
           } catch (e) {
@@ -483,7 +478,6 @@ class AdminDashboard extends StatelessWidget {
       },
     );
   }
-
   BoxDecoration _box() {
     return BoxDecoration(
       color: Colors.white,
@@ -496,7 +490,6 @@ class AdminDashboard extends StatelessWidget {
       ],
     );
   }
-
   Widget _quickAction(IconData icon, String label) {
     return Container(
       width: 100,
