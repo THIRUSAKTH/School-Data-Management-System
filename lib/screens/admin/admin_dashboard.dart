@@ -293,7 +293,7 @@ class AdminDashboard extends StatelessWidget {
           _drawerItem(context, Icons.currency_rupee,
               "Upload Fees", AdminFeeUploadPage(schoolId:schoolId,)),
           _drawerItem(context, Icons.analytics,
-              "Fees Report", AdminFeeReportPage(schoolId:schoolId,)),
+              "Analytics", AdminAnalyticsPage(schoolId:schoolId,)),
           _drawerItem(context, Icons.settings,
               "School Settings",
               SchoolSettingsPage(schoolId: schoolId)),
@@ -370,11 +370,9 @@ class AdminDashboard extends StatelessWidget {
           .collection('attendance')
           .snapshots(),
       builder: (context, snapshot) {
-
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-
         List<FlSpot> spots = [];
         int index = 0;
 
@@ -382,7 +380,6 @@ class AdminDashboard extends StatelessWidget {
           spots.add(FlSpot(index.toDouble(), 1)); // simple count
           index++;
         }
-
         return Container(
           height: 200,
           margin: const EdgeInsets.only(top: 20),
