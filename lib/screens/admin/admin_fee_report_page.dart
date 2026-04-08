@@ -565,7 +565,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       gridData: FlGridData(
         show: true,
         drawVerticalLine: false,
-        horizontalInterval: 20,
+        horizontalInterval: 21,
         getDrawingHorizontalLine: (value) {
           return FlLine(
             color: Colors.grey.shade300,
