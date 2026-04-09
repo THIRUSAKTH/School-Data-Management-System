@@ -15,7 +15,10 @@ class AdminAnalyticsPage extends StatefulWidget {
 class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String _selectedPeriod = "This Month";
+
+  // Separate state variables for different filters
+  String _selectedAttendancePeriod = "month"; // For attendance tab
+  String _selectedPerformancePeriod = "month"; // For performance tab
   String _selectedClass = "All Classes";
   bool _isLoading = true;
 
@@ -69,20 +72,17 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       final studentId = data['studentId'] as String?;
 
       if (date != null && status != null) {
-        // Daily breakdown
         if (status == 'Present') {
           dailyPresent[date] = (dailyPresent[date] ?? 0) + 1;
         } else {
           dailyAbsent[date] = (dailyAbsent[date] ?? 0) + 1;
         }
 
-        // Track total students per class for accurate percentage
         if (studentId != null && className != 'Unknown') {
           classTotalStudents[className] =
               (classTotalStudents[className] ?? 0) + 1;
         }
 
-        // Class-wise attendance (count present)
         if (!classWiseAttendance.containsKey(className)) {
           classWiseAttendance[className] = 0.0;
         }
@@ -91,7 +91,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               (classWiseAttendance[className] ?? 0) + 1;
         }
 
-        // Monthly average
         final month = date.substring(0, 7);
         if (!monthlyAverage.containsKey(month)) {
           monthlyAverage[month] = 0.0;
@@ -101,7 +100,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       }
     }
 
-    // Convert class-wise counts to percentages
     Map<String, double> classWisePercentage = {};
     classWiseAttendance.forEach((className, presentCount) {
       int totalStudents = classTotalStudents[className] ?? 1;
@@ -249,14 +247,12 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     );
   }
 
-  // Helper method to safely sum map values
   int _sumMapValues(Map<String, int>? map) {
     if (map == null || map.isEmpty) return 0;
     return map.values.reduce((a, b) => a + b);
   }
 
   Widget _buildAttendanceSummaryCards() {
-    // Safely get the maps with proper type checking
     Map<String, int> presentMap = {};
     Map<String, int> absentMap = {};
 
@@ -420,7 +416,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     );
   }
 
-  // ENHANCED CLASS-WISE ATTENDANCE BAR CHART
   Widget _buildEnhancedClassWiseAttendance() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -459,7 +454,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   }
 
   BarChartData _buildEnhancedAttendanceBarChart() {
-    // Get real data from Firestore or use sample data
     final Map<String, double> classData =
     _attendanceData['classWise'] != null &&
         _attendanceData['classWise'] is Map
@@ -473,7 +467,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       classes = classData.keys.toList();
       attendanceRates = classData.values.map((v) => v.toDouble()).toList();
     } else {
-      // Sample data for preview
       classes = [
         'Class 1',
         'Class 2',
@@ -565,7 +558,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       gridData: FlGridData(
         show: true,
         drawVerticalLine: false,
-        horizontalInterval: 21,
+        horizontalInterval: 20,
         getDrawingHorizontalLine: (value) {
           return FlLine(
             color: Colors.grey.shade300,
@@ -781,7 +774,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     );
   }
 
-  // ENHANCED FEE COLLECTION BAR CHART
   Widget _buildEnhancedFeeCollectionChart() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -817,7 +809,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   }
 
   BarChartData _buildEnhancedFeeBarChart() {
-    // Get real data from Firestore or use sample data
     final Map<String, double> monthlyCollected =
     _feeData['monthlyCollected'] != null &&
         _feeData['monthlyCollected'] is Map
@@ -837,7 +828,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       collected = monthlyCollected.values.map((v) => v.toDouble()).toList();
       pending = monthlyPending.values.map((v) => v.toDouble()).toList();
     } else {
-      // Sample data for preview
       months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
       collected = [45000, 52000, 48000, 55000, 58000, 62000];
       pending = [5000, 3000, 4000, 2000, 2500, 1800];
@@ -937,6 +927,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       barTouchData: BarTouchData(
         enabled: true,
         touchTooltipData: BarTouchTooltipData(
+
           getTooltipItem: (group, groupIndex, rod, rodIndex) {
             final month = months[groupIndex];
             final collectedAmount = collected[groupIndex];
@@ -1102,7 +1093,17 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     );
   }
 
+  // FIXED: Performance filters with unique values - using correct period values
   Widget _buildPerformanceFilters() {
+    // Define unique values for periods - matching the pattern from attendance tab
+    final List<String> periodValues = ['today', 'week', 'month', 'year'];
+    final Map<String, String> periodLabels = {
+      'today': 'Today',
+      'week': 'This Week',
+      'month': 'This Month',
+      'year': 'This Year',
+    };
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: _cardDecoration(),
@@ -1114,23 +1115,16 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               decoration: const InputDecoration(
                 labelText: "Select Class",
                 border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-              items:
-              [
-                'All Classes',
-                'Class 1',
-                'Class 2',
-                'Class 3',
-                'Class 4',
-                'Class 5',
-              ]
-                  .map(
-                    (className) => DropdownMenuItem(
-                  value: className,
-                  child: Text(className),
-                ),
-              )
-                  .toList(),
+              items: const [
+                DropdownMenuItem(value: 'All Classes', child: Text('All Classes')),
+                DropdownMenuItem(value: 'Class 1', child: Text('Class 1')),
+                DropdownMenuItem(value: 'Class 2', child: Text('Class 2')),
+                DropdownMenuItem(value: 'Class 3', child: Text('Class 3')),
+                DropdownMenuItem(value: 'Class 4', child: Text('Class 4')),
+                DropdownMenuItem(value: 'Class 5', child: Text('Class 5')),
+              ],
               onChanged: (value) {
                 setState(() => _selectedClass = value!);
               },
@@ -1139,22 +1133,22 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
           const SizedBox(width: 12),
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: _selectedPeriod,
+              value: _selectedPerformancePeriod,
               decoration: const InputDecoration(
                 labelText: "Select Period",
                 border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
-              items:
-              ['This Month', 'Last Month', 'This Semester', 'This Year']
-                  .map(
-                    (period) => DropdownMenuItem(
-                  value: period,
-                  child: Text(period),
-                ),
-              )
-                  .toList(),
+              items: periodValues.map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(periodLabels[value]!),
+                );
+              }).toList(),
               onChanged: (value) {
-                setState(() => _selectedPeriod = value!);
+                setState(() {
+                  _selectedPerformancePeriod = value!;
+                });
               },
             ),
           ),
@@ -1168,9 +1162,9 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       crossAxisCount: 3,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12, // Reduced from 16
-      mainAxisSpacing: 12,  // Reduced from 16
-      childAspectRatio: 1.1, // Adjusted aspect ratio
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.1,
       children: [
         _buildSummaryCard(
           "Class Average",
@@ -1196,6 +1190,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       ],
     );
   }
+
   Widget _buildSubjectWisePerformance() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1390,23 +1385,26 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _periodChip("Today", "Today"),
+            _periodChip("Today", "today"),
             const SizedBox(width: 8),
-            _periodChip("This Week", "This Week"),
+            _periodChip("This Week", "week"),
             const SizedBox(width: 8),
-            _periodChip("This Month", "This Month"),
+            _periodChip("This Month", "month"),
             const SizedBox(width: 8),
-            _periodChip("This Year", "This Year"),
+            _periodChip("This Year", "year"),
           ],
         ),
       ),
     );
   }
+
   Widget _periodChip(String label, String value) {
-    final isSelected = _selectedPeriod == value;
+    final isSelected = _selectedAttendancePeriod == value;
     return GestureDetector(
       onTap: () {
-        setState(() => _selectedPeriod = value);
+        setState(() {
+          _selectedAttendancePeriod = value;
+        });
         _loadAttendanceAnalytics();
       },
       child: Container(
@@ -1437,28 +1435,29 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       String subtitle,
       ) {
     return Container(
-      constraints: const BoxConstraints(minHeight: 80), // Add minimum height constraint
+      padding: const EdgeInsets.all(12),
+      decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min, // Use minimum vertical space
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Icon(icon, color: color, size: 20),
+              Icon(icon, color: color, size: 18),
             ],
           ),
           const SizedBox(height: 6),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
             maxLines: 1,
@@ -1467,7 +1466,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: const TextStyle(fontSize: 10, color: Colors.grey),
+            style: const TextStyle(fontSize: 9, color: Colors.grey),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -1475,6 +1474,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       ),
     );
   }
+
   Widget _buildChartLegend() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
