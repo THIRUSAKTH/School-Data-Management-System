@@ -588,7 +588,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       ),
     );
   }
-
   Widget _buildAttendanceLegend() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
