@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:schoolprojectjan/screens/admin/exam_management_page.dart';
 
 import 'package:schoolprojectjan/screens/admin/school_settings_page.dart';
 import 'package:schoolprojectjan/screens/admin/select_class_for_attendance_page.dart';
@@ -292,6 +294,8 @@ class AdminDashboard extends StatelessWidget {
               SelectClassForAttendancePage(schoolId: schoolId)),
           _drawerItem(context, Icons.currency_rupee,
               "Upload Fees", AdminFeeUploadPage(schoolId:schoolId,)),
+          _drawerItem(context, FontAwesomeIcons.bookOpen,
+              "Exam Management", ExamManagementPage(schoolId:schoolId,)),
           _drawerItem(context, Icons.analytics,
               "Analytics", AdminAnalyticsPage(schoolId:schoolId,)),
           _drawerItem(context, Icons.settings,
@@ -301,7 +305,6 @@ class AdminDashboard extends StatelessWidget {
       ),
     );
   }
-
   Widget _drawerItem(BuildContext context, IconData icon, String title, Widget page) {
     return ListTile(
       leading: Icon(icon, color: Colors.blueGrey),
