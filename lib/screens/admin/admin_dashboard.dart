@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:schoolprojectjan/screens/admin/exam_management_page.dart';
-
 import 'package:schoolprojectjan/screens/admin/school_settings_page.dart';
 import 'package:schoolprojectjan/screens/admin/select_class_for_attendance_page.dart';
 import 'student_management_page.dart';
@@ -16,16 +15,12 @@ import 'class_management_page.dart';
 
 class AdminDashboard extends StatelessWidget {
   final String schoolId;
-
   const AdminDashboard({super.key, required this.schoolId});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
-
       drawer: _buildDrawer(context),
-
       /// ================= APPBAR =================
       appBar: AppBar(
         backgroundColor: Colors.blue,
@@ -38,13 +33,11 @@ class AdminDashboard extends StatelessWidget {
           builder: (context, snapshot) {
             String schoolName = "School";
             String logoUrl = "";
-
             if (snapshot.hasData && snapshot.data!.exists) {
               final school = snapshot.data!;
               schoolName = school['schoolName'] ?? "School";
               logoUrl = school['logoUrl'] ?? "";
             }
-
             return Row(
               children: [
                 if (logoUrl.isNotEmpty)
@@ -52,9 +45,7 @@ class AdminDashboard extends StatelessWidget {
                     backgroundImage: NetworkImage(logoUrl),
                     radius: 18,
                   ),
-
                 const SizedBox(width: 10),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,14 +70,12 @@ class AdminDashboard extends StatelessWidget {
           },
         ),
       ),
-
       /// ================= BODY =================
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-
             /// ================= CARDS =================
             GridView.count(
               crossAxisCount: 2,
@@ -137,18 +126,14 @@ class AdminDashboard extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 28),
-
             /// ================= OVERVIEW =================
             const Text(
               "Today's Overview",
               style:
               TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 12),
-
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -172,18 +157,14 @@ class AdminDashboard extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 28),
-
             /// ================= QUICK ACTION =================
             const Text(
               "Quick Actions",
               style:
               TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
             const SizedBox(height: 12),
-
             Row(
               mainAxisAlignment:
               MainAxisAlignment.spaceBetween,
@@ -193,50 +174,41 @@ class AdminDashboard extends StatelessWidget {
                 _quickAction(Icons.bar_chart, "Reports"),
               ],
             ),
-
             const SizedBox(height: 30),
-
             /// ================= CHARTS =================
             attendanceChart(),
             feesChart(),
-
             const SizedBox(height: 40),
           ],
         ),
       ),
     );
   }
-
   /// ================= DRAWER =================
   Widget _buildDrawer(BuildContext context) {
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('schools')
                 .doc(schoolId)
                 .snapshots(),
             builder: (context, snapshot) {
-
               String schoolName = "School";
               String logoUrl = "";
-
               if (snapshot.hasData && snapshot.data!.exists) {
                 final school = snapshot.data!;
                 schoolName = school['schoolName'] ?? "School";
                 logoUrl = school['logoUrl'] ?? "";
               }
-
               return DrawerHeader(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: const BoxDecoration(color: Colors.blue),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-
                     CircleAvatar(
                       radius: 26,
                       backgroundColor: Colors.white,
@@ -247,9 +219,7 @@ class AdminDashboard extends StatelessWidget {
                           ? const Icon(Icons.school, size: 26)
                           : null,
                     ),
-
                     const SizedBox(height: 6),
-
                     Flexible(
                       child: Text(
                         schoolName,
@@ -263,9 +233,7 @@ class AdminDashboard extends StatelessWidget {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 2),
-
                     const Text(
                       "Admin Panel",
                       style: TextStyle(
@@ -278,7 +246,6 @@ class AdminDashboard extends StatelessWidget {
               );
             },
           ),
-
           _drawerItem(context, Icons.school, "Teachers",
               TeacherManagementPage(schoolId: schoolId)),
           _drawerItem(context, Icons.groups, "Students",
@@ -318,7 +285,6 @@ class AdminDashboard extends StatelessWidget {
       },
     );
   }
-
   /// ================= ANIMATED CARD =================
   Widget _liveAnimatedCard(String title, IconData icon, Color color, Stream<QuerySnapshot> stream) {
     return StreamBuilder<QuerySnapshot>(
@@ -363,7 +329,6 @@ class AdminDashboard extends StatelessWidget {
       },
     );
   }
-
   /// ================= CHARTS =================
   Widget attendanceChart() {
     return StreamBuilder<QuerySnapshot>(
@@ -378,7 +343,6 @@ class AdminDashboard extends StatelessWidget {
         }
         List<FlSpot> spots = [];
         int index = 0;
-
         for (var doc in snapshot.data!.docs) {
           spots.add(FlSpot(index.toDouble(), 1)); // simple count
           index++;
@@ -414,7 +378,6 @@ class AdminDashboard extends StatelessWidget {
       },
     );
   }
-
   Widget feesChart() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -423,7 +386,6 @@ class AdminDashboard extends StatelessWidget {
           .collection('fees')
           .snapshots(),
       builder: (context, snapshot) {
-
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -466,8 +428,7 @@ class AdminDashboard extends StatelessWidget {
                         ? [
                       BarChartGroupData(
                           x: 0,
-                          barRods: [BarChartRodData(toY: 0)])
-                    ]
+                          barRods: [BarChartRodData(toY: 0)])]
                         : bars,
                   ),
                 ),
