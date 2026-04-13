@@ -214,7 +214,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       ],
     );
   }
-
   Widget _buildBody() {
     return TabBarView(
       controller: _tabController,
