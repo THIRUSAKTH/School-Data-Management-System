@@ -8,7 +8,7 @@ import 'package:schoolprojectjan/screens/admin/select_class_for_attendance_page.
 import 'student_management_page.dart';
 import 'admin_attendance_overview.dart';
 import 'admin_feeupload_page.dart';
-import 'admin_fee_report_page.dart';
+import 'admin_analytics_page.dart';
 import 'teacher_management_page.dart';
 import 'create_class_page.dart';
 import 'class_management_page.dart';
