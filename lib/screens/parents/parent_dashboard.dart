@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:schoolprojectjan/app_config.dart'; // ✅ ADDED
 
 class ParentDashboard extends StatefulWidget {
-  final String schoolId;
 
-  const ParentDashboard({super.key, required this.schoolId});
+  const ParentDashboard({super.key}); // ✅ REMOVED schoolId
 
   @override
   State<ParentDashboard> createState() => _ParentDashboardState();
@@ -37,7 +37,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('schools')
-            .doc(widget.schoolId)
+            .doc(AppConfig.schoolId) // ✅ FIXED
             .collection('students')
             .where('parentUid', isEqualTo: parentUid)
             .snapshots(),
@@ -142,7 +142,7 @@ class _ParentDashboardState extends State<ParentDashboard> {
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('schools')
-                      .doc(widget.schoolId)
+                      .doc(AppConfig.schoolId) // ✅ FIXED
                       .collection('student_fees')
                       .where('studentId', isEqualTo: selectedStudentId)
                       .snapshots(),

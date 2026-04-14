@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
 
 class RoleSelectScreen extends StatelessWidget {
-  final String schoolId;
+  const RoleSelectScreen({super.key});
 
-  RoleSelectScreen({super.key, required this.schoolId});
-
-  final List<Map<String, dynamic>> details = [
+  final List<Map<String, dynamic>> details = const [
     {
       "color": Colors.cyan,
       "role": "Admin",
@@ -32,7 +30,7 @@ class RoleSelectScreen extends StatelessWidget {
     final bool isWeb = MediaQuery.of(context).size.width >= 900;
 
     return Scaffold(
-      backgroundColor:Colors.cyan,
+      backgroundColor: Colors.cyan,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Center(
@@ -54,10 +52,9 @@ class RoleSelectScreen extends StatelessWidget {
 
                     const SizedBox(height: 16),
 
-                    /// ✅ SINGLE LINE RESPONSIVE TITLE
-                    FittedBox(
+                    const FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: const Text(
+                      child: Text(
                         "School Management System",
                         style: TextStyle(
                           fontSize: 26,
@@ -87,8 +84,8 @@ class RoleSelectScreen extends StatelessWidget {
                         crossAxisSpacing: 16,
                         childAspectRatio: 1.75,
                       ),
-                      itemBuilder: (_, i) => RoleCard(
-                          data: details[i], schoolId: schoolId),
+                      itemBuilder: (_, i) =>
+                          RoleCard(data: details[i]),
                     )
                         : ListView.separated(
                       shrinkWrap: true,
@@ -97,8 +94,8 @@ class RoleSelectScreen extends StatelessWidget {
                       itemCount: details.length,
                       separatorBuilder: (_, __) =>
                       const SizedBox(height: 15),
-                      itemBuilder: (_, i) => RoleCard(
-                          data: details[i], schoolId: schoolId),
+                      itemBuilder: (_, i) =>
+                          RoleCard(data: details[i]),
                     ),
                   ],
                 ),
@@ -115,12 +112,10 @@ class RoleSelectScreen extends StatelessWidget {
 
 class RoleCard extends StatelessWidget {
   final Map<String, dynamic> data;
-  final String schoolId;
 
   const RoleCard({
     super.key,
     required this.data,
-    required this.schoolId,
   });
 
   @override
@@ -132,7 +127,7 @@ class RoleCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06), // ✅ updated
             blurRadius: 10,
             offset: const Offset(0, 6),
           ),
@@ -184,8 +179,7 @@ class RoleCard extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) => LoginPage(
-                      schoolId: schoolId,
-                      role: data["role"],
+                      role: data["role"], // ✅ FIXED
                     ),
                   ),
                 );

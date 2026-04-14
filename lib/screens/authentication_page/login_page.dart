@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'package:schoolprojectjan/app_config.dart'; // ✅ IMPORTANT
 import 'package:schoolprojectjan/screens/admin/admin_home.dart';
 import 'package:schoolprojectjan/screens/admin/welcome_screen.dart';
 import 'package:schoolprojectjan/screens/parents/parent_dashboard.dart';
@@ -9,12 +10,10 @@ import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
 import 'package:schoolprojectjan/screens/authentication_page/change_password_screen.dart';
 
 class LoginPage extends StatefulWidget {
-  final String schoolId;
   final String role;
 
   const LoginPage({
     super.key,
-    required this.schoolId,
     required this.role,
   });
 
@@ -174,7 +173,7 @@ class _LoginPageState extends State<LoginPage> {
 
       final roleDoc = await FirebaseFirestore.instance
           .collection('schools')
-          .doc(widget.schoolId)
+          .doc(AppConfig.schoolId) // ✅ FIXED
           .collection(roleCollection)
           .doc(uid)
           .get();
@@ -184,12 +183,12 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      /// ---------- ADMIN LOGIN ----------
+      /// ---------- ADMIN ----------
       if (widget.role == "Admin") {
 
         final schoolDoc = await FirebaseFirestore.instance
             .collection('schools')
-            .doc(widget.schoolId)
+            .doc(AppConfig.schoolId)
             .get();
 
         String schoolName = schoolDoc['schoolName'] ?? "School";
@@ -199,7 +198,7 @@ class _LoginPageState extends State<LoginPage> {
           context,
           MaterialPageRoute(
             builder: (_) => WelcomeScreen(
-              schoolId: widget.schoolId,
+              schoolId: AppConfig.schoolId,
               schoolName: schoolName,
               logoUrl: logoUrl,
             ),
@@ -209,7 +208,7 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      /// ---------- TEACHER LOGIN ----------
+      /// ---------- TEACHER ----------
       if (widget.role == "Teacher") {
 
         if (roleDoc['firstLogin'] == true) {
@@ -218,7 +217,7 @@ class _LoginPageState extends State<LoginPage> {
             context,
             MaterialPageRoute(
               builder: (_) => ChangePasswordScreen(
-                schoolId: widget.schoolId,
+                schoolId: AppConfig.schoolId,
                 userId: uid,
                 role: "Teacher",
               ),
@@ -232,7 +231,7 @@ class _LoginPageState extends State<LoginPage> {
           context,
           MaterialPageRoute(
             builder: (_) => TeacherHome(
-              schoolId: widget.schoolId,
+              schoolId: AppConfig.schoolId,
             ),
           ),
         );
@@ -240,7 +239,7 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      /// ---------- PARENT LOGIN ----------
+      /// ---------- PARENT ----------
       if (widget.role == "Parent") {
 
         if (roleDoc['firstLogin'] == true) {
@@ -249,7 +248,7 @@ class _LoginPageState extends State<LoginPage> {
             context,
             MaterialPageRoute(
               builder: (_) => ChangePasswordScreen(
-                schoolId: widget.schoolId,
+                schoolId: AppConfig.schoolId,
                 userId: uid,
                 role: "Parent",
               ),
@@ -259,20 +258,18 @@ class _LoginPageState extends State<LoginPage> {
           return;
         }
 
+        if (!mounted) return;
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => ParentDashboard(
-              schoolId: widget.schoolId,
-            ),
+            builder: (_) => const ParentDashboard(), // ✅ FIXED
           ),
         );
       }
 
     } catch (e) {
-
       _msg("Login failed: ${e.toString()}");
-
     }
   }
 

@@ -23,7 +23,7 @@ class _TeacherHomeState extends State<TeacherHome> {
     super.initState();
 
     _pages = [
-      TeacherDashboard(schoolId: widget.schoolId),
+      TeacherDashboard(),
       const Center(child: Text("Attendance Coming Soon")),
       const Center(child: Text("Homework Coming Soon")),
       const Center(child: Text("Timetable Coming Soon")),

@@ -47,14 +47,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
     _controller.forward();
 
-    /// 🔷 Navigate after delay
+    /// 🔷 Navigate after delay (SAFE)
     Future.delayed(const Duration(seconds: 2), () {
+      if (!mounted) return; // ✅ FIX
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => AdminDashboard(
-            schoolId: widget.schoolId,
-          ),
+          builder: (_) => const AdminDashboard(), // ✅ FIXED
         ),
       );
     });
@@ -99,7 +99,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
+                          color: Colors.black.withOpacity(0.25), // optional change later
                           blurRadius: 25,
                           offset: const Offset(0, 10),
                         ),

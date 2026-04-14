@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:schoolprojectjan/app_config.dart'; // ✅ ADDED
+
 import 'select_class_attendance_page.dart';
 import 'attendance_report_page.dart';
 
 class TeacherDashboard extends StatelessWidget {
-  final String schoolId;
 
-  const TeacherDashboard({
-    super.key,
-    required this.schoolId,
-  });
+  const TeacherDashboard({super.key}); // ✅ REMOVED schoolId
 
   @override
   Widget build(BuildContext context) {
+
     final today =
         "${DateTime.now().day}-${DateTime.now().month}-${DateTime.now().year}";
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
+
       appBar: AppBar(
         automaticallyImplyLeading: false,
         elevation: 0,
@@ -32,16 +32,20 @@ class TeacherDashboard extends StatelessWidget {
           )
         ],
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+
             const Text(
               "Welcome Teacher 👋",
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
+
             const SizedBox(height: 6),
+
             Text(today, style: TextStyle(color: Colors.grey.shade600)),
 
             const SizedBox(height: 20),
@@ -55,6 +59,7 @@ class TeacherDashboard extends StatelessWidget {
               crossAxisSpacing: 16,
               childAspectRatio: 1.1,
               children: [
+
                 _ActionCard(
                   title: "Mark Attendance",
                   icon: Icons.fact_check,
@@ -64,7 +69,9 @@ class TeacherDashboard extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (_) =>
-                            SelectClassAttendancePage(schoolId: schoolId),
+                            SelectClassAttendancePage(
+                              schoolId: AppConfig.schoolId, // ✅ FIXED
+                            ),
                       ),
                     );
                   },
@@ -79,7 +86,9 @@ class TeacherDashboard extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (_) =>
-                            AttendanceReportPage(schoolId: schoolId),
+                            AttendanceReportPage(
+                              schoolId: AppConfig.schoolId, // ✅ FIXED
+                            ),
                       ),
                     );
                   },
@@ -107,6 +116,7 @@ class TeacherDashboard extends StatelessWidget {
               "Today's Classes",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+
             const SizedBox(height: 12),
 
             _scheduleTile("08:00", "Math", "Class 10-A"),
@@ -127,7 +137,8 @@ class TeacherDashboard extends StatelessWidget {
           backgroundColor: Colors.deepPurple.withOpacity(0.1),
           child: Text(time, style: const TextStyle(fontSize: 12)),
         ),
-        title: Text(subject, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(subject,
+            style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(className),
       ),
     );

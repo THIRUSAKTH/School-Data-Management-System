@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:schoolprojectjan/school_login_details/school_login_screen.dart';
-
+import 'package:schoolprojectjan/screens/role_router/role_select_screen.dart';
 
 class GetStarted extends StatelessWidget {
   const GetStarted({super.key});
@@ -28,7 +27,7 @@ class GetStarted extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
 
-                  /// 🔹 APP LOGO
+                  /// 🔹 LOGO
                   Container(
                     height: 110,
                     width: 110,
@@ -45,7 +44,7 @@ class GetStarted extends StatelessWidget {
 
                   const SizedBox(height: 30),
 
-                  /// 🔹 APP NAME
+                  /// 🔹 TITLE
                   const Text(
                     "School Management System",
                     textAlign: TextAlign.center,
@@ -58,7 +57,7 @@ class GetStarted extends StatelessWidget {
 
                   const SizedBox(height: 10),
 
-                  /// 🔹 TAGLINE
+                  /// 🔹 SUBTITLE
                   const Text(
                     "Manage your school digitally\nSecure • Smart • Scalable",
                     textAlign: TextAlign.center,
@@ -70,7 +69,7 @@ class GetStarted extends StatelessWidget {
 
                   const SizedBox(height: 50),
 
-                  /// 🔹 GET STARTED BUTTON
+                  /// 🔹 BUTTON
                   SizedBox(
                     width: double.infinity,
                     height: 55,
@@ -87,7 +86,7 @@ class GetStarted extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => SchoolLoginScreen(),
+                            builder: (_) => const RoleSelectScreen(),
                           ),
                         );
                       },
@@ -109,7 +108,8 @@ class GetStarted extends StatelessWidget {
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 12,
-                      fontWeight: FontWeight.bold),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),

@@ -168,7 +168,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       _performanceData['subjectWise'] = {};
     });
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -180,7 +179,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
           : _buildBody(),
     );
   }
-
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.blue,
@@ -224,7 +222,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       ],
     );
   }
-
   // ================= ATTENDANCE TAB =================
   Widget _buildAttendanceTab() {
     return SingleChildScrollView(
@@ -245,29 +242,23 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       ),
     );
   }
-
   int _sumMapValues(Map<String, int>? map) {
     if (map == null || map.isEmpty) return 0;
     return map.values.reduce((a, b) => a + b);
   }
-
   Widget _buildAttendanceSummaryCards() {
     Map<String, int> presentMap = {};
     Map<String, int> absentMap = {};
-
     if (_attendanceData['dailyPresent'] != null &&
         _attendanceData['dailyPresent'] is Map) {
       presentMap = Map<String, int>.from(_attendanceData['dailyPresent']);
     }
-
     if (_attendanceData['dailyAbsent'] != null &&
         _attendanceData['dailyAbsent'] is Map) {
       absentMap = Map<String, int>.from(_attendanceData['dailyAbsent']);
     }
-
     int totalPresent = _sumMapValues(presentMap);
     int totalAbsent = _sumMapValues(absentMap);
-
     double attendanceRate =
     totalPresent + totalAbsent > 0
         ? (totalPresent / (totalPresent + totalAbsent)) * 100
@@ -312,7 +303,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       ],
     );
   }
-
   Widget _buildAttendanceTrendChart() {
     return Container(
       padding: const EdgeInsets.all(16),

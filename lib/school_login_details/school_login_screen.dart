@@ -157,8 +157,7 @@ class SchoolLoginScreen extends StatelessWidget {
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) =>
-                                        RoleSelectScreen(
-                                            schoolId: schoolId),
+                                        RoleSelectScreen(),
                                   ),
                                 );
                               } catch (e) {
