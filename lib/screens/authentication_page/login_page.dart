@@ -112,7 +112,6 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
-
                   ],
                 ),
               )
@@ -122,9 +121,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
   /// ================= INPUT FIELD =================
-
   Widget _field(TextEditingController c, String hint, {bool hide = false}) {
     return TextField(
       controller: c,
@@ -153,33 +150,24 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-
   /// ================= LOGIN FUNCTION =================
-
   Future<void> _loginUser() async {
     try {
-
       final email = emailController.text.trim();
       final password = passwordController.text.trim();
-
       final result = await FirebaseAuth.instance
           .signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-
       final uid = result.user!.uid;
-
       final roleCollection = widget.role.toLowerCase() + "s";
-
       final roleRef = FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection(roleCollection)
           .doc(uid);
-
       final roleDoc = await roleRef.get();
-
       /// 🔥 AUTO REGISTER USER IF NOT EXISTS
       if (!roleDoc.exists) {
         await roleRef.set({
@@ -189,27 +177,20 @@ class _LoginPageState extends State<LoginPage> {
           "createdAt": FieldValue.serverTimestamp(),
         });
       }
-
-      /// ---------- ADMIN ----------
       /// ---------- ADMIN ----------
       if (widget.role == "Admin") {
-
         final schoolDoc = await FirebaseFirestore.instance
             .collection('schools')
             .doc(AppConfig.schoolId)
             .get();
-
         String schoolName = "School";
         String logoUrl = "";
-
         if (schoolDoc.exists) {
           final data = schoolDoc.data() as Map<String, dynamic>;
           schoolName = data['schoolName'] ?? "School";
           logoUrl = data['logoUrl'] ?? "";
         }
-
         if (!mounted) return;
-
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -220,19 +201,13 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         );
-
         return;
       }
-
       /// ---------- TEACHER ----------
       if (widget.role == "Teacher") {
-
         final data = (await roleRef.get()).data();
-
         if (data?['firstLogin'] == true) {
-
           if (!mounted) return;
-
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -246,7 +221,6 @@ class _LoginPageState extends State<LoginPage> {
           return;
         }
         if (!mounted) return;
-
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
