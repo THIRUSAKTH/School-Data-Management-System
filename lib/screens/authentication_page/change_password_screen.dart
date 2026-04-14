@@ -166,10 +166,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       );
 
       await user.reauthenticateWithCredential(credential);
-
       // ✅ Update password
       await user.updatePassword(newPass);
-
       // ✅ Update Firestore firstLogin flag
       final collection =
       widget.role == "Teacher" ? "teachers" : "parents";
@@ -185,7 +183,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const TeacherHome(schoolId: '',)),
+        MaterialPageRoute(builder: (_) => const TeacherHome()),
       );
     } catch (e) {
       _msg("Error: ${e.toString()}");

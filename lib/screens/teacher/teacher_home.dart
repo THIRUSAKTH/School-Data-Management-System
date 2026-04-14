@@ -2,12 +2,8 @@ import 'package:flutter/material.dart';
 import 'teacher_dashboard.dart';
 
 class TeacherHome extends StatefulWidget {
-  final String schoolId;
 
-  const TeacherHome({
-    super.key,
-    required this.schoolId,
-  });
+  const TeacherHome({super.key}); // ✅ REMOVED schoolId
 
   @override
   State<TeacherHome> createState() => _TeacherHomeState();
@@ -22,11 +18,11 @@ class _TeacherHomeState extends State<TeacherHome> {
   void initState() {
     super.initState();
 
-    _pages = [
+    _pages = const [
       TeacherDashboard(),
-      const Center(child: Text("Attendance Coming Soon")),
-      const Center(child: Text("Homework Coming Soon")),
-      const Center(child: Text("Timetable Coming Soon")),
+      Center(child: Text("Attendance Coming Soon")),
+      Center(child: Text("Homework Coming Soon")),
+      Center(child: Text("Timetable Coming Soon")),
     ];
   }
 

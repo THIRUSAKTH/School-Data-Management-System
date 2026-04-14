@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import 'package:schoolprojectjan/app_config.dart'; // ✅ IMPORTANT
-import 'package:schoolprojectjan/screens/admin/admin_home.dart';
+import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/screens/admin/welcome_screen.dart';
 import 'package:schoolprojectjan/screens/parents/parent_dashboard.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
@@ -158,31 +157,40 @@ class _LoginPageState extends State<LoginPage> {
   /// ================= LOGIN FUNCTION =================
 
   Future<void> _loginUser() async {
-
     try {
+
+      final email = emailController.text.trim();
+      final password = passwordController.text.trim();
 
       final result = await FirebaseAuth.instance
           .signInWithEmailAndPassword(
-        email: emailController.text.trim(),
-        password: passwordController.text.trim(),
+        email: email,
+        password: password,
       );
 
       final uid = result.user!.uid;
 
       final roleCollection = widget.role.toLowerCase() + "s";
 
-      final roleDoc = await FirebaseFirestore.instance
+      final roleRef = FirebaseFirestore.instance
           .collection('schools')
-          .doc(AppConfig.schoolId) // ✅ FIXED
+          .doc(AppConfig.schoolId)
           .collection(roleCollection)
-          .doc(uid)
-          .get();
+          .doc(uid);
 
+      final roleDoc = await roleRef.get();
+
+      /// 🔥 AUTO REGISTER USER IF NOT EXISTS
       if (!roleDoc.exists) {
-        _msg("Not registered in this school");
-        return;
+        await roleRef.set({
+          "email": email,
+          "role": widget.role,
+          "firstLogin": false,
+          "createdAt": FieldValue.serverTimestamp(),
+        });
       }
 
+      /// ---------- ADMIN ----------
       /// ---------- ADMIN ----------
       if (widget.role == "Admin") {
 
@@ -191,8 +199,16 @@ class _LoginPageState extends State<LoginPage> {
             .doc(AppConfig.schoolId)
             .get();
 
-        String schoolName = schoolDoc['schoolName'] ?? "School";
-        String logoUrl = schoolDoc['logoUrl'] ?? "";
+        String schoolName = "School";
+        String logoUrl = "";
+
+        if (schoolDoc.exists) {
+          final data = schoolDoc.data() as Map<String, dynamic>;
+          schoolName = data['schoolName'] ?? "School";
+          logoUrl = data['logoUrl'] ?? "";
+        }
+
+        if (!mounted) return;
 
         Navigator.pushReplacement(
           context,
@@ -211,7 +227,11 @@ class _LoginPageState extends State<LoginPage> {
       /// ---------- TEACHER ----------
       if (widget.role == "Teacher") {
 
-        if (roleDoc['firstLogin'] == true) {
+        final data = (await roleRef.get()).data();
+
+        if (data?['firstLogin'] == true) {
+
+          if (!mounted) return;
 
           Navigator.pushReplacement(
             context,
@@ -223,27 +243,23 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           );
-
           return;
         }
+        if (!mounted) return;
 
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => TeacherHome(
-              schoolId: AppConfig.schoolId,
-            ),
+            builder: (_) => const TeacherHome(),
           ),
         );
-
         return;
       }
-
       /// ---------- PARENT ----------
       if (widget.role == "Parent") {
-
-        if (roleDoc['firstLogin'] == true) {
-
+        final data = (await roleRef.get()).data();
+        if (data?['firstLogin'] == true) {
+          if (!mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -254,27 +270,21 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           );
-
           return;
         }
-
         if (!mounted) return;
-
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => const ParentDashboard(), // ✅ FIXED
+            builder: (_) => const ParentDashboard(),
           ),
         );
       }
-
     } catch (e) {
       _msg("Login failed: ${e.toString()}");
     }
   }
-
   /// ================= SNACKBAR =================
-
   void _msg(String t) {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(t)));
