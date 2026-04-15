@@ -78,9 +78,7 @@ class _LoginPageState extends State<LoginPage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 30),
-
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -89,15 +87,10 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 child: Column(
                   children: [
-
                     _field(emailController, "Email"),
-
                     const SizedBox(height: 15),
-
                     _field(passwordController, "Password", hide: true),
-
                     const SizedBox(height: 25),
-
                     SizedBox(
                       width: double.infinity,
                       height: 48,
