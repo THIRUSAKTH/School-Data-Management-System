@@ -40,7 +40,6 @@ class _LoginPageState extends State<LoginPage> {
         return Colors.blue;
     }
   }
-
   /// ROLE ICON
   IconData get roleIcon {
     switch (widget.role) {
