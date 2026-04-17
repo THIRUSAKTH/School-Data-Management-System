@@ -5,6 +5,8 @@ import 'package:schoolprojectjan/app_config.dart'; // ✅ ADDED
 import 'package:schoolprojectjan/screens/admin/exam_management_page.dart';
 import 'package:schoolprojectjan/screens/admin/school_settings_page.dart';
 import 'package:schoolprojectjan/screens/admin/select_class_for_attendance_page.dart';
+import 'package:schoolprojectjan/screens/common/profile_page.dart';
+import 'package:schoolprojectjan/screens/common/settings_page.dart';
 import 'admin_analytics_page.dart';
 import 'admin_attendance_overview.dart';
 import 'admin_feeupload_page.dart';
@@ -236,6 +238,8 @@ class AdminDashboard extends StatelessWidget {
           _drawerItem(context, Icons.analytics,
               "Analytics",
               AdminAnalyticsPage(schoolId: AppConfig.schoolId)),
+          _drawerItem(context, Icons.person, "Profile", const ProfilePage()),
+          _drawerItem(context, Icons.settings, "Settings", const SettingsPage()),
           _drawerItem(context, Icons.settings,
               "School Settings",
               SchoolSettingsPage(schoolId: AppConfig.schoolId)),

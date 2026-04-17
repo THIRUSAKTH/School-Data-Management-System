@@ -1,15 +1,51 @@
 import 'package:flutter/material.dart';
-import 'package:schoolprojectjan/app_config.dart'; // ✅ ADDED
+import 'package:schoolprojectjan/app_config.dart';
 
 import 'select_class_attendance_page.dart';
 import 'attendance_report_page.dart';
+import '../common/profile_page.dart'; // ✅ ADD THIS
 
-class TeacherDashboard extends StatelessWidget {
+class TeacherDashboard extends StatefulWidget {
+  const TeacherDashboard({super.key});
 
-  const TeacherDashboard({super.key}); // ✅ REMOVED schoolId
+  @override
+  State<TeacherDashboard> createState() => _TeacherDashboardState();
+}
+
+class _TeacherDashboardState extends State<TeacherDashboard> {
+
+  int _index = 0;
 
   @override
   Widget build(BuildContext context) {
+
+    final pages = [
+      _buildHome(context),
+      _buildClasses(),
+      const ProfilePage(),
+    ];
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
+
+      body: pages[_index],
+
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _index,
+        selectedItemColor: Colors.green,
+        unselectedItemColor: Colors.grey,
+        onTap: (i) => setState(() => _index = i),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: "Home"),
+          BottomNavigationBarItem(icon: Icon(Icons.class_), label: "Classes"),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+        ],
+      ),
+    );
+  }
+
+  /// ================= HOME =================
+  Widget _buildHome(BuildContext context) {
 
     final today =
         "${DateTime.now().day}-${DateTime.now().month}-${DateTime.now().year}";
@@ -68,10 +104,9 @@ class TeacherDashboard extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            SelectClassAttendancePage(
-                              schoolId: AppConfig.schoolId, // ✅ FIXED
-                            ),
+                        builder: (_) => SelectClassAttendancePage(
+                          schoolId: AppConfig.schoolId,
+                        ),
                       ),
                     );
                   },
@@ -85,10 +120,9 @@ class TeacherDashboard extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            AttendanceReportPage(
-                              schoolId: AppConfig.schoolId, // ✅ FIXED
-                            ),
+                        builder: (_) => AttendanceReportPage(
+                          schoolId: AppConfig.schoolId,
+                        ),
                       ),
                     );
                   },
@@ -98,14 +132,22 @@ class TeacherDashboard extends StatelessWidget {
                   title: "Post Homework",
                   icon: Icons.menu_book,
                   color: Colors.green,
-                  onTap: () {},
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Coming Soon")),
+                    );
+                  },
                 ),
 
                 _ActionCard(
                   title: "Announcements",
                   icon: Icons.notifications,
                   color: Colors.orange,
-                  onTap: () {},
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Coming Soon")),
+                    );
+                  },
                 ),
               ],
             ),
@@ -128,17 +170,29 @@ class TeacherDashboard extends StatelessWidget {
     );
   }
 
+  /// ================= CLASSES TAB =================
+  Widget _buildClasses() {
+    return const Center(
+      child: Text("Class Management Coming Soon"),
+    );
+  }
+
+  /// ================= SCHEDULE TILE =================
   Widget _scheduleTile(String time, String subject, String className) {
     return Card(
+      elevation: 3,
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Colors.deepPurple.withOpacity(0.1),
+          backgroundColor: Colors.deepPurple.withValues(alpha: 0.1),
           child: Text(time, style: const TextStyle(fontSize: 12)),
         ),
-        title: Text(subject,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          subject,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         subtitle: Text(className),
       ),
     );
