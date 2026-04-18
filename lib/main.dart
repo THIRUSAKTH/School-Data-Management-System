@@ -20,10 +20,11 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      title: "School Management System",
       home: GetStarted(),
       routes: {
         '/parentLogin': (_) => const ParentLoginPage(),
-        '/parentHome': (_) => const ParentHomePage(schoolId: '',),
+        '/parent_home': (context) => const ParentHomePage(),
       },
     );
   }
