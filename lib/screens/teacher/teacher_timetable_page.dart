@@ -206,6 +206,7 @@ class _TeacherTimetablePageState extends State<TeacherTimetablePage>
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text("My Timetable"),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,

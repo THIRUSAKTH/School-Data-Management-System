@@ -465,6 +465,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
       if (count > maxValue) maxValue = count;
     }
 
+    // Calculate interval - FIXED: ensure it's never zero
+    double interval = (maxValue / 5).ceilToDouble();
+    if (interval == 0) interval = 1; // Prevent zero interval
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
@@ -497,7 +501,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 40,
-                      interval: (maxValue / 5).ceilToDouble(),
+                      interval: interval, // FIXED: using safe interval
                       getTitlesWidget: (value, meta) {
                         return Text(value.toInt().toString(), style: const TextStyle(fontSize: 10));
                       },
@@ -523,7 +527,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 minX: 0,
                 maxX: 6,
                 minY: 0,
-                maxY: maxValue + 5,
+                maxY: (maxValue + 5).toDouble(),
                 lineBarsData: [
                   LineChartBarData(
                     spots: spots,
@@ -544,7 +548,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     );
   }
-
   Widget _buildFeeChart() {
     final monthlyFee = _cachedChartData['monthlyFee'] ?? {};
     List<String> months = monthlyFee.keys.toList();
@@ -586,6 +589,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     maxY = maxY > 0 ? maxY * 1.1 : 100000;
 
+    // Calculate interval - FIXED: ensure it's never zero
+    double interval = maxY / 5;
+    if (interval == 0) interval = 10000; // Prevent zero interval
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
@@ -621,6 +628,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 55,
+                      interval: interval, // FIXED: using safe interval
                       getTitlesWidget: (value, meta) {
                         if (value >= 1000) {
                           return Text('₹${(value / 1000).toInt()}k', style: const TextStyle(fontSize: 10));
@@ -666,7 +674,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     );
   }
-
   Widget _buildQuickActions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

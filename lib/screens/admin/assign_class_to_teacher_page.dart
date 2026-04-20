@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../app_config.dart';
 
 class AssignClassToTeacherPage extends StatefulWidget {
   final String schoolId;
@@ -53,7 +52,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Load available classes
+      // Load available classes - FIXED: handle null and cast properly
       final classesSnapshot = await FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
@@ -61,7 +60,11 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
           .get();
 
       _availableClasses = classesSnapshot.docs
-          .map((doc) => doc['className'] as String)
+          .map((doc) {
+        final data = doc.data();
+        return (data['class'] as String?) ?? (data['className'] as String?) ?? '';
+      })
+          .where((name) => name.isNotEmpty)
           .toList();
 
       // Load available subjects
@@ -73,7 +76,11 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
 
       if (subjectsSnapshot.docs.isNotEmpty) {
         _availableSubjects = subjectsSnapshot.docs
-            .map((doc) => doc['name'] as String)
+            .map((doc) {
+          final data = doc.data();
+          return data['name'] as String? ?? '';
+        })
+            .where((name) => name.isNotEmpty)
             .toList();
       } else {
         // Default subjects
@@ -97,10 +104,11 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
 
         setState(() {
           assigned = existingAssignments.map((item) {
+            final itemMap = item as Map<String, dynamic>;
             return {
-              'class': item['className'] ?? item['class'] ?? '',
-              'section': item['section'] ?? '',
-              'subject': item['subject'] ?? '',
+              'class': itemMap['className'] ?? itemMap['class'] ?? '',
+              'section': itemMap['section'] ?? '',
+              'subject': itemMap['subject'] ?? '',
             };
           }).toList();
         });
@@ -141,20 +149,12 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
         children: [
-          // Teacher Info Card
           _buildTeacherInfoCard(),
-
-          // Assignment Form
           _buildAssignmentForm(),
-
           const SizedBox(height: 16),
-
-          // Assigned Classes List
           Expanded(
             child: _buildAssignedList(),
           ),
-
-          // Save Button
           _buildSaveButton(),
         ],
       ),
@@ -232,20 +232,12 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-
-          // Class Dropdown
           _buildClassDropdown(),
           const SizedBox(height: 12),
-
-          // Section Dropdown
           _buildSectionDropdown(),
           const SizedBox(height: 12),
-
-          // Subject Dropdown
           _buildSubjectDropdown(),
           const SizedBox(height: 16),
-
-          // Add Button
           SizedBox(
             width: double.infinity,
             height: 45,
@@ -483,7 +475,6 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
       return;
     }
 
-    // Check for duplicate
     final isDuplicate = assigned.any((item) =>
     item['class'] == className && item['section'] == section);
 
@@ -505,7 +496,6 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
       });
     });
 
-    // Clear form
     classController.clear();
     sectionController.clear();
     subjectController.clear();
@@ -572,7 +562,6 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
     setState(() => _isSaving = true);
 
     try {
-      // Format assignments for Firestore
       final formattedAssignments = assigned.map((item) {
         return {
           'className': item['class'],
@@ -582,7 +571,6 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
         };
       }).toList();
 
-      // Update teacher document
       await FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
@@ -592,41 +580,6 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
         'assignedClasses': formattedAssignments,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-
-      // Also update a separate assignments collection for easier querying
-      final batch = FirebaseFirestore.instance.batch();
-
-      // Delete existing assignment entries
-      final existingAssignments = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('teacher_assignments')
-          .where('teacherId', isEqualTo: widget.teacherId)
-          .get();
-
-      for (var doc in existingAssignments.docs) {
-        batch.delete(doc.reference);
-      }
-
-      // Add new assignments
-      for (var item in assigned) {
-        final assignmentRef = FirebaseFirestore.instance
-            .collection('schools')
-            .doc(widget.schoolId)
-            .collection('teacher_assignments')
-            .doc();
-
-        batch.set(assignmentRef, {
-          'teacherId': widget.teacherId,
-          'teacherName': widget.teacherName,
-          'className': item['class'],
-          'section': item['section'],
-          'subject': item['subject'],
-          'assignedAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      await batch.commit();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

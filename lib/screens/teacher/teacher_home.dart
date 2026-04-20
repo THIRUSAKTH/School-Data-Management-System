@@ -45,6 +45,7 @@ class _TeacherHomeState extends State<TeacherHome> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
+        automaticallyImplyLeading: false,
         title: Text(
           _titles[_index],
           style: const TextStyle(color: Colors.black),

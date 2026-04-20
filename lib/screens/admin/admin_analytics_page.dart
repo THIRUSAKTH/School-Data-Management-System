@@ -34,8 +34,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _loadAllAnalytics();
-    _loadStudentsAndSubjects();
+    _initializeData();
   }
 
   @override
@@ -44,298 +43,349 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     super.dispose();
   }
 
+  Future<void> _initializeData() async {
+    await _loadStudentsAndSubjects();
+    await _loadAllAnalytics();
+  }
+
   Future<void> _loadStudentsAndSubjects() async {
-    // Load students
-    final studentsSnapshot = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(widget.schoolId)
-        .collection('students')
-        .get();
+    try {
+      // Load students
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('students')
+          .get();
 
-    _studentsList = studentsSnapshot.docs.map((doc) {
-      final data = doc.data();
-      return {
-        'id': doc.id,
-        'name': data['name'] ?? 'Unknown',
-        'className': data['className'] ?? 'Unknown',
-        'rollNo': data['rollNo'] ?? '',
-      };
-    }).toList();
-
-    // Load subjects (you can store these in a 'subjects' collection)
-    final subjectsSnapshot = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(widget.schoolId)
-        .collection('subjects')
-        .get();
-
-    if (subjectsSnapshot.docs.isNotEmpty) {
-      _subjectsList = subjectsSnapshot.docs.map((doc) {
+      _studentsList = studentsSnapshot.docs.map((doc) {
         final data = doc.data();
         return {
           'id': doc.id,
           'name': data['name'] ?? 'Unknown',
+          'className': data['class'] ?? data['className'] ?? 'Unknown',
+          'rollNo': data['rollNo'] ?? '',
         };
       }).toList();
-    } else {
-      // Default subjects if none exist
-      _subjectsList = [
-        {'id': '1', 'name': 'Mathematics'},
-        {'id': '2', 'name': 'Science'},
-        {'id': '3', 'name': 'English'},
-        {'id': '4', 'name': 'History'},
-        {'id': '5', 'name': 'Geography'},
-      ];
-    }
 
-    setState(() {});
+      // Load subjects
+      final subjectsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('subjects')
+          .get();
+
+      if (subjectsSnapshot.docs.isNotEmpty) {
+        _subjectsList = subjectsSnapshot.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'name': data['name'] ?? 'Unknown',
+          };
+        }).toList();
+      } else {
+        // Default subjects if none exist
+        _subjectsList = [
+          {'id': '1', 'name': 'Mathematics'},
+          {'id': '2', 'name': 'Science'},
+          {'id': '3', 'name': 'English'},
+          {'id': '4', 'name': 'History'},
+          {'id': '5', 'name': 'Geography'},
+        ];
+      }
+    } catch (e) {
+      debugPrint('Error loading students/subjects: $e');
+    }
   }
 
   Future<void> _loadAllAnalytics() async {
     setState(() => _isLoading = true);
-    await Future.wait([
-      _loadAttendanceAnalytics(),
-      _loadFeeAnalytics(),
-      _loadPerformanceAnalytics(),
-    ]);
-    setState(() => _isLoading = false);
+    try {
+      await Future.wait([
+        _loadAttendanceAnalytics(),
+        _loadFeeAnalytics(),
+        _loadPerformanceAnalytics(),
+      ]);
+    } catch (e) {
+      debugPrint('Error loading analytics: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _loadAttendanceAnalytics() async {
-    final attendanceRef = FirebaseFirestore.instance
-        .collection('schools')
-        .doc(widget.schoolId)
-        .collection('attendance');
+    try {
+      final attendanceRef = FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('attendance');
 
-    final snapshot = await attendanceRef.get();
+      final snapshot = await attendanceRef.get();
 
-    Map<String, int> dailyPresent = {};
-    Map<String, int> dailyAbsent = {};
-    Map<String, double> monthlyAverage = {};
-    Map<String, double> classWiseAttendance = {};
-    Map<String, int> classTotalStudents = {};
-    Map<String, Map<int, int>> heatmapData = {}; // date -> {dayOfMonth: presentCount}
+      Map<String, int> dailyPresent = {};
+      Map<String, int> dailyAbsent = {};
+      Map<String, double> monthlyAverage = {};
+      Map<String, double> classWiseAttendance = {};
+      Map<String, int> classTotalStudents = {};
+      Map<String, Map<int, int>> heatmapData = {};
 
-    for (var doc in snapshot.docs) {
-      final data = doc.data();
-      final date = data['date'] as String?;
-      final status = data['status'] as String?;
-      final className = data['className'] as String? ?? 'Unknown';
-      final studentId = data['studentId'] as String?;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
 
-      if (date != null && status != null) {
-        // Daily counts
-        if (status == 'Present') {
-          dailyPresent[date] = (dailyPresent[date] ?? 0) + 1;
+        // Handle both data structures (direct records or nested)
+        Map<String, dynamic> records;
+        if (data.containsKey('records')) {
+          records = data['records'] as Map<String, dynamic>;
         } else {
-          dailyAbsent[date] = (dailyAbsent[date] ?? 0) + 1;
+          records = data;
         }
 
-        // Class-wise unique students
-        if (studentId != null && className != 'Unknown') {
-          classTotalStudents[className] = (classTotalStudents[className] ?? 0) + 1;
-        }
+        for (var entry in records.entries) {
+          final studentData = entry.value as Map<String, dynamic>?;
+          if (studentData == null) continue;
 
-        // Class-wise attendance
-        if (!classWiseAttendance.containsKey(className)) {
-          classWiseAttendance[className] = 0.0;
-        }
-        if (status == 'Present') {
-          classWiseAttendance[className] = (classWiseAttendance[className] ?? 0) + 1;
-        }
+          final date = doc.id;
+          final status = studentData['status'] as String?;
+          final className = studentData['className'] as String? ?? 'Unknown';
+          final studentId = entry.key;
 
-        // Monthly average
-        final month = date.substring(0, 7);
-        if (!monthlyAverage.containsKey(month)) {
-          monthlyAverage[month] = 0.0;
-        }
-        monthlyAverage[month] = (monthlyAverage[month] ?? 0) + (status == 'Present' ? 1 : 0);
+          if (date != null && status != null) {
+            // Daily counts
+            if (status == 'Present') {
+              dailyPresent[date] = (dailyPresent[date] ?? 0) + 1;
+            } else if (status == 'Absent') {
+              dailyAbsent[date] = (dailyAbsent[date] ?? 0) + 1;
+            }
 
-        // Heatmap data
-        try {
-          final dateObj = DateTime.parse(date);
-          final dayOfMonth = dateObj.day;
-          if (!heatmapData.containsKey(month)) {
-            heatmapData[month] = {};
+            // Class-wise unique students
+            if (studentId.isNotEmpty && className != 'Unknown') {
+              classTotalStudents[className] = (classTotalStudents[className] ?? 0) + 1;
+            }
+
+            // Class-wise attendance
+            if (!classWiseAttendance.containsKey(className)) {
+              classWiseAttendance[className] = 0.0;
+            }
+            if (status == 'Present') {
+              classWiseAttendance[className] = (classWiseAttendance[className] ?? 0) + 1;
+            }
+
+            // Monthly average
+            final month = date.substring(0, 7);
+            if (!monthlyAverage.containsKey(month)) {
+              monthlyAverage[month] = 0.0;
+            }
+            monthlyAverage[month] = (monthlyAverage[month] ?? 0) + (status == 'Present' ? 1 : 0);
+
+            // Heatmap data
+            try {
+              final dateObj = DateTime.parse(date);
+              final dayOfMonth = dateObj.day;
+              if (!heatmapData.containsKey(month)) {
+                heatmapData[month] = {};
+              }
+              if (status == 'Present') {
+                heatmapData[month]![dayOfMonth] = (heatmapData[month]![dayOfMonth] ?? 0) + 1;
+              }
+            } catch (e) {
+              // Invalid date format
+            }
           }
-          if (status == 'Present') {
-            heatmapData[month]![dayOfMonth] = (heatmapData[month]![dayOfMonth] ?? 0) + 1;
-          }
-        } catch (e) {
-          // Invalid date format
         }
       }
+
+      // Calculate class-wise percentages
+      Map<String, double> classWisePercentage = {};
+      classWiseAttendance.forEach((className, presentCount) {
+        int totalStudents = classTotalStudents[className] ?? 1;
+        classWisePercentage[className] = (presentCount / totalStudents) * 100;
+      });
+
+      // Get current month's heatmap
+      String currentMonth = DateFormat('yyyy-MM').format(DateTime.now());
+      Map<int, int> currentMonthHeatmap = heatmapData[currentMonth] ?? {};
+
+      setState(() {
+        _attendanceData['dailyPresent'] = dailyPresent;
+        _attendanceData['dailyAbsent'] = dailyAbsent;
+        _attendanceData['monthlyAverage'] = monthlyAverage;
+        _attendanceData['classWise'] = classWisePercentage;
+        _attendanceData['classWiseCount'] = classWiseAttendance;
+        _attendanceData['heatmap'] = currentMonthHeatmap;
+      });
+    } catch (e) {
+      debugPrint('Error loading attendance analytics: $e');
     }
-
-    // Calculate class-wise percentages
-    Map<String, double> classWisePercentage = {};
-    classWiseAttendance.forEach((className, presentCount) {
-      int totalStudents = classTotalStudents[className] ?? 1;
-      classWisePercentage[className] = (presentCount / totalStudents) * 100;
-    });
-
-    // Get current month's heatmap
-    String currentMonth = DateFormat('yyyy-MM').format(DateTime.now());
-    Map<int, int> currentMonthHeatmap = heatmapData[currentMonth] ?? {};
-
-    setState(() {
-      _attendanceData['dailyPresent'] = dailyPresent;
-      _attendanceData['dailyAbsent'] = dailyAbsent;
-      _attendanceData['monthlyAverage'] = monthlyAverage;
-      _attendanceData['classWise'] = classWisePercentage;
-      _attendanceData['classWiseCount'] = classWiseAttendance;
-      _attendanceData['heatmap'] = currentMonthHeatmap;
-    });
   }
 
   Future<void> _loadFeeAnalytics() async {
-    final feesRef = FirebaseFirestore.instance
-        .collection('schools')
-        .doc(widget.schoolId)
-        .collection('fees');
+    try {
+      final feesRef = FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('student_fees');
 
-    final snapshot = await feesRef.get();
+      final snapshot = await feesRef.get();
 
-    Map<String, double> monthlyCollected = {};
-    Map<String, double> monthlyPending = {};
-    double totalCollected = 0;
-    double totalPending = 0;
-    double collectionRate = 0;
-    List<Map<String, dynamic>> outstandingList = [];
+      Map<String, double> monthlyCollected = {};
+      Map<String, double> monthlyPending = {};
+      double totalCollected = 0;
+      double totalPending = 0;
+      List<Map<String, dynamic>> outstandingList = [];
 
-    for (var doc in snapshot.docs) {
-      final data = doc.data();
-      final date = data['date'] as String?;
-      final amount = (data['amount'] as num?)?.toDouble() ?? 0;
-      final status = data['status'] as String?;
-      final studentName = data['studentName'] ?? 'Unknown';
-      final dueDate = data['dueDate'] ?? date ?? '';
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final date = data['dueDate'] as String?;
+        final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+        final status = data['status'] as String?;
+        final studentName = data['studentName'] ?? 'Unknown';
 
-      if (date != null) {
-        final month = date.substring(0, 7);
+        if (date != null && date.length >= 7) {
+          final month = date.substring(0, 7);
 
-        if (status == 'Paid') {
-          monthlyCollected[month] = (monthlyCollected[month] ?? 0) + amount;
-          totalCollected += amount;
-        } else if (status == 'Pending') {
-          monthlyPending[month] = (monthlyPending[month] ?? 0) + amount;
-          totalPending += amount;
-          outstandingList.add({
-            'studentName': studentName,
-            'amount': amount,
-            'dueDate': dueDate,
-            'status': status,
-          });
+          if (status == 'paid') {
+            monthlyCollected[month] = (monthlyCollected[month] ?? 0) + amount;
+            totalCollected += amount;
+          } else if (status == 'pending') {
+            monthlyPending[month] = (monthlyPending[month] ?? 0) + amount;
+            totalPending += amount;
+            outstandingList.add({
+              'studentName': studentName,
+              'amount': amount,
+              'dueDate': date,
+              'status': status,
+            });
+          }
         }
       }
+
+      double collectionRate = totalCollected + totalPending > 0
+          ? (totalCollected / (totalCollected + totalPending)) * 100
+          : 0;
+
+      setState(() {
+        _feeData['monthlyCollected'] = monthlyCollected;
+        _feeData['monthlyPending'] = monthlyPending;
+        _feeData['totalCollected'] = totalCollected;
+        _feeData['totalPending'] = totalPending;
+        _feeData['collectionRate'] = collectionRate;
+        _feeData['outstandingList'] = outstandingList;
+      });
+    } catch (e) {
+      debugPrint('Error loading fee analytics: $e');
     }
-
-    collectionRate = totalCollected + totalPending > 0
-        ? (totalCollected / (totalCollected + totalPending)) * 100
-        : 0;
-
-    setState(() {
-      _feeData['monthlyCollected'] = monthlyCollected;
-      _feeData['monthlyPending'] = monthlyPending;
-      _feeData['totalCollected'] = totalCollected;
-      _feeData['totalPending'] = totalPending;
-      _feeData['collectionRate'] = collectionRate;
-      _feeData['outstandingList'] = outstandingList;
-    });
   }
 
   Future<void> _loadPerformanceAnalytics() async {
-    // Load exam results from Firestore
-    final resultsRef = FirebaseFirestore.instance
-        .collection('schools')
-        .doc(widget.schoolId)
-        .collection('exam_results');
+    try {
+      // Load exam results from Firestore
+      final resultsRef = FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('exam_results');
 
-    final snapshot = await resultsRef.get();
+      final snapshot = await resultsRef.get();
 
-    Map<String, List<double>> subjectScores = {};
-    Map<String, List<double>> studentScores = {};
-    List<Map<String, dynamic>> topStudents = [];
+      Map<String, List<double>> subjectScores = {};
+      Map<String, List<double>> studentScores = {};
 
-    for (var doc in snapshot.docs) {
-      final data = doc.data();
-      final subject = data['subject'] ?? 'Unknown';
-      final score = (data['score'] as num?)?.toDouble() ?? 0;
-      final studentId = data['studentId'] ?? '';
-      final studentName = data['studentName'] ?? 'Unknown';
-      final className = data['className'] ?? 'Unknown';
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final subject = data['subject'] ?? 'Unknown';
+        final score = (data['score'] as num?)?.toDouble() ?? 0;
+        final studentId = data['studentId'] ?? '';
 
-      // Subject-wise scores
-      if (!subjectScores.containsKey(subject)) {
-        subjectScores[subject] = [];
+        if (score > 0) {
+          // Subject-wise scores
+          if (!subjectScores.containsKey(subject)) {
+            subjectScores[subject] = [];
+          }
+          subjectScores[subject]!.add(score);
+
+          // Student-wise scores
+          if (!studentScores.containsKey(studentId)) {
+            studentScores[studentId] = [];
+          }
+          studentScores[studentId]!.add(score);
+        }
       }
-      subjectScores[subject]!.add(score);
 
-      // Student-wise scores
-      if (!studentScores.containsKey(studentId)) {
-        studentScores[studentId] = [];
-      }
-      studentScores[studentId]!.add(score);
-    }
-
-    // Calculate subject averages
-    Map<String, double> subjectAverages = {};
-    subjectScores.forEach((subject, scores) {
-      subjectAverages[subject] = scores.reduce((a, b) => a + b) / scores.length;
-    });
-
-    // Calculate student averages and get top performers
-    List<Map<String, dynamic>> studentAverages = [];
-    studentScores.forEach((studentId, scores) {
-      double avg = scores.reduce((a, b) => a + b) / scores.length;
-      studentAverages.add({
-        'studentId': studentId,
-        'average': avg,
+      // Calculate subject averages
+      Map<String, double> subjectAverages = {};
+      subjectScores.forEach((subject, scores) {
+        if (scores.isNotEmpty) {
+          subjectAverages[subject] = scores.reduce((a, b) => a + b) / scores.length;
+        }
       });
-    });
 
-    // Sort and get top 5
-    studentAverages.sort((a, b) => b['average'].compareTo(a['average']));
-    topStudents = studentAverages.take(5).toList();
+      // Calculate student averages and get top performers
+      List<Map<String, dynamic>> studentAverages = [];
+      studentScores.forEach((studentId, scores) {
+        if (scores.isNotEmpty) {
+          double avg = scores.reduce((a, b) => a + b) / scores.length;
+          studentAverages.add({
+            'studentId': studentId,
+            'average': avg,
+          });
+        }
+      });
 
-    // Calculate grade distribution
-    Map<String, int> gradeDistribution = {
-      'A+': 0,
-      'A': 0,
-      'B': 0,
-      'C': 0,
-      'D': 0,
-    };
+      // Sort and get top 5
+      studentAverages.sort((a, b) => b['average'].compareTo(a['average']));
+      List<Map<String, dynamic>> topStudents = studentAverages.take(5).toList();
 
-    for (var student in studentAverages) {
-      double avg = student['average'];
-      if (avg >= 90) gradeDistribution['A+'] = (gradeDistribution['A+'] ?? 0) + 1;
-      else if (avg >= 80) gradeDistribution['A'] = (gradeDistribution['A'] ?? 0) + 1;
-      else if (avg >= 70) gradeDistribution['B'] = (gradeDistribution['B'] ?? 0) + 1;
-      else if (avg >= 60) gradeDistribution['C'] = (gradeDistribution['C'] ?? 0) + 1;
-      else gradeDistribution['D'] = (gradeDistribution['D'] ?? 0) + 1;
+      // Calculate grade distribution
+      Map<String, int> gradeDistribution = {
+        'A+': 0,
+        'A': 0,
+        'B': 0,
+        'C': 0,
+        'D': 0,
+      };
+
+      for (var student in studentAverages) {
+        double avg = student['average'];
+        if (avg >= 90) gradeDistribution['A+'] = (gradeDistribution['A+'] ?? 0) + 1;
+        else if (avg >= 80) gradeDistribution['A'] = (gradeDistribution['A'] ?? 0) + 1;
+        else if (avg >= 70) gradeDistribution['B'] = (gradeDistribution['B'] ?? 0) + 1;
+        else if (avg >= 60) gradeDistribution['C'] = (gradeDistribution['C'] ?? 0) + 1;
+        else gradeDistribution['D'] = (gradeDistribution['D'] ?? 0) + 1;
+      }
+
+      // Calculate class average
+      double classAverage = studentAverages.isNotEmpty
+          ? studentAverages.map((s) => s['average'] as double).reduce((a, b) => a + b) / studentAverages.length
+          : 0;
+
+      // Calculate pass rate
+      int passedCount = studentAverages.where((s) => (s['average'] as double) >= 60).length;
+      double passRate = studentAverages.isNotEmpty
+          ? (passedCount / studentAverages.length) * 100
+          : 0;
+      double topScore = studentAverages.isNotEmpty ? studentAverages.first['average'] as double : 0;
+
+      setState(() {
+        _performanceData['subjectAverages'] = subjectAverages;
+        _performanceData['topStudents'] = topStudents;
+        _performanceData['gradeDistribution'] = gradeDistribution;
+        _performanceData['classAverage'] = classAverage;
+        _performanceData['passRate'] = passRate;
+        _performanceData['topScore'] = topScore;
+        _performanceData['totalStudents'] = studentAverages.length;
+      });
+    } catch (e) {
+      debugPrint('Error loading performance analytics: $e');
+      // Set default empty data
+      setState(() {
+        _performanceData['subjectAverages'] = {};
+        _performanceData['topStudents'] = [];
+        _performanceData['gradeDistribution'] = {'A+': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0};
+        _performanceData['classAverage'] = 0;
+        _performanceData['passRate'] = 0;
+        _performanceData['topScore'] = 0;
+      });
     }
-
-    // Calculate class average
-    double classAverage = studentAverages.isNotEmpty
-        ? studentAverages.map((s) => s['average']).reduce((a, b) => a + b) / studentAverages.length
-        : 0;
-
-    // Calculate pass rate (students with average >= 60)
-    int passedCount = studentAverages.where((s) => s['average'] >= 60).length;
-    double passRate = studentAverages.isNotEmpty
-        ? (passedCount / studentAverages.length) * 100
-        : 0;
-
-    setState(() {
-      _performanceData['subjectAverages'] = subjectAverages;
-      _performanceData['topStudents'] = topStudents;
-      _performanceData['gradeDistribution'] = gradeDistribution;
-      _performanceData['classAverage'] = classAverage;
-      _performanceData['passRate'] = passRate;
-      _performanceData['topScore'] = studentAverages.isNotEmpty ? studentAverages.first['average'] : 0;
-      _performanceData['totalStudents'] = studentAverages.length;
-    });
   }
 
   @override
@@ -391,9 +441,11 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   }
 
   Widget _buildTopSummary() {
-    double totalStudents = (_attendanceData['classWiseCount'] != null)
-        ? (_attendanceData['classWiseCount'] as Map).values.fold(0, (a, b) => a + b)
-        : 0;
+    double totalStudents = 0;
+    if (_attendanceData['classWiseCount'] != null) {
+      final classCountMap = _attendanceData['classWiseCount'] as Map;
+      totalStudents = classCountMap.values.fold(0.0, (sum, value) => sum + (value as num).toDouble());
+    }
 
     double totalCollected = _feeData['totalCollected'] ?? 0;
 
@@ -472,7 +524,11 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
   int _sumMapValues(Map<String, int>? map) {
     if (map == null || map.isEmpty) return 0;
-    return map.values.reduce((a, b) => a + b);
+    int sum = 0;
+    for (var value in map.values) {
+      sum += value;
+    }
+    return sum;
   }
 
   Widget _buildAttendanceSummaryCards() {
@@ -649,8 +705,11 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         : [];
 
     if (classes.isEmpty) {
-      classes = ['No Data'];
-      attendanceRates = [0];
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDecoration(),
+        child: const Center(child: Text("No class attendance data available")),
+      );
     }
 
     final targetRate = 90.0;
@@ -830,12 +889,9 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               int day = index + 1;
               int? presentCount = heatmapData[day];
 
-              // Calculate attendance rate for this day (simplified)
-              // You would need total students count for accurate percentage
-              double attendanceRate = presentCount != null && presentCount > 0 ? 85.0 : 65.0;
-              if (presentCount != null) {
-                int totalStudents = _studentsList.length;
-                attendanceRate = totalStudents > 0 ? (presentCount / totalStudents) * 100 : 0;
+              double attendanceRate = 0;
+              if (presentCount != null && _studentsList.isNotEmpty) {
+                attendanceRate = (presentCount / _studentsList.length) * 100;
               }
 
               Color getColor() {
@@ -918,9 +974,11 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     List<double> pending = monthlyPending.isNotEmpty ? monthlyPending.values.map((v) => v).toList() : [];
 
     if (months.isEmpty) {
-      months = ['Jan', 'Feb', 'Mar'];
-      collected = [0, 0, 0];
-      pending = [0, 0, 0];
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDecoration(),
+        child: const Center(child: Text("No fee collection data available")),
+      );
     }
 
     List<BarChartGroupData> barGroups = [];
@@ -983,7 +1041,10 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
                       reservedSize: 55,
                       interval: maxY / 5,
                       getTitlesWidget: (value, meta) {
-                        return Text('₹${(value / 1000).toInt()}k', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500));
+                        if (value >= 1000) {
+                          return Text('₹${(value / 1000).toInt()}k', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500));
+                        }
+                        return Text('₹${value.toInt()}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500));
                       },
                     ),
                   ),
@@ -1169,7 +1230,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               onChanged: (value) {
                 setState(() {
                   _selectedClass = value!;
-                  _loadPerformanceAnalytics(); // Reload data when class changes
                 });
               },
             ),
@@ -1192,7 +1252,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               onChanged: (value) {
                 setState(() {
                   _selectedPerformancePeriod = value!;
-                  _loadPerformanceAnalytics(); // Reload data when period changes
                 });
               },
             ),
@@ -1201,6 +1260,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       ),
     );
   }
+
   Widget _buildPerformanceSummary() {
     double classAverage = _performanceData['classAverage'] ?? 0;
     double topScore = _performanceData['topScore'] ?? 0;
@@ -1226,6 +1286,14 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
     List<String> subjects = subjectAverages.isNotEmpty ? subjectAverages.keys.toList() : ['No Data'];
     List<double> scores = subjectAverages.isNotEmpty ? subjectAverages.values.map((v) => v).toList() : [0];
+
+    if (subjects.length == 1 && subjects[0] == 'No Data') {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDecoration(),
+        child: const Center(child: Text("No subject performance data available")),
+      );
+    }
 
     List<BarChartGroupData> barGroups = [];
     for (int i = 0; i < subjects.length; i++) {
@@ -1307,7 +1375,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12)),
-                  child: Text("${student['average'].toStringAsFixed(1)}%", style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold)),
+                  child: Text("${(student['average'] as double).toStringAsFixed(1)}%", style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold)),
                 ),
               );
             },
@@ -1320,6 +1388,14 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   Widget _buildGradeDistribution() {
     Map<String, int> gradeDist = _performanceData['gradeDistribution'] ?? {'A+': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0};
     int total = gradeDist.values.fold(0, (a, b) => a + b);
+
+    if (total == 0) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDecoration(),
+        child: const Center(child: Text("No grade distribution data available")),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1431,13 +1507,26 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     List<int> values = presentMap.values.toList();
     if (values.length < 2) return "Insufficient data";
 
-    int lastWeekAvg = values.sublist(values.length > 7 ? values.length - 7 : 0, values.length).reduce((a, b) => a + b) ~/ (values.length > 7 ? 7 : values.length);
-    int previousAvg = values.sublist(0, values.length > 7 ? values.length - 7 : values.length).reduce((a, b) => a + b) ~/ (values.length > 7 ? values.length - 7 : values.length);
+    int lastWeekCount = 0;
+    int previousCount = 0;
 
+    int weekDays = values.length > 7 ? 7 : values.length;
+    for (int i = 0; i < weekDays; i++) {
+      lastWeekCount += values[values.length - 1 - i];
+    }
+
+    int prevDays = values.length > 7 ? values.length - 7 : values.length;
+    for (int i = 0; i < prevDays; i++) {
+      previousCount += values[i];
+    }
+
+    int lastWeekAvg = lastWeekCount ~/ weekDays;
+    int previousAvg = previousCount ~/ prevDays;
+
+    if (previousAvg == 0) return "New data available";
     double change = ((lastWeekAvg - previousAvg) / previousAvg) * 100;
     return change >= 0 ? "+${change.toStringAsFixed(1)}% vs last month" : "${change.toStringAsFixed(1)}% vs last month";
   }
-
   String _getBestAttendanceDay(Map<String, int> presentMap) {
     if (presentMap.isEmpty) return "No data";
 

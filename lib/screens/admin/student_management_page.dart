@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:schoolprojectjan/screens/admin/admin-add-student-page.dart';
 import 'package:schoolprojectjan/screens/admin/students_profile_page.dart';
-import 'admin-add-student-page.dart';
+import 'student_edit_page.dart';
 
 class StudentManagementPage extends StatefulWidget {
   final String schoolId;
@@ -16,16 +17,65 @@ class StudentManagementPage extends StatefulWidget {
       _StudentManagementPageState();
 }
 
-class _StudentManagementPageState
-    extends State<StudentManagementPage> {
-
+class _StudentManagementPageState extends State<StudentManagementPage> {
   String searchQuery = "";
+  String? selectedClassFilter;
+  String? selectedSectionFilter;
+  String selectedSortBy = "Name";
+
+  List<String> _availableClasses = [];
+  List<String> _availableSections = [];
+  bool _isLoadingFilters = true;
+
+  final List<String> _sortOptions = ["Name", "Roll Number", "Class"];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFilters();
+  }
+
+  Future<void> _loadFilters() async {
+    setState(() => _isLoadingFilters = true);
+
+    try {
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('students')
+          .get();
+
+      final Set<String> classesSet = {};
+      final Set<String> sectionsSet = {};
+
+      for (var doc in studentsSnapshot.docs) {
+        final data = doc.data();
+        final className = data['class'] as String?;
+        final section = data['section'] as String?;
+
+        if (className != null && className.isNotEmpty) {
+          classesSet.add(className);
+        }
+        if (section != null && section.isNotEmpty) {
+          sectionsSet.add(section);
+        }
+      }
+
+      setState(() {
+        _availableClasses = classesSet.toList()..sort();
+        _availableSections = sectionsSet.toList()..sort();
+        _isLoadingFilters = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading filters: $e');
+      setState(() => _isLoadingFilters = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
-
       appBar: AppBar(
         title: const Text(
           "Student Management",
@@ -33,8 +83,25 @@ class _StudentManagementPageState
         ),
         backgroundColor: Colors.cyan,
         foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: _showFilterDialog,
+            tooltip: "Filter",
+          ),
+          IconButton(
+            icon: const Icon(Icons.sort),
+            onPressed: _showSortDialog,
+            tooltip: "Sort",
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => setState(() {}),
+            tooltip: "Refresh",
+          ),
+        ],
       ),
-
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: Colors.cyan,
         icon: const Icon(Icons.person_add, color: Colors.white),
@@ -47,172 +114,457 @@ class _StudentManagementPageState
               builder: (_) =>
                   AdminAddStudentPage(schoolId: widget.schoolId),
             ),
-          );
+          ).then((_) => setState(() {}));
         },
       ),
-
       body: Column(
         children: [
+          // Search Bar
+          _buildSearchBar(),
 
-          /// 🔍 SEARCH BAR
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: "Search student...",
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onChanged: (val) {
-                setState(() => searchQuery = val.toLowerCase());
-              },
-            ),
-          ),
+          // Active Filters Row
+          if (selectedClassFilter != null || selectedSectionFilter != null)
+            _buildActiveFilters(),
 
-          /// 📋 STUDENT LIST
+          // Student Count
+          _buildStudentCount(),
+
+          // Student List
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('schools')
-                  .doc(widget.schoolId)
-                  .collection('students')
-                  .orderBy('createdAt', descending: true)
-                  .snapshots(),
-
-              builder: (context, snapshot) {
-
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Center(
-                      child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData ||
-                    snapshot.data!.docs.isEmpty) {
-                  return _emptyState();
-                }
-
-                final students = snapshot.data!.docs;
-
-                /// 🔍 FILTER
-                final filtered = students.where((s) {
-                  final name =
-                  (s['name'] ?? "").toString().toLowerCase();
-                  return name.contains(searchQuery);
-                }).toList();
-
-                if (filtered.isEmpty) {
-                  return const Center(
-                    child: Text("No matching students"),
-                  );
-                }
-
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    setState(() {});
-                  },
-                  child: ListView.builder(
-                    padding:
-                    const EdgeInsets.only(bottom: 90),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-
-                      final s = filtered[index];
-                      final studentId = s.id;
-
-                      final name = s['name'] ?? "No Name";
-                      final className = s['class'] ?? "-";
-                      final section = s['section'] ?? "-";
-                      final roll = s['rollNo'] ?? "-";
-
-                      return Card(
-                        elevation: 4,
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                          BorderRadius.circular(14),
-                        ),
-                        child: ListTile(
-                          contentPadding:
-                          const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10),
-
-                          leading: CircleAvatar(
-                            radius: 24,
-                            backgroundColor:
-                            Colors.deepPurple.withValues(alpha: 0.15),
-                            child: const Icon(Icons.person,
-                                color: Colors.deepPurple),
-                          ),
-
-                          title: Text(
-                            name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-
-                          subtitle: Padding(
-                            padding:
-                            const EdgeInsets.only(top: 4),
-                            child: Text(
-                              "Class $className - $section | Roll $roll",
-                              style: const TextStyle(
-                                  fontSize: 13),
-                            ),
-                          ),
-
-                          trailing: const Icon(
-                              Icons.arrow_forward_ios,
-                              size: 16),
-
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    StudentProfilePage(
-                                      schoolId:
-                                      widget.schoolId,
-                                      studentId:
-                                      studentId,
-                                    ),
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
+            child: _buildStudentList(),
           ),
         ],
       ),
     );
   }
 
-  /// 📭 EMPTY STATE
+  Widget _buildSearchBar() {
+    return Container(
+      margin: const EdgeInsets.all(12),
+      child: TextField(
+        decoration: InputDecoration(
+          hintText: "Search by student name...",
+          prefixIcon: const Icon(Icons.search, color: Colors.cyan),
+          suffixIcon: searchQuery.isNotEmpty
+              ? IconButton(
+            icon: const Icon(Icons.clear),
+            onPressed: () {
+              setState(() => searchQuery = "");
+            },
+          )
+              : null,
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.cyan, width: 1),
+          ),
+        ),
+        onChanged: (val) {
+          setState(() => searchQuery = val.toLowerCase());
+        },
+      ),
+    );
+  }
+
+  Widget _buildActiveFilters() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.cyan.shade50,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.filter_alt, size: 16, color: Colors.cyan),
+          const SizedBox(width: 8),
+          const Text("Active Filters:", style: TextStyle(fontSize: 12)),
+          const SizedBox(width: 8),
+          if (selectedClassFilter != null)
+            Chip(
+              label: Text("Class: $selectedClassFilter"),
+              onDeleted: () => setState(() => selectedClassFilter = null),
+              deleteIcon: const Icon(Icons.close, size: 14),
+              backgroundColor: Colors.white,
+              visualDensity: VisualDensity.compact,
+            ),
+          if (selectedSectionFilter != null)
+            Chip(
+              label: Text("Section: $selectedSectionFilter"),
+              onDeleted: () => setState(() => selectedSectionFilter = null),
+              deleteIcon: const Icon(Icons.close, size: 14),
+              backgroundColor: Colors.white,
+              visualDensity: VisualDensity.compact,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudentCount() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('students')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+
+        int count = snapshot.data!.docs.length;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              const Icon(Icons.people, size: 16, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(
+                "$count Student${count != 1 ? 's' : ''}",
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStudentList() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('students')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _emptyState();
+        }
+
+        var students = snapshot.data!.docs;
+
+        // Apply filters
+        if (selectedClassFilter != null) {
+          students = students.where((s) => s['class'] == selectedClassFilter).toList();
+        }
+        if (selectedSectionFilter != null) {
+          students = students.where((s) => s['section'] == selectedSectionFilter).toList();
+        }
+
+        // Apply search
+        if (searchQuery.isNotEmpty) {
+          students = students.where((s) {
+            final name = (s['name'] ?? "").toString().toLowerCase();
+            final roll = (s['rollNo'] ?? "").toString().toLowerCase();
+            return name.contains(searchQuery) || roll.contains(searchQuery);
+          }).toList();
+        }
+
+        // Apply sorting
+        students.sort((a, b) {
+          switch (selectedSortBy) {
+            case "Name":
+              return (a['name'] ?? "").compareTo(b['name'] ?? "");
+            case "Roll Number":
+              final rollA = int.tryParse(a['rollNo']?.toString() ?? "0") ?? 0;
+              final rollB = int.tryParse(b['rollNo']?.toString() ?? "0") ?? 0;
+              return rollA.compareTo(rollB);
+            case "Class":
+              final classA = "${a['class']}${a['section']}";
+              final classB = "${b['class']}${b['section']}";
+              return classA.compareTo(classB);
+            default:
+              return 0;
+          }
+        });
+
+        if (students.isEmpty) {
+          return const Center(
+            child: Text("No matching students"),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: () async {
+            setState(() {});
+          },
+          child: ListView.builder(
+            padding: const EdgeInsets.only(bottom: 90),
+            itemCount: students.length,
+            itemBuilder: (context, index) {
+              final s = students[index];
+              final studentId = s.id;
+              final name = s['name'] ?? "No Name";
+              final className = s['class'] ?? "-";
+              final section = s['section'] ?? "-";
+              final roll = s['rollNo'] ?? "-";
+              final parentName = s['parentName'] ?? "";
+
+              return Dismissible(
+                key: Key(studentId),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.delete, color: Colors.white),
+                ),
+                confirmDismiss: (direction) async {
+                  return await showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text("Delete Student"),
+                      content: Text("Are you sure you want to delete $name?"),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text("Cancel"),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                          child: const Text("Delete"),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                onDismissed: (direction) async {
+                  await FirebaseFirestore.instance
+                      .collection('schools')
+                      .doc(widget.schoolId)
+                      .collection('students')
+                      .doc(studentId)
+                      .delete();
+
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("$name deleted")),
+                    );
+                  }
+                },
+                child: Card(
+                  elevation: 2,
+                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                    leading: CircleAvatar(
+                      radius: 24,
+                      backgroundColor: Colors.cyan.withValues(alpha: 0.15),
+                      child: Text(
+                        roll,
+                        style: const TextStyle(
+                          color: Colors.cyan,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Class $className - $section | Roll $roll",
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          if (parentName.isNotEmpty)
+                            Text(
+                              "Parent: $parentName",
+                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                            ),
+                        ],
+                      ),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit, size: 20, color: Colors.cyan),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => StudentEditPage(
+                                  schoolId: widget.schoolId,
+                                  studentId: studentId,
+                                ),
+                              ),
+                            ).then((_) => setState(() {}));
+                          },
+                        ),
+                        const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                      ],
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => StudentProfilePage(
+                            schoolId: widget.schoolId,
+                            studentId: studentId,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Filter Students"),
+        content: StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Class Filter
+                DropdownButtonFormField<String>(
+                  value: selectedClassFilter,
+                  hint: const Text("All Classes"),
+                  decoration: const InputDecoration(
+                    labelText: "Class",
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text("All Classes")),
+                    ..._availableClasses.map((className) {
+                      return DropdownMenuItem(
+                        value: className,
+                        child: Text(className),
+                      );
+                    }).toList(),
+                  ],
+                  onChanged: (value) {
+                    setState(() => selectedClassFilter = value);
+                  },
+                ),
+                const SizedBox(height: 16),
+
+                // Section Filter
+                DropdownButtonFormField<String>(
+                  value: selectedSectionFilter,
+                  hint: const Text("All Sections"),
+                  decoration: const InputDecoration(
+                    labelText: "Section",
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text("All Sections")),
+                    ..._availableSections.map((section) {
+                      return DropdownMenuItem(
+                        value: section,
+                        child: Text(section),
+                      );
+                    }).toList(),
+                  ],
+                  onChanged: (value) {
+                    setState(() => selectedSectionFilter = value);
+                  },
+                ),
+              ],
+            );
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() {
+                selectedClassFilter = null;
+                selectedSectionFilter = null;
+              });
+              Navigator.pop(context);
+            },
+            child: const Text("Clear All"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Apply"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSortDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Sort By"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: _sortOptions.map((option) {
+            return RadioListTile<String>(
+              title: Text(option),
+              value: option,
+              groupValue: selectedSortBy,
+              onChanged: (value) {
+                setState(() {
+                  selectedSortBy = value!;
+                });
+                Navigator.pop(context);
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
   Widget _emptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Icon(Icons.groups,
-              size: 80, color: Colors.grey),
-          SizedBox(height: 10),
+        children: [
+          Icon(Icons.people_outline, size: 80, color: Colors.grey.shade400),
+          const SizedBox(height: 16),
           Text(
             "No students added yet",
-            style: TextStyle(
-                fontSize: 16, color: Colors.grey),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Tap the + button to add your first student",
+            style: TextStyle(color: Colors.grey.shade500),
           ),
         ],
       ),

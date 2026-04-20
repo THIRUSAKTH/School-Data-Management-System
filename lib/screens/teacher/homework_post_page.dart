@@ -73,6 +73,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text(isEditing ? "Edit Homework" : "Post Homework"),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,

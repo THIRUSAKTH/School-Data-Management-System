@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 class ExamManagementPage extends StatefulWidget {
   final String schoolId;
@@ -254,7 +257,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                     ),
                     Text(
-                      "${data['marksEntered'] ?? 0}/${data['totalMarks'] ?? 0} Marks",
+                      "${data['marksEntered'] ?? 0}/${data['totalMarks'] ?? 0} Subjects",
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
@@ -274,7 +277,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
           .collection('schools')
           .doc(widget.schoolId)
           .collection('exams')
-          .where('status', isEqualTo: 'active')
+          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -295,7 +298,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                 Icon(Icons.edit_note, size: 80, color: Colors.grey),
                 const SizedBox(height: 16),
                 const Text(
-                  "No Active Exams",
+                  "No Exams Created",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
@@ -322,6 +325,9 @@ class _ExamManagementPageState extends State<ExamManagementPage>
   }
 
   Widget _buildMarksEntryCard(String examId, Map<String, dynamic> data) {
+    final subjects = List<String>.from(data['subjects'] ?? []);
+    final maxMarks = List<int>.from(data['maxMarks'] ?? []);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: _cardDecoration(),
@@ -350,25 +356,26 @@ class _ExamManagementPageState extends State<ExamManagementPage>
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            ...List.generate(data['subjects']?.length ?? 0, (index) {
-              final subject = data['subjects'][index];
+            ...List.generate(subjects.length, (index) {
+              final isCompleted = data['completedSubjects']?.contains(subjects[index]) ?? false;
               return ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: Colors.blue.shade50,
-                  child: Text(
-                    "${index + 1}",
-                    style: TextStyle(color: Colors.blue.shade700),
+                  backgroundColor: isCompleted ? Colors.green.shade100 : Colors.blue.shade50,
+                  child: Icon(
+                    isCompleted ? Icons.check : Icons.edit,
+                    size: 18,
+                    color: isCompleted ? Colors.green : Colors.blue,
                   ),
                 ),
-                title: Text(subject),
-                subtitle: Text("Max Marks: ${data['maxMarks']?[index] ?? 100}"),
+                title: Text(subjects[index]),
+                subtitle: Text("Max Marks: ${maxMarks[index]}"),
                 trailing: ElevatedButton(
-                  onPressed: () => _enterMarks(examId, data, subject, index),
+                  onPressed: () => _enterMarks(examId, data, subjects[index], maxMarks[index], index),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: isCompleted ? Colors.green : Colors.blue,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text("Enter Marks"),
+                  child: Text(isCompleted ? "Edit" : "Enter Marks"),
                 ),
               );
             }),
@@ -504,7 +511,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                 ),
                 if (isComplete)
                   ElevatedButton.icon(
-                    onPressed: () => _viewResultDetails(examId, data),
+                    onPressed: () => _viewFullResults(examId, data),
                     icon: const Icon(Icons.visibility, size: 18),
                     label: const Text("View Results"),
                     style: ElevatedButton.styleFrom(
@@ -515,6 +522,20 @@ class _ExamManagementPageState extends State<ExamManagementPage>
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ================= RESULT DETAILS PAGE =================
+  void _viewFullResults(String examId, Map<String, dynamic> examData) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ExamResultDetailsPage(
+          schoolId: widget.schoolId,
+          examId: examId,
+          examData: examData,
         ),
       ),
     );
@@ -531,6 +552,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
     List<String> subjects = [];
     List<int> maxMarks = [];
 
+    // Load available classes
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -570,21 +592,9 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                       onChanged: (value) => setState(() => examType = value!),
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(
-                        labelText: "Class",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.class_),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: "Class 1", child: Text("Class 1")),
-                        DropdownMenuItem(value: "Class 2", child: Text("Class 2")),
-                        DropdownMenuItem(value: "Class 3", child: Text("Class 3")),
-                        DropdownMenuItem(value: "Class 4", child: Text("Class 4")),
-                        DropdownMenuItem(value: "Class 5", child: Text("Class 5")),
-                      ],
-                      onChanged: (value) => setState(() => className = value!),
-                    ),
+                    _buildClassDropdown(className, (value) {
+                      setState(() => className = value!);
+                    }),
                     const SizedBox(height: 12),
                     ListTile(
                       title: const Text("Start Date"),
@@ -695,6 +705,69 @@ class _ExamManagementPageState extends State<ExamManagementPage>
     );
   }
 
+  Widget _buildClassDropdown(String value, Function(String?) onChanged) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('classes')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return DropdownButtonFormField<String>(
+            items: [],
+            onChanged: null,
+            hint: Text("Loading classes..."),
+            decoration: InputDecoration(
+              labelText: "Class",
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.class_),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return DropdownButtonFormField<String>(
+            items: [],
+            onChanged: null,
+            hint: Text("No classes available"),
+            decoration: InputDecoration(
+              labelText: "Class",
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.class_),
+            ),
+          );
+        }
+
+        final classes = snapshot.data!.docs;
+        final classNames = classes.map((doc) => doc['class'] as String).toList();
+
+        return DropdownButtonFormField<String>(
+          value: value.isEmpty ? null : value,
+          decoration: const InputDecoration(
+            labelText: "Class",
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.class_),
+          ),
+          items: [
+            const DropdownMenuItem<String>(
+              value: null,
+              child: Text("Select Class"),
+            ),
+            ...classNames.map((className) {
+              return DropdownMenuItem<String>(
+                value: className,
+                child: Text(className),
+              );
+            }).toList(),
+          ],
+          onChanged: onChanged,
+          validator: (value) => value == null ? "Please select a class" : null,
+        );
+      },
+    );
+  }
+
   void _addSubjectsDialog(StateSetter setState, List<String> subjects, List<int> maxMarks) {
     final subjectController = TextEditingController();
     final marksController = TextEditingController();
@@ -768,6 +841,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
       'maxMarks': maxMarks,
       'status': 'active',
       'marksEntered': 0,
+      'completedSubjects': [],
       'totalMarks': subjects.length,
       'createdAt': FieldValue.serverTimestamp(),
     };
@@ -816,17 +890,20 @@ class _ExamManagementPageState extends State<ExamManagementPage>
     );
   }
 
-  void _enterMarks(String examId, Map<String, dynamic> examData, String subject, int subjectIndex) {
-    showDialog(
-      context: context,
-      builder: (context) => _MarksEntryDialog(
-        schoolId: widget.schoolId,
-        examId: examId,
-        examData: examData,
-        subject: subject,
-        maxMarks: examData['maxMarks'][subjectIndex],
+  void _enterMarks(String examId, Map<String, dynamic> examData, String subject, int maxMarks, int subjectIndex) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MarksEntryPage(
+          schoolId: widget.schoolId,
+          examId: examId,
+          examData: examData,
+          subject: subject,
+          maxMarks: maxMarks,
+          subjectIndex: subjectIndex,
+        ),
       ),
-    );
+    ).then((_) => setState(() {}));
   }
 
   // ================= HELPER METHODS =================
@@ -900,23 +977,6 @@ class _ExamManagementPageState extends State<ExamManagementPage>
     );
   }
 
-  void _viewResultDetails(String examId, Map<String, dynamic> data) {
-    // Navigate to result details page
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Results"),
-        content: const Text("Result details view - Coming Soon"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _editExam(String examId, Map<String, dynamic> data) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Edit feature coming soon")),
@@ -962,169 +1022,727 @@ class _ExamManagementPageState extends State<ExamManagementPage>
   }
 }
 
-// ================= MARKS ENTRY DIALOG =================
-class _MarksEntryDialog extends StatefulWidget {
+// ================= MARKS ENTRY PAGE =================
+class MarksEntryPage extends StatefulWidget {
   final String schoolId;
   final String examId;
   final Map<String, dynamic> examData;
   final String subject;
   final int maxMarks;
+  final int subjectIndex;
 
-  const _MarksEntryDialog({
+  const MarksEntryPage({
+    super.key,
     required this.schoolId,
     required this.examId,
     required this.examData,
     required this.subject,
     required this.maxMarks,
+    required this.subjectIndex,
   });
 
   @override
-  State<_MarksEntryDialog> createState() => _MarksEntryDialogState();
+  State<MarksEntryPage> createState() => _MarksEntryPageState();
 }
 
-class _MarksEntryDialogState extends State<_MarksEntryDialog> {
+class _MarksEntryPageState extends State<MarksEntryPage> {
   final Map<String, TextEditingController> _controllers = {};
-  bool _isLoading = false;
+  final Map<String, String> _remarks = {};
+  bool _isLoading = true;
+  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _loadStudents();
+    _loadData();
   }
 
-  Future<void> _loadStudents() async {
-    final students = await FirebaseFirestore.instance
+  Future<void> _loadData() async {
+    // Load students
+    final studentsSnapshot = await FirebaseFirestore.instance
         .collection('schools')
         .doc(widget.schoolId)
         .collection('students')
-        .where('className', isEqualTo: widget.examData['className'])
+        .where('class', isEqualTo: widget.examData['className'])
         .get();
 
-    for (var student in students.docs) {
-      _controllers[student.id] = TextEditingController();
+    // Load existing marks
+    final marksSnapshot = await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(widget.schoolId)
+        .collection('exams')
+        .doc(widget.examId)
+        .collection('marks')
+        .get();
+
+    for (var student in studentsSnapshot.docs) {
+      final studentData = student.data();
+      final studentId = student.id;
+
+      _controllers[studentId] = TextEditingController();
+
+      // Check if marks already exist - FIXED: Use manual search instead of firstWhere
+      QueryDocumentSnapshot? existingMark;
+      for (var doc in marksSnapshot.docs) {
+        if (doc.id == studentId && doc.get('subject') == widget.subject) {
+          existingMark = doc;
+          break;
+        }
+      }
+
+      if (existingMark != null) {
+        final markData = existingMark.data() as Map<String, dynamic>;
+        _controllers[studentId]?.text = markData['marks'].toString();
+        _remarks[studentId] = markData['remark'] ?? '';
+      }
     }
-    setState(() {});
+
+    setState(() => _isLoading = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text("Enter Marks - ${widget.subject}"),
-      content: SizedBox(
-        width: double.maxFinite,
-        height: 400,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('schools')
-              .doc(widget.schoolId)
-              .collection('students')
-              .where('className', isEqualTo: widget.examData['className'])
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6FA),
+      appBar: AppBar(
+        title: Text("Enter Marks - ${widget.subject}"),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _isSaving ? null : _saveMarks,
+            tooltip: "Save All",
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('schools')
+            .doc(widget.schoolId)
+            .collection('students')
+            .where('class', isEqualTo: widget.examData['className'])
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            final students = snapshot.data!.docs;
+          final students = snapshot.data!.docs;
 
-            return ListView.builder(
-              itemCount: students.length,
-              itemBuilder: (context, index) {
-                final student = students[index];
-                final data = student.data() as Map<String, dynamic>;
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      child: Text("${index + 1}"),
-                    ),
-                    title: Text(data['studentName'] ?? 'Unknown'),
-                    subtitle: Text("Roll No: ${data['rollNo'] ?? 'N/A'}"),
-                    trailing: SizedBox(
-                      width: 100,
-                      child: TextField(
-                        controller: _controllers[student.id],
-                        decoration: InputDecoration(
-                          labelText: "Marks",
-                          suffixText: "/${widget.maxMarks}",
-                          border: const OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: students.length,
+            itemBuilder: (context, index) {
+              final student = students[index];
+              final data = student.data() as Map<String, dynamic>;
+              final studentId = student.id;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: Colors.blue.shade100,
+                            child: Text(
+                              data['rollNo']?.toString() ?? '?',
+                              style: TextStyle(color: Colors.blue.shade700),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  data['name'] ?? 'Unknown',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  "Roll No: ${data['rollNo'] ?? 'N/A'}",
+                                  style: TextStyle(color: Colors.grey.shade600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _controllers[studentId],
+                              decoration: InputDecoration(
+                                labelText: "Marks Obtained",
+                                suffixText: "/${widget.maxMarks}",
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              keyboardType: TextInputType.number,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              onChanged: (value) => _remarks[studentId] = value,
+                              decoration: InputDecoration(
+                                labelText: "Remarks (Optional)",
+                                hintText: "e.g., Excellent, Needs Improvement",
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                );
-              },
-            );
-          },
+                ),
+              );
+            },
+          );
+        },
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton.icon(
+            onPressed: _isSaving ? null : _saveMarks,
+            icon: _isSaving
+                ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2,
+              ),
+            )
+                : const Icon(Icons.save),
+            label: Text(_isSaving ? "Saving..." : "Save All Marks"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("Cancel"),
-        ),
-        ElevatedButton(
-          onPressed: _saveMarks,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text("Save All Marks"),
-        ),
-      ],
     );
   }
 
   Future<void> _saveMarks() async {
-    setState(() => _isLoading = true);
+    setState(() => _isSaving = true);
 
-    final batch = FirebaseFirestore.instance.batch();
+    try {
+      final batch = FirebaseFirestore.instance.batch();
 
-    for (var entry in _controllers.entries) {
-      final studentId = entry.key;
-      final marks = int.tryParse(entry.value.text) ?? 0;
+      for (var entry in _controllers.entries) {
+        final studentId = entry.key;
+        final marksText = entry.value.text;
 
-      final marksRef = FirebaseFirestore.instance
+        if (marksText.isEmpty) continue;
+
+        final marks = int.tryParse(marksText) ?? 0;
+        final percentage = (marks / widget.maxMarks) * 100;
+        final grade = _calculateGrade(percentage);
+
+        final marksRef = FirebaseFirestore.instance
+            .collection('schools')
+            .doc(widget.schoolId)
+            .collection('exams')
+            .doc(widget.examId)
+            .collection('marks')
+            .doc(studentId);
+
+        batch.set(marksRef, {
+          'subject': widget.subject,
+          'marks': marks,
+          'maxMarks': widget.maxMarks,
+          'percentage': percentage,
+          'grade': grade,
+          'remark': _remarks[studentId] ?? '',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
+      // Update exam's completed subjects
+      final examRef = FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
           .collection('exams')
-          .doc(widget.examId)
-          .collection('marks')
-          .doc(studentId);
+          .doc(widget.examId);
 
-      batch.set(marksRef, {
-        'subject': widget.subject,
-        'marks': marks,
-        'maxMarks': widget.maxMarks,
-        'percentage': (marks / widget.maxMarks) * 100,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final examDoc = await examRef.get();
+      List<String> completedSubjects = List.from(examDoc.data()?['completedSubjects'] ?? []);
+
+      if (!completedSubjects.contains(widget.subject)) {
+        completedSubjects.add(widget.subject);
+        await examRef.update({
+          'completedSubjects': completedSubjects,
+          'marksEntered': completedSubjects.length,
+        });
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Marks saved successfully"), backgroundColor: Colors.green),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      setState(() => _isSaving = false);
     }
+  }
 
-    await batch.commit();
+  String _calculateGrade(double percentage) {
+    if (percentage >= 90) return 'A+';
+    if (percentage >= 80) return 'A';
+    if (percentage >= 70) return 'B';
+    if (percentage >= 60) return 'C';
+    if (percentage >= 50) return 'D';
+    return 'F';
+  }}
 
-    // Update marks entered count
-    final examRef = FirebaseFirestore.instance
+// ================= EXAM RESULT DETAILS PAGE =================
+class ExamResultDetailsPage extends StatefulWidget {
+  final String schoolId;
+  final String examId;
+  final Map<String, dynamic> examData;
+
+  const ExamResultDetailsPage({
+    super.key,
+    required this.schoolId,
+    required this.examId,
+    required this.examData,
+  });
+
+  @override
+  State<ExamResultDetailsPage> createState() => _ExamResultDetailsPageState();
+}
+
+class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
+  List<Map<String, dynamic>> _results = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadResults();
+  }
+
+
+  Future<void> _loadResults() async {
+    // Get all students in the class
+    final studentsSnapshot = await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(widget.schoolId)
+        .collection('students')
+        .where('class', isEqualTo: widget.examData['className'])
+        .get();
+
+    // Get all marks for this exam
+    final marksSnapshot = await FirebaseFirestore.instance
         .collection('schools')
         .doc(widget.schoolId)
         .collection('exams')
-        .doc(widget.examId);
+        .doc(widget.examId)
+        .collection('marks')
+        .get();
 
-    final examDoc = await examRef.get();
-    final currentEntered = examDoc.data()?['marksEntered'] ?? 0;
+    final subjects = List<String>.from(widget.examData['subjects']);
+    final maxMarks = List<int>.from(widget.examData['maxMarks']);
 
-    await examRef.update({
-      'marksEntered': currentEntered + 1,
+    List<Map<String, dynamic>> results = [];
+
+    for (var student in studentsSnapshot.docs) {
+      final studentData = student.data();
+      final studentId = student.id;
+
+      Map<String, dynamic> subjectMarks = {};
+      int totalObtained = 0;
+      int totalMax = 0;
+
+      for (int i = 0; i < subjects.length; i++) {
+        final subject = subjects[i];
+        final maxMark = maxMarks[i];
+
+        // Find mark for this student and subject
+        QueryDocumentSnapshot? markDoc;
+        for (var doc in marksSnapshot.docs) {
+          if (doc.id == studentId && doc.get('subject') == subject) {
+            markDoc = doc;
+            break;
+          }
+        }
+
+        int obtained = 0;
+        String grade = 'N/A';
+
+        if (markDoc != null) {
+          final markData = markDoc.data() as Map<String, dynamic>;
+          obtained = markData['marks'] ?? 0;
+          grade = markData['grade'] ?? 'N/A';
+          totalObtained += obtained;
+          totalMax += maxMark;
+        }
+
+        // FIXED: Convert percentage to double explicitly
+        double percentage = maxMark > 0 ? (obtained / maxMark) * 100 : 0.0;
+
+        subjectMarks[subject] = {
+          'obtained': obtained,
+          'max': maxMark,
+          'percentage': percentage,
+          'grade': grade,
+        };
+      }
+
+      // FIXED: Convert overallPercentage to double explicitly
+      final double overallPercentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0.0;
+      final String overallGrade = _calculateGrade(overallPercentage);
+
+      results.add({
+        'studentId': studentId,
+        'name': studentData['name'] ?? 'Unknown',
+        'rollNo': studentData['rollNo'] ?? '',
+        'subjectMarks': subjectMarks,
+        'totalObtained': totalObtained,
+        'totalMax': totalMax,
+        'overallPercentage': overallPercentage,
+        'overallGrade': overallGrade,
+      });
+    }
+
+    // Sort by percentage (highest first)
+    results.sort((a, b) => (b['overallPercentage'] as double).compareTo(a['overallPercentage'] as double));
+
+    setState(() {
+      _results = results;
+      _isLoading = false;
     });
+  }
 
-    setState(() => _isLoading = false);
-    Navigator.pop(context);
+  String _calculateGrade(double percentage) {
+    if (percentage >= 90) return 'A+';
+    if (percentage >= 80) return 'A';
+    if (percentage >= 70) return 'B';
+    if (percentage >= 60) return 'C';
+    if (percentage >= 50) return 'D';
+    return 'F';
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Marks saved successfully")),
+  Future<void> _exportPDF() async {
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        header: (context) => pw.Column(
+          children: [
+            pw.Text(
+              'Exam Results - ${widget.examData['examName']}',
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 10),
+            pw.Text(
+              '${widget.examData['className']} • ${widget.examData['examType']}',
+              style: pw.TextStyle(fontSize: 14),
+            ),
+            pw.Divider(),
+          ],
+        ),
+        build: (context) => [
+          pw.SizedBox(height: 20),
+          pw.Text(
+            'Result Summary',
+            style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Table(
+            border: pw.TableBorder.all(),
+            children: [
+              pw.TableRow(
+                children: [
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('Rank', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('Roll No', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('Student Name', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('Total', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('Percentage', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.all(8),
+                    child: pw.Text('Grade', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  ),
+                ],
+              ),
+              ..._results.asMap().entries.map((entry) {
+                final index = entry.key;
+                final result = entry.value;
+                return pw.TableRow(
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('${index + 1}'),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text(result['rollNo'].toString()),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text(result['name']),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('${result['totalObtained']}/${result['totalMax']}'),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text('${(result['overallPercentage'] as double).toStringAsFixed(1)}%'),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text(result['overallGrade']),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (format) async => pdf.save(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6FA),
+      appBar: AppBar(
+        title: Text("Results - ${widget.examData['examName']}"),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf),
+            onPressed: _exportPDF,
+            tooltip: "Export PDF",
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _results.isEmpty
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.assessment, size: 80, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
+              "No results available",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      )
+          : ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _results.length,
+        itemBuilder: (context, index) {
+          final result = _results[index];
+          final rank = index + 1;
+          final percentage = result['overallPercentage'] as double;
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ExpansionTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: rank <= 3 ? Colors.amber.shade100 : Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Center(
+                  child: Text(
+                    rank.toString(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: rank <= 3 ? Colors.amber.shade800 : Colors.blue,
+                    ),
+                  ),
+                ),
+              ),
+              title: Text(
+                result['name'],
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text("Roll No: ${result['rollNo']}"),
+              trailing: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: percentage >= 60 ? Colors.green : Colors.red,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  result['overallGrade'],
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _statItem("Total", "${result['totalObtained']}/${result['totalMax']}"),
+                            _statItem("Percentage", "${percentage.toStringAsFixed(1)}%"),
+                            _statItem("Grade", result['overallGrade']),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "Subject-wise Marks",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      ...List.generate(
+                        (result['subjectMarks'] as Map).keys.length,
+                            (index) {
+                          final subject = (result['subjectMarks'] as Map).keys.elementAt(index);
+                          final marks = result['subjectMarks'][subject];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    subject,
+                                    style: const TextStyle(fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                                Text("${marks['obtained']}/${marks['max']}"),
+                                const SizedBox(width: 16),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: marks['percentage'] >= 60 ? Colors.green.shade100 : Colors.red.shade100,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    marks['grade'],
+                                    style: TextStyle(
+                                      color: marks['percentage'] >= 60 ? Colors.green : Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _statItem(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        ),
+      ],
     );
   }
 }

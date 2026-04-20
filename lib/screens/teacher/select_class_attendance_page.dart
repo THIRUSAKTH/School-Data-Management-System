@@ -120,6 +120,7 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text(
           "Mark Attendance",
           style: TextStyle(fontWeight: FontWeight.bold),
