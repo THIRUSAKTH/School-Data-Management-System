@@ -261,33 +261,42 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
         // Apply filters
         if (selectedClassFilter != null) {
-          students = students.where((s) => s['class'] == selectedClassFilter).toList();
+          students = students.where((s) {
+            final data = s.data() as Map<String, dynamic>;
+            return data['class'] == selectedClassFilter;
+          }).toList();
         }
         if (selectedSectionFilter != null) {
-          students = students.where((s) => s['section'] == selectedSectionFilter).toList();
+          students = students.where((s) {
+            final data = s.data() as Map<String, dynamic>;
+            return data['section'] == selectedSectionFilter;
+          }).toList();
         }
 
         // Apply search
         if (searchQuery.isNotEmpty) {
           students = students.where((s) {
-            final name = (s['name'] ?? "").toString().toLowerCase();
-            final roll = (s['rollNo'] ?? "").toString().toLowerCase();
+            final data = s.data() as Map<String, dynamic>;
+            final name = (data['name'] ?? "").toString().toLowerCase();
+            final roll = (data['rollNo'] ?? "").toString().toLowerCase();
             return name.contains(searchQuery) || roll.contains(searchQuery);
           }).toList();
         }
 
         // Apply sorting
         students.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
           switch (selectedSortBy) {
             case "Name":
-              return (a['name'] ?? "").compareTo(b['name'] ?? "");
+              return (aData['name'] ?? "").compareTo(bData['name'] ?? "");
             case "Roll Number":
-              final rollA = int.tryParse(a['rollNo']?.toString() ?? "0") ?? 0;
-              final rollB = int.tryParse(b['rollNo']?.toString() ?? "0") ?? 0;
+              final rollA = int.tryParse(aData['rollNo']?.toString() ?? "0") ?? 0;
+              final rollB = int.tryParse(bData['rollNo']?.toString() ?? "0") ?? 0;
               return rollA.compareTo(rollB);
             case "Class":
-              final classA = "${a['class']}${a['section']}";
-              final classB = "${b['class']}${b['section']}";
+              final classA = "${aData['class']}${aData['section']}";
+              final classB = "${bData['class']}${bData['section']}";
               return classA.compareTo(classB);
             default:
               return 0;
@@ -309,12 +318,15 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
             itemCount: students.length,
             itemBuilder: (context, index) {
               final s = students[index];
+              final data = s.data() as Map<String, dynamic>;
               final studentId = s.id;
-              final name = s['name'] ?? "No Name";
-              final className = s['class'] ?? "-";
-              final section = s['section'] ?? "-";
-              final roll = s['rollNo'] ?? "-";
-              final parentName = s['parentName'] ?? "";
+
+              // FIXED: Safe access with null handling
+              final name = (data['name'] ?? "No Name").toString();
+              final className = (data['class'] ?? "-").toString();
+              final section = (data['section'] ?? "-").toString();
+              final roll = (data['rollNo'] ?? "-").toString();
+              final parentName = (data['parentName'] ?? data['parent_name'] ?? "").toString();
 
               return Dismissible(
                 key: Key(studentId),

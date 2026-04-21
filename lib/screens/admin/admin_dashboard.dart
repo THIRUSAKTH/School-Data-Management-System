@@ -465,9 +465,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
       if (count > maxValue) maxValue = count;
     }
 
-    // Calculate interval - FIXED: ensure it's never zero
+    // Calculate interval - ensure it's not zero
     double interval = (maxValue / 5).ceilToDouble();
-    if (interval == 0) interval = 1; // Prevent zero interval
+    if (interval == 0) interval = 1;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -501,7 +501,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 40,
-                      interval: interval, // FIXED: using safe interval
+                      interval: interval,
                       getTitlesWidget: (value, meta) {
                         return Text(value.toInt().toString(), style: const TextStyle(fontSize: 10));
                       },
@@ -550,9 +550,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
   Widget _buildFeeChart() {
     final monthlyFee = _cachedChartData['monthlyFee'] ?? {};
-    List<String> months = monthlyFee.keys.toList();
+    // FIXED: Properly convert keys to List<String>
+    List<String> months = [];
+    for (var key in monthlyFee.keys) {
+      months.add(key.toString());
+    }
     months.sort();
-
     // If no data, show last 6 months
     if (months.isEmpty) {
       for (int i = 5; i >= 0; i--) {
@@ -588,10 +591,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
 
     maxY = maxY > 0 ? maxY * 1.1 : 100000;
-
-    // Calculate interval - FIXED: ensure it's never zero
     double interval = maxY / 5;
-    if (interval == 0) interval = 10000; // Prevent zero interval
+    if (interval == 0) interval = 10000;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -628,7 +629,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 55,
-                      interval: interval, // FIXED: using safe interval
+                      interval: interval,
                       getTitlesWidget: (value, meta) {
                         if (value >= 1000) {
                           return Text('₹${(value / 1000).toInt()}k', style: const TextStyle(fontSize: 10));

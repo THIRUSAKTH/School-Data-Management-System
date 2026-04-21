@@ -27,23 +27,17 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
   final bloodGroupController = TextEditingController();
 
   bool loading = false;
+  bool _isLoadingClasses = true;
   String? _selectedClass;
+
+  // Default classes as fallback
   List<String> _availableClasses = [
-    "LKG",
-    "UKG",
-    "CLASS I",
-    "CLASS II",
-    "CLASS III",
-    "CLASS IV",
-    "CLASS V",
-    "CLASS VI",
-    "CLASS VII",
-    "CLASS VIII",
-    "CLASS IX",
-    "CLASS X",
-    "CLASS XI",
-    "CLASS XII",
+    "LKG", "UKG",
+    "CLASS I", "CLASS II", "CLASS III", "CLASS IV", "CLASS V",
+    "CLASS VI", "CLASS VII", "CLASS VIII", "CLASS IX", "CLASS X",
+    "CLASS XI", "CLASS XII",
   ];
+
   List<String> _availableSections = ['A', 'B', 'C', 'D'];
 
   // Default password for new parent accounts
@@ -71,22 +65,35 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
   }
 
   Future<void> _loadAvailableClasses() async {
-    try {
-      final classesSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(widget.schoolId)
-              .collection('classes')
-              .get();
+    setState(() => _isLoadingClasses = true);
 
-      setState(() {
-        _availableClasses =
-            classesSnapshot.docs
-                .map((doc) => doc['className'] as String)
-                .toList();
-      });
+    try {
+      final classesSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('classes')
+          .get();
+
+      if (classesSnapshot.docs.isNotEmpty) {
+        final loadedClasses = classesSnapshot.docs
+            .map((doc) {
+          final data = doc.data();
+          return (data['class'] ?? data['className'] ?? '').toString();
+        })
+            .where((name) => name.isNotEmpty)
+            .toList();
+
+        if (loadedClasses.isNotEmpty) {
+          setState(() {
+            _availableClasses = loadedClasses;
+          });
+        }
+      }
     } catch (e) {
       debugPrint('Error loading classes: $e');
+      // Keep default classes as fallback
+    } finally {
+      setState(() => _isLoadingClasses = false);
     }
   }
 
@@ -199,11 +206,11 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
   }
 
   Widget _buildTextField(
-    TextEditingController controller,
-    String label,
-    IconData icon, {
-    TextInputType keyboardType = TextInputType.text,
-  }) {
+      TextEditingController controller,
+      String label,
+      IconData icon, {
+        TextInputType keyboardType = TextInputType.text,
+      }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
@@ -234,9 +241,17 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
   }
 
   Widget _buildClassDropdown() {
+    if (_isLoadingClasses) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return DropdownButtonFormField<String>(
       value: _selectedClass,
       hint: const Text("Select Class *"),
+      isExpanded: true,
       decoration: InputDecoration(
         prefixIcon: const Icon(Icons.class_, color: Colors.blue),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -244,18 +259,33 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
         fillColor: Colors.white,
       ),
       items: [
-        const DropdownMenuItem(value: null, child: Text("Select Class")),
+        const DropdownMenuItem<String>(
+          value: null,
+          child: Text("Select Class"),
+        ),
         ..._availableClasses.map((className) {
-          return DropdownMenuItem(value: className, child: Text(className));
+          return DropdownMenuItem<String>(
+            value: className,
+            child: Text(className),
+          );
         }).toList(),
       ],
       onChanged: (value) {
         setState(() {
           _selectedClass = value;
-          classController.text = value ?? '';
+          if (value != null) {
+            classController.text = value;
+          } else {
+            classController.text = '';
+          }
         });
       },
-      validator: (v) => v == null ? "Please select a class" : null,
+      validator: (value) {
+        if (_selectedClass == null && classController.text.isEmpty) {
+          return "Please select a class";
+        }
+        return null;
+      },
     );
   }
 
@@ -263,6 +293,7 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
     return DropdownButtonFormField<String>(
       value: sectionController.text.isEmpty ? null : sectionController.text,
       hint: const Text("Select Section *"),
+      isExpanded: true,
       decoration: InputDecoration(
         prefixIcon: const Icon(Icons.group, color: Colors.blue),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -270,9 +301,12 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
         fillColor: Colors.white,
       ),
       items: [
-        const DropdownMenuItem(value: null, child: Text("Select Section")),
+        const DropdownMenuItem<String>(value: null, child: Text("Select Section")),
         ..._availableSections.map((section) {
-          return DropdownMenuItem(value: section, child: Text(section));
+          return DropdownMenuItem<String>(
+            value: section,
+            child: Text(section),
+          );
         }).toList(),
       ],
       onChanged: (value) {
@@ -280,9 +314,12 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           sectionController.text = value ?? '';
         });
       },
-      validator:
-          (v) =>
-              sectionController.text.isEmpty ? "Please select a section" : null,
+      validator: (value) {
+        if (sectionController.text.isEmpty) {
+          return "Please select a section";
+        }
+        return null;
+      },
     );
   }
 
@@ -367,26 +404,32 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           ),
           elevation: 2,
         ),
-        child:
-            loading
-                ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                )
-                : const Text(
-                  "Create Student & Parent Account",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+        child: loading
+            ? const SizedBox(
+          height: 20,
+          width: 20,
+          child: CircularProgressIndicator(
+            color: Colors.white,
+            strokeWidth: 2,
+          ),
+        )
+            : const Text(
+          "Create Student & Parent Account",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
 
   Future<void> _addStudent() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Validate class selection
+    final className = _selectedClass ?? classController.text.trim();
+    if (className.isEmpty) {
+      _showError("Please select a class");
+      return;
+    }
 
     // Validate parent email
     if (parentEmailController.text.trim().isEmpty) {
@@ -410,33 +453,26 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
         return;
       }
 
-      // Store admin email for re-login
-      final adminEmail = adminUser.email!;
-
       String parentUid;
       bool isNewParent = false;
 
       // Check if parent already exists
-      final parentQuery =
-          await schoolRef
-              .collection('parents')
-              .where('email', isEqualTo: parentEmail)
-              .limit(1)
-              .get();
+      final parentQuery = await schoolRef
+          .collection('parents')
+          .where('email', isEqualTo: parentEmail)
+          .limit(1)
+          .get();
 
       if (parentQuery.docs.isEmpty) {
         isNewParent = true;
 
-        // Create Firebase Auth account for parent
         try {
           final userCredential = await FirebaseAuth.instance
               .createUserWithEmailAndPassword(
-                email: parentEmail,
-                password: defaultParentPassword,
-              );
+            email: parentEmail,
+            password: defaultParentPassword,
+          );
           parentUid = userCredential.user!.uid;
-
-          // Send email verification (optional)
           await userCredential.user!.sendEmailVerification();
         } catch (authError) {
           if (authError.toString().contains('email-already-in-use')) {
@@ -465,7 +501,7 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
       // Create student record
       final studentData = {
         'name': nameController.text.trim(),
-        'class': _selectedClass ?? classController.text.trim(),
+        'class': className,
         'section': sectionController.text.trim(),
         'rollNo': rollController.text.trim(),
         'parentUid': parentUid,
@@ -481,30 +517,24 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           .collection('students')
           .add(studentData);
 
-      // Also add to class-specific collection for easier querying
-      final className = _selectedClass ?? classController.text.trim();
+      // Also add to class-specific collection
       await schoolRef
           .collection('classes')
           .doc(className)
           .collection('students')
           .doc(studentRef.id)
           .set({
-            'studentId': studentRef.id,
-            'name': nameController.text.trim(),
-            'rollNo': rollController.text.trim(),
-            'parentUid': parentUid,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-
-      // IMPORTANT: Instead of logging out admin, we stay logged in
-      // The parent account is created but admin remains logged in
-      // This is the correct approach - no session switching needed!
+        'studentId': studentRef.id,
+        'name': nameController.text.trim(),
+        'rollNo': rollController.text.trim(),
+        'parentUid': parentUid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
       if (mounted) {
-        String successMessage =
-            isNewParent
-                ? "Student created! Parent can login with:\nEmail: $parentEmail\nPassword: $defaultParentPassword"
-                : "Student linked to existing parent successfully";
+        String successMessage = isNewParent
+            ? "Student created! Parent can login with:\nEmail: $parentEmail\nPassword: $defaultParentPassword"
+            : "Student linked to existing parent successfully";
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -517,7 +547,7 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
       }
     } catch (e) {
       debugPrint('Error adding student: $e');
-      _showError("Error: $e");
+      _showError("Error: ${e.toString()}");
     } finally {
       if (mounted) {
         setState(() => loading = false);
