@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
@@ -37,6 +38,35 @@ class _AdminDashboardState extends State<AdminDashboard> {
     _fetchChartData();
   }
 
+  void _logout(BuildContext context) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Logout"),
+        content: const Text("Are you sure you want to logout?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                      (route) => false,
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Logout"),
+          ),
+        ],
+      ),
+    );
+  }
   Future<void> _fetchChartData() async {
     // Only fetch if data is older than 5 minutes
     if (DateTime.now().difference(_lastFetchTime).inMinutes < 5 && _cachedChartData.isNotEmpty) {
@@ -241,6 +271,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
               const SnackBar(content: Text('Notifications coming soon')),
             );
           },
+        ),
+        IconButton(
+          icon: const Icon(Icons.logout),
+          onPressed: () => _logout(context),
+          tooltip: "Logout",
         ),
       ],
     );

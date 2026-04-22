@@ -19,13 +19,13 @@ class StudentProfilePage extends StatefulWidget {
 }
 
 class _StudentProfilePageState extends State<StudentProfilePage>
-    with SingleTickerProviderStateMixin {  // Make sure this is here
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);  // 'this' works because of SingleTickerProviderStateMixin
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -110,19 +110,37 @@ class _StudentProfilePageState extends State<StudentProfilePage>
     final address = data['address'] ?? "-";
 
     String dob = "-";
+
+    // FIXED: Handle both String and Timestamp formats for DOB
     if (data['dob'] != null) {
-      dob = DateFormat('dd MMM yyyy').format((data['dob'] as Timestamp).toDate());
+      try {
+        if (data['dob'] is Timestamp) {
+          dob = DateFormat('dd MMM yyyy').format((data['dob'] as Timestamp).toDate());
+        } else if (data['dob'] is String) {
+          final dobString = data['dob'] as String;
+          try {
+            final date = DateFormat('dd/MM/yyyy').parse(dobString);
+            dob = DateFormat('dd MMM yyyy').format(date);
+          } catch (e) {
+            try {
+              final date = DateFormat('yyyy-MM-dd').parse(dobString);
+              dob = DateFormat('dd MMM yyyy').format(date);
+            } catch (e2) {
+              dob = dobString;
+            }
+          }
+        }
+      } catch (e) {
+        dob = data['dob'].toString();
+      }
     }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Header Card
           _buildHeaderCard(name, className, section, roll),
           const SizedBox(height: 16),
-
-          // Personal Information
           _buildInfoCard("Personal Information", Icons.person, [
             _infoRow("Student Name", name),
             _infoRow("Roll Number", roll),
@@ -132,23 +150,17 @@ class _StudentProfilePageState extends State<StudentProfilePage>
             _infoRow("Blood Group", bloodGroup),
           ]),
           const SizedBox(height: 16),
-
-          // Academic Information
           _buildInfoCard("Academic Information", Icons.school, [
             _infoRow("Class", className),
             _infoRow("Section", section),
           ]),
           const SizedBox(height: 16),
-
-          // Parent Information
           _buildInfoCard("Parent Information", Icons.family_restroom, [
             _infoRow("Parent Name", parentName),
             _infoRow("Email", parentEmail),
             _infoRow("Phone", parentPhone),
           ]),
           const SizedBox(height: 16),
-
-          // Address
           if (address.isNotEmpty && address != "-")
             _buildInfoCard("Address", Icons.location_on, [
               _infoRow("Address", address),
@@ -305,7 +317,6 @@ class _StudentProfilePageState extends State<StudentProfilePage>
             final data = doc.data() as Map<String, dynamic>;
             final date = doc.id;
 
-            // Check if this student has attendance record
             if (data.containsKey(widget.studentId)) {
               final studentRecord = data[widget.studentId] as Map<String, dynamic>;
               final status = studentRecord['status'] ?? 'Absent';
@@ -331,44 +342,24 @@ class _StudentProfilePageState extends State<StudentProfilePage>
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // Stats Cards
               Row(
                 children: [
-                  Expanded(
-                    child: _statCard("Present", present.toString(), Colors.green, Icons.check_circle),
-                  ),
+                  Expanded(child: _statCard("Present", present.toString(), Colors.green, Icons.check_circle)),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: _statCard("Absent", absent.toString(), Colors.red, Icons.cancel),
-                  ),
+                  Expanded(child: _statCard("Absent", absent.toString(), Colors.red, Icons.cancel)),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: _statCard("Rate", "${attendanceRate.toStringAsFixed(1)}%", Colors.deepPurple, Icons.trending_up),
-                  ),
+                  Expanded(child: _statCard("Rate", "${attendanceRate.toStringAsFixed(1)}%", Colors.deepPurple, Icons.trending_up)),
                 ],
               ),
               const SizedBox(height: 20),
-
-              // Attendance Chart
-              if (records.isNotEmpty)
-                _buildAttendanceChart(records),
-
+              if (records.isNotEmpty) _buildAttendanceChart(records),
               const SizedBox(height: 20),
-
-              // Recent Records
-              if (records.isNotEmpty)
-                _buildRecentRecords(records),
-
+              if (records.isNotEmpty) _buildRecentRecords(records),
               if (records.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Center(
-                    child: Text("No attendance records found"),
-                  ),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                  child: const Center(child: Text("No attendance records found")),
                 ),
             ],
           ),
@@ -395,25 +386,14 @@ class _StudentProfilePageState extends State<StudentProfilePage>
         children: [
           Icon(icon, color: color, size: 24),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
+          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+          Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         ],
       ),
     );
   }
 
   Widget _buildAttendanceChart(List<Map<String, dynamic>> records) {
-    // Get last 7 days
     List<String> last7Days = [];
     for (int i = 6; i >= 0; i--) {
       last7Days.add(DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(Duration(days: i))));
@@ -429,7 +409,6 @@ class _StudentProfilePageState extends State<StudentProfilePage>
       String status = statusMap[last7Days[i]] ?? 'Absent';
       Color color;
       double value;
-
       if (status == 'Present') {
         color = Colors.green;
         value = 100;
@@ -440,35 +419,16 @@ class _StudentProfilePageState extends State<StudentProfilePage>
         color = Colors.red;
         value = 0;
       }
-
-      barGroups.add(
-        BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: value,
-              color: color,
-              width: 30,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ],
-        ),
-      );
+      barGroups.add(BarChartGroupData(x: i, barRods: [BarChartRodData(toY: value, color: color, width: 30, borderRadius: BorderRadius.circular(4))]));
     }
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Last 7 Days",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
+          const Text("Last 7 Days", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           SizedBox(
             height: 200,
@@ -479,27 +439,14 @@ class _StudentProfilePageState extends State<StudentProfilePage>
                 maxY: 100,
                 minY: 0,
                 titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        return Text('${value.toInt()}%', style: const TextStyle(fontSize: 10));
-                      },
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        int index = value.toInt();
-                        if (index >= 0 && index < last7Days.length) {
-                          DateTime date = DateTime.parse(last7Days[index]);
-                          return Text(DateFormat('E').format(date), style: const TextStyle(fontSize: 10));
-                        }
-                        return const Text('');
-                      },
-                    ),
-                  ),
+                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (value, meta) => Text('${value.toInt()}%', style: const TextStyle(fontSize: 10)))),
+                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (value, meta) {
+                    int index = value.toInt();
+                    if (index >= 0 && index < last7Days.length) {
+                      return Text(DateFormat('E').format(DateTime.parse(last7Days[index])), style: const TextStyle(fontSize: 10));
+                    }
+                    return const Text('');
+                  })),
                   rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
@@ -509,16 +456,13 @@ class _StudentProfilePageState extends State<StudentProfilePage>
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _legendItem(Colors.green, 'Present'),
-              const SizedBox(width: 16),
-              _legendItem(Colors.orange, 'Late'),
-              const SizedBox(width: 16),
-              _legendItem(Colors.red, 'Absent'),
-            ],
-          ),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            _legendItem(Colors.green, 'Present'),
+            const SizedBox(width: 16),
+            _legendItem(Colors.orange, 'Late'),
+            const SizedBox(width: 16),
+            _legendItem(Colors.red, 'Absent'),
+          ]),
         ],
       ),
     );
@@ -530,17 +474,11 @@ class _StudentProfilePageState extends State<StudentProfilePage>
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Recent Attendance",
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
+          const Text("Recent Attendance", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           ListView.separated(
             shrinkWrap: true,
@@ -551,34 +489,14 @@ class _StudentProfilePageState extends State<StudentProfilePage>
               final record = recentRecords[index];
               final date = DateTime.parse(record['date']);
               final status = record['status'];
-              final statusColor = status == 'Present'
-                  ? Colors.green
-                  : (status == 'Late' ? Colors.orange : Colors.red);
-
+              final statusColor = status == 'Present' ? Colors.green : (status == 'Late' ? Colors.orange : Colors.red);
               return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: statusColor.withValues(alpha: 0.1),
-                  child: Icon(
-                    status == 'Present' ? Icons.check_circle : Icons.cancel,
-                    color: statusColor,
-                    size: 20,
-                  ),
-                ),
+                leading: CircleAvatar(backgroundColor: statusColor.withValues(alpha: 0.1), child: Icon(status == 'Present' ? Icons.check_circle : Icons.cancel, color: statusColor, size: 20)),
                 title: Text(DateFormat('EEEE, dd MMM yyyy').format(date)),
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    status,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
+                  decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                  child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
                 ),
               );
             },
@@ -589,13 +507,11 @@ class _StudentProfilePageState extends State<StudentProfilePage>
   }
 
   Widget _legendItem(Color color, String label) {
-    return Row(
-      children: [
-        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 11)),
-      ],
-    );
+    return Row(children: [
+      Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+      const SizedBox(width: 4),
+      Text(label, style: const TextStyle(fontSize: 11)),
+    ]);
   }
 
   Widget _buildFeesTab() {
@@ -622,7 +538,6 @@ class _StudentProfilePageState extends State<StudentProfilePage>
             String status = f['status'] ?? 'pending';
             total += amount;
             if (status == 'paid') paid += amount;
-
             feesList.add({
               'amount': amount,
               'status': status,
@@ -639,43 +554,25 @@ class _StudentProfilePageState extends State<StudentProfilePage>
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // Stats Cards
               Row(
                 children: [
-                  Expanded(
-                    child: _statCard("Total", "₹${total.toInt()}", Colors.blue, Icons.account_balance_wallet),
-                  ),
+                  Expanded(child: _statCard("Total", "₹${total.toInt()}", Colors.blue, Icons.account_balance_wallet)),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: _statCard("Paid", "₹${paid.toInt()}", Colors.green, Icons.check_circle),
-                  ),
+                  Expanded(child: _statCard("Paid", "₹${paid.toInt()}", Colors.green, Icons.check_circle)),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: _statCard("Pending", "₹${pending.toInt()}", Colors.red, Icons.pending),
-                  ),
+                  Expanded(child: _statCard("Pending", "₹${pending.toInt()}", Colors.red, Icons.pending)),
                 ],
               ),
               const SizedBox(height: 16),
-
-              // Collection Rate
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
                 child: Column(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text("Collection Rate"),
-                        Text(
-                          "${collectionRate.toStringAsFixed(1)}%",
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      const Text("Collection Rate"),
+                      Text("${collectionRate.toStringAsFixed(1)}%", style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ]),
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
                       value: collectionRate / 100,
@@ -688,22 +585,14 @@ class _StudentProfilePageState extends State<StudentProfilePage>
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Fee Details List
               if (feesList.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "Fee Details",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
+                      const Text("Fee Details", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
                       ListView.separated(
                         shrinkWrap: true,
@@ -716,40 +605,22 @@ class _StudentProfilePageState extends State<StudentProfilePage>
                           return ListTile(
                             leading: CircleAvatar(
                               backgroundColor: isPaid ? Colors.green.shade100 : Colors.red.shade100,
-                              child: Icon(
-                                isPaid ? Icons.check : Icons.pending,
-                                color: isPaid ? Colors.green : Colors.red,
-                                size: 20,
-                              ),
+                              child: Icon(isPaid ? Icons.check : Icons.pending, color: isPaid ? Colors.green : Colors.red, size: 20),
                             ),
                             title: Text(fee['feeType']),
-                            subtitle: fee['dueDate'] != null
-                                ? Text("Due: ${DateFormat('dd MMM yyyy').format((fee['dueDate'] as Timestamp).toDate())}")
-                                : null,
-                            trailing: Text(
-                              "₹${fee['amount'].toInt()}",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isPaid ? Colors.green : Colors.red,
-                              ),
-                            ),
+                            subtitle: fee['dueDate'] != null ? Text("Due: ${DateFormat('dd MMM yyyy').format((fee['dueDate'] as Timestamp).toDate())}") : null,
+                            trailing: Text("₹${fee['amount'].toInt()}", style: TextStyle(fontWeight: FontWeight.bold, color: isPaid ? Colors.green : Colors.red)),
                           );
                         },
                       ),
                     ],
                   ),
                 ),
-
               if (feesList.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Center(
-                    child: Text("No fee records found"),
-                  ),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                  child: const Center(child: Text("No fee records found")),
                 ),
             ],
           ),

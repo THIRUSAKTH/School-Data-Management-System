@@ -13,8 +13,7 @@ class StudentManagementPage extends StatefulWidget {
   });
 
   @override
-  State<StudentManagementPage> createState() =>
-      _StudentManagementPageState();
+  State<StudentManagementPage> createState() => _StudentManagementPageState();
 }
 
 class _StudentManagementPageState extends State<StudentManagementPage> {
@@ -119,17 +118,10 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       ),
       body: Column(
         children: [
-          // Search Bar
           _buildSearchBar(),
-
-          // Active Filters Row
           if (selectedClassFilter != null || selectedSectionFilter != null)
             _buildActiveFilters(),
-
-          // Student Count
           _buildStudentCount(),
-
-          // Student List
           Expanded(
             child: _buildStudentList(),
           ),
@@ -321,12 +313,18 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               final data = s.data() as Map<String, dynamic>;
               final studentId = s.id;
 
-              // FIXED: Safe access with null handling
+              // Safe access with null handling
               final name = (data['name'] ?? "No Name").toString();
               final className = (data['class'] ?? "-").toString();
               final section = (data['section'] ?? "-").toString();
               final roll = (data['rollNo'] ?? "-").toString();
-              final parentName = (data['parentName'] ?? data['parent_name'] ?? "").toString();
+              // Safe parent name access - check both possible field names
+              String parentName = "";
+              if (data['parentName'] != null) {
+                parentName = data['parentName'].toString();
+              } else if (data['parent_name'] != null) {
+                parentName = data['parent_name'].toString();
+              }
 
               return Dismissible(
                 key: Key(studentId),
@@ -469,7 +467,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Class Filter
                 DropdownButtonFormField<String>(
                   value: selectedClassFilter,
                   hint: const Text("All Classes"),
@@ -491,8 +488,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // Section Filter
                 DropdownButtonFormField<String>(
                   value: selectedSectionFilter,
                   hint: const Text("All Sections"),

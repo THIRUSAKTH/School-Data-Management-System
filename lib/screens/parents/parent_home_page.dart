@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
+import 'parent_view_results.dart';
 
 class ParentHomePage extends StatefulWidget {
   const ParentHomePage({super.key});
@@ -29,6 +31,56 @@ class _ParentHomePageState extends State<ParentHomePage>
     super.dispose();
   }
 
+  void _logout(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text("Logout"),
+        content: const Text("Are you sure you want to logout?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () async {
+              // Close dialog
+              Navigator.pop(context);
+
+              // Show loading
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Logging out...")),
+              );
+
+              try {
+                // Sign out from Firebase
+                await FirebaseAuth.instance.signOut();
+
+                // Clear all routes and navigate to login
+                if (mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (context) => const LoginPage(role: 'Parent'),
+                    ),
+                        (route) => false,
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Logout"),
+          ),
+        ],
+      ),
+    );
+  }
   @override
   Widget build(BuildContext context) {
     _schoolId = ModalRoute.of(context)!.settings.arguments as String;
@@ -58,6 +110,23 @@ class _ParentHomePageState extends State<ParentHomePage>
               setState(() {});
             },
           ),
+          IconButton(
+            icon: const Icon(Icons.assessment),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ParentViewResultsPage(),
+                ),
+              );
+            },
+            tooltip: "View Results",
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => _logout(context),
+            tooltip: "Logout",
+          ),
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -77,15 +146,16 @@ class _ParentHomePageState extends State<ParentHomePage>
           }
 
           final students = snapshot.data!.docs;
-          _selectedStudentId ??= students.first.id;
+
+          // Set default selected student only if not set
+          if (_selectedStudentId == null && students.isNotEmpty) {
+            _selectedStudentId = students.first.id;
+          }
 
           return TabBarView(
             controller: _tabController,
             children: [
-              // Tab 1: My Children List
               _buildChildrenList(students),
-
-              // Tab 2: Analytics & Details
               _buildAnalyticsTab(students),
             ],
           );
@@ -128,7 +198,7 @@ class _ParentHomePageState extends State<ParentHomePage>
           onTap: () {
             setState(() {
               _selectedStudentId = s.id;
-              _tabController.animateTo(1); // Switch to analytics tab
+              _tabController.animateTo(1);
             });
           },
           child: Card(
@@ -200,10 +270,23 @@ class _ParentHomePageState extends State<ParentHomePage>
       return const Center(child: Text('Select a child to view details'));
     }
 
-    final selectedStudent = students.firstWhere(
-          (s) => s.id == _selectedStudentId,
-      orElse: () => students.first,
-    );
+    // Safe find with null check
+    QueryDocumentSnapshot? selectedStudent;
+    for (var student in students) {
+      if (student.id == _selectedStudentId) {
+        selectedStudent = student;
+        break;
+      }
+    }
+
+    if (selectedStudent == null && students.isNotEmpty) {
+      selectedStudent = students.first;
+      _selectedStudentId = selectedStudent.id;
+    }
+
+    if (selectedStudent == null) {
+      return const Center(child: Text('No child selected'));
+    }
 
     final data = selectedStudent.data() as Map<String, dynamic>;
     final studentName = data['name'] ?? 'Student';
@@ -219,23 +302,14 @@ class _ParentHomePageState extends State<ParentHomePage>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Student Header Card
           _buildStudentHeader(studentName, className, section, rollNo),
           const SizedBox(height: 16),
-
-          // Stats Row
           _buildStatsRow(_selectedStudentId!),
           const SizedBox(height: 16),
-
-          // Attendance Summary
           _buildAttendanceSummary(_selectedStudentId!),
           const SizedBox(height: 16),
-
-          // Fee Details
           _buildFeeDetails(_selectedStudentId!),
           const SizedBox(height: 16),
-
-          // Student Details
           _buildStudentDetails(
             name: studentName,
             className: className,
@@ -474,9 +548,13 @@ class _ParentHomePageState extends State<ParentHomePage>
                   itemBuilder: (context, index) {
                     final doc = records[index];
                     final data = doc.data() as Map<String, dynamic>;
-                    final date = data['date'] != null
-                        ? DateTime.parse(data['date'])
-                        : DateTime.now();
+                    final dateStr = data['date'] ?? '';
+                    DateTime date;
+                    try {
+                      date = DateTime.parse(dateStr);
+                    } catch (e) {
+                      date = DateTime.now();
+                    }
                     final status = data['status'] ?? 'Absent';
 
                     Color statusColor;

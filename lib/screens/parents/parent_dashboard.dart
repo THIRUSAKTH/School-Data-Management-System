@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
-import 'parent_attendance_page.dart'; // We'll create this next
+import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_view_results.dart';
+import 'package:schoolprojectjan/screens/parents/homework_view_page.dart';
+import 'parent_attendance_page.dart';
 
 class ParentDashboard extends StatefulWidget {
   const ParentDashboard({super.key});
@@ -31,6 +34,56 @@ class _ParentDashboardState extends State<ParentDashboard>
     super.dispose();
   }
 
+  void _logout(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text("Logout"),
+        content: const Text("Are you sure you want to logout?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () async {
+              // Close dialog
+              Navigator.pop(context);
+
+              // Show loading
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Logging out...")),
+              );
+
+              try {
+                // Sign out from Firebase
+                await FirebaseAuth.instance.signOut();
+
+                // Clear all routes and navigate to login
+                if (mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (context) => const LoginPage(role: 'Parent'),
+                    ),
+                        (route) => false,
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Logout"),
+          ),
+        ],
+      ),
+    );
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -44,14 +97,47 @@ class _ParentDashboardState extends State<ParentDashboard>
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {
-              // TODO: Navigate to notifications
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Notifications coming soon")),
+              );
             },
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () {
-              // TODO: Navigate to settings
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Settings coming soon")),
+              );
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.assignment),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const HomeworkViewPage(),
+                ),
+              );
+            },
+            tooltip: "View Homework",
+          ),
+          IconButton(
+            icon: const Icon(Icons.assessment),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ParentViewResultsPage(),
+                ),
+              );
+            },
+            tooltip: "View Results",
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => _logout(context),
+            tooltip: "Logout",
           ),
         ],
       ),
@@ -63,22 +149,41 @@ class _ParentDashboardState extends State<ParentDashboard>
             .where('parentUid', isEqualTo: parentUid)
             .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return _buildNoChildrenWidget();
           }
 
           final students = snapshot.data!.docs;
-          selectedStudentId ??= students.first.id;
 
-          final student = students.firstWhere(
-                (doc) => doc.id == selectedStudentId,
-          );
+          // Set default selected student if not set
+          if (selectedStudentId == null && students.isNotEmpty) {
+            selectedStudentId = students.first.id;
+          }
 
-          final data = student.data() as Map<String, dynamic>;
+          // Safe find - manually find the selected student
+          QueryDocumentSnapshot? selectedDoc;
+          for (var doc in students) {
+            if (doc.id == selectedStudentId) {
+              selectedDoc = doc;
+              break;
+            }
+          }
+
+          // If selected student not found, use first one
+          if (selectedDoc == null && students.isNotEmpty) {
+            selectedDoc = students.first;
+            selectedStudentId = selectedDoc.id;
+          }
+
+          if (selectedDoc == null) {
+            return _buildNoChildrenWidget();
+          }
+
+          final data = selectedDoc.data() as Map<String, dynamic>;
           final name = data['name'] ?? "Student";
           final className = data['class'] ?? "";
           final section = data['section'] ?? "";
@@ -90,13 +195,8 @@ class _ParentDashboardState extends State<ParentDashboard>
 
           return Column(
             children: [
-              // Header with Student Info
               _buildHeader(name, className, section, rollNo),
-
-              // Child Selector
               _buildChildSelector(students),
-
-              // Tab Bar
               Container(
                 color: Colors.white,
                 child: TabBar(
@@ -110,12 +210,10 @@ class _ParentDashboardState extends State<ParentDashboard>
                   ],
                 ),
               ),
-
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    // Overview Tab
                     _buildOverviewTab(
                       studentId: selectedStudentId!,
                       name: name,
@@ -127,7 +225,6 @@ class _ParentDashboardState extends State<ParentDashboard>
                       motherName: motherName,
                       phone: phone,
                     ),
-                    // Attendance Tab
                     _buildAttendanceTab(selectedStudentId!, name),
                   ],
                 ),
@@ -255,7 +352,7 @@ class _ParentDashboardState extends State<ParentDashboard>
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          "${d['name']}",
+                          d['name'] ?? 'Student',
                           style: TextStyle(
                             color: isSelected ? Colors.white : Colors.black87,
                             fontWeight: FontWeight.w500,
@@ -288,11 +385,8 @@ class _ParentDashboardState extends State<ParentDashboard>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Stats Row
           _buildStatsRow(studentId),
           const SizedBox(height: 20),
-
-          // Student Details Card
           _buildStudentDetailsCard(
             name: name,
             className: className,
@@ -304,8 +398,6 @@ class _ParentDashboardState extends State<ParentDashboard>
             phone: phone,
           ),
           const SizedBox(height: 16),
-
-          // Fee Section
           _buildFeeSection(),
         ],
       ),
@@ -430,8 +522,8 @@ class _ParentDashboardState extends State<ParentDashboard>
             _infoRow('Class & Section', '$className - $section'),
             _infoRow('Roll Number', rollNo),
             if (admissionNo.isNotEmpty) _infoRow('Admission No', admissionNo),
-            _infoRow('Father\'s Name', fatherName),
-            _infoRow('Mother\'s Name', motherName),
+            if (fatherName.isNotEmpty) _infoRow('Father\'s Name', fatherName),
+            if (motherName.isNotEmpty) _infoRow('Mother\'s Name', motherName),
             if (phone.isNotEmpty) _infoRow('Phone', phone),
           ],
         ),
@@ -472,11 +564,11 @@ class _ParentDashboardState extends State<ParentDashboard>
           .where('studentId', isEqualTo: selectedStudentId)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Card(
             elevation: 2,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -609,7 +701,6 @@ class _ParentDashboardState extends State<ParentDashboard>
           );
         }
 
-        // Calculate statistics
         int present = 0;
         int absent = 0;
         int late = 0;
@@ -641,7 +732,6 @@ class _ParentDashboardState extends State<ParentDashboard>
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // Summary Cards
               Row(
                 children: [
                   Expanded(
@@ -673,112 +763,9 @@ class _ParentDashboardState extends State<ParentDashboard>
                 ],
               ),
               const SizedBox(height: 20),
-
-              // Attendance Chart
-              if (records.isNotEmpty)
-                _buildAttendanceChart(records),
-
+              if (records.isNotEmpty) _buildAttendanceChart(records),
               const SizedBox(height: 20),
-
-              // Recent Records
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.history, color: Colors.orange),
-                          SizedBox(width: 8),
-                          Text(
-                            'Recent Attendance',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 24),
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: records.length > 10 ? 10 : records.length,
-                        separatorBuilder: (_, __) => const Divider(),
-                        itemBuilder: (context, index) {
-                          final record = records[index];
-                          final date = DateTime.tryParse(record['date']) ?? DateTime.now();
-                          final status = record['status'];
-
-                          Color statusColor;
-                          IconData statusIcon;
-                          if (status == 'Present') {
-                            statusColor = Colors.green;
-                            statusIcon = Icons.check_circle;
-                          } else if (status == 'Late') {
-                            statusColor = Colors.orange;
-                            statusIcon = Icons.access_time;
-                          } else {
-                            statusColor = Colors.red;
-                            statusIcon = Icons.cancel;
-                          }
-
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: statusColor.withValues(alpha: 0.1),
-                              child: Icon(statusIcon, color: statusColor),
-                            ),
-                            title: Text(
-                              DateFormat('EEEE, dd MMM yyyy').format(date),
-                              style: const TextStyle(fontWeight: FontWeight.w500),
-                            ),
-                            subtitle: record['checkInTime'].isNotEmpty
-                                ? Text('In: ${record['checkInTime']} | Out: ${record['checkOutTime']}')
-                                : null,
-                            trailing: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                status,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      if (records.length > 10)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: TextButton.icon(
-                            onPressed: () {
-                              // Navigate to full attendance page
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => ParentAttendancePage(
-                                    schoolId: AppConfig.schoolId,
-                                    parentId: parentUid,
-                                    parentName: 'Parent',
-                                  ),
-                                ),
-                              );
-                            },
-                            icon: const Icon(Icons.arrow_forward, size: 16),
-                            label: const Text('View All Records'),
-                            style: TextButton.styleFrom(foregroundColor: Colors.orange),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+              _buildRecentRecordsCard(records),
             ],
           ),
         );
@@ -786,8 +773,118 @@ class _ParentDashboardState extends State<ParentDashboard>
     );
   }
 
+  Widget _buildRecentRecordsCard(List<Map<String, dynamic>> records) {
+    if (records.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(child: Text("No attendance records found")),
+      );
+    }
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.history, color: Colors.orange),
+                SizedBox(width: 8),
+                Text(
+                  'Recent Attendance',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: records.length > 10 ? 10 : records.length,
+              separatorBuilder: (_, __) => const Divider(),
+              itemBuilder: (context, index) {
+                final record = records[index];
+                final date = DateTime.tryParse(record['date']) ?? DateTime.now();
+                final status = record['status'];
+
+                Color statusColor;
+                IconData statusIcon;
+                if (status == 'Present') {
+                  statusColor = Colors.green;
+                  statusIcon = Icons.check_circle;
+                } else if (status == 'Late') {
+                  statusColor = Colors.orange;
+                  statusIcon = Icons.access_time;
+                } else {
+                  statusColor = Colors.red;
+                  statusIcon = Icons.cancel;
+                }
+
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: statusColor.withValues(alpha: 0.1),
+                    child: Icon(statusIcon, color: statusColor),
+                  ),
+                  title: Text(
+                    DateFormat('EEEE, dd MMM yyyy').format(date),
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  subtitle: record['checkInTime'].isNotEmpty
+                      ? Text('In: ${record['checkInTime']} | Out: ${record['checkOutTime']}')
+                      : null,
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      status,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            if (records.length > 10)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ParentAttendancePage(
+                          schoolId: AppConfig.schoolId,
+                          parentId: parentUid,
+                          parentName: 'Parent',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  label: const Text('View All Records'),
+                  style: TextButton.styleFrom(foregroundColor: Colors.orange),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAttendanceChart(List<Map<String, dynamic>> records) {
-    // Get last 7 days
     List<String> last7Days = [];
     for (int i = 6; i >= 0; i--) {
       last7Days.add(DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(Duration(days: i))));
@@ -874,10 +971,7 @@ class _ParentDashboardState extends State<ParentDashboard>
                           int index = value.toInt();
                           if (index >= 0 && index < last7Days.length) {
                             DateTime date = DateTime.parse(last7Days[index]);
-                            return Text(
-                              DateFormat('E').format(date),
-                              style: const TextStyle(fontSize: 10),
-                            );
+                            return Text(DateFormat('E').format(date), style: const TextStyle(fontSize: 10));
                           }
                           return const Text('');
                         },

@@ -22,18 +22,15 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
   final classController = TextEditingController();
   final sectionController = TextEditingController();
   final subjectController = TextEditingController();
-
   List<Map<String, dynamic>> assigned = [];
   List<String> _availableClasses = [];
-  List<String> _availableSections = ['A', 'B', 'C', 'D'];
+  List<String> _availableSections = ['A', 'B', 'C', 'D',"E","F","G","H"];
   List<String> _availableSubjects = [];
-
   bool _isLoading = true;
   bool _isSaving = false;
   String? _selectedClass;
   String? _selectedSection;
   String? _selectedSubject;
-
   @override
   void initState() {
     super.initState();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
+import 'package:schoolprojectjan/screens/teacher/teacher_add_student_page.dart';
 import 'mark_attendance_page.dart';
 
 class SelectClassAttendancePage extends StatefulWidget {
@@ -45,7 +46,6 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
     setState(() => _isLoadingClasses = true);
 
     try {
-      // Get unique classes from students collection
       final studentsSnapshot = await FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
@@ -134,28 +134,57 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Card
             _buildHeaderCard(),
-
             const SizedBox(height: 24),
-
-            // Class Selection
             _buildClassSelector(),
-
             const SizedBox(height: 20),
-
-            // Section Selection
             _buildSectionSelector(),
-
             const SizedBox(height: 30),
-
-            // Recent Attendance Card
             _buildRecentAttendanceCard(),
-
             const SizedBox(height: 20),
-
-            // Submit Button
             _buildSubmitButton(),
+            // Add this after _buildSubmitButton() in the Column
+
+            const SizedBox(height: 12),
+
+// Add Student Button
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  String className = classController.text.trim();
+                  String section = sectionController.text.trim().toUpperCase();
+
+                  if (className.isEmpty || section.isEmpty) {
+                    _showErrorSnackBar("Please select class and section first");
+                    return;
+                  }
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TeacherAddStudentPage(
+                        className: className,
+                        section: section,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.person_add),
+                label: const Text(
+                  "Add New Student to this Class",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.green,
+                  side: const BorderSide(color: Colors.green),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -182,27 +211,16 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
       ),
       child: Column(
         children: [
-          const Icon(
-            Icons.checklist,
-            size: 50,
-            color: Colors.white,
-          ),
+          const Icon(Icons.checklist, size: 50, color: Colors.white),
           const SizedBox(height: 12),
           const Text(
             "Mark Student Attendance",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
             "Select class and section to mark today's attendance",
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14),
             textAlign: TextAlign.center,
           ),
         ],
@@ -221,32 +239,21 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
             children: [
               Icon(Icons.class_, color: Colors.green),
               SizedBox(width: 8),
-              Text(
-                "Select Class",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              Text("Select Class", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 16),
-
           if (_isLoadingClasses)
             const Center(child: CircularProgressIndicator())
           else if (_availableClasses.isEmpty)
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-              ),
+              decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
               child: const Column(
                 children: [
                   Icon(Icons.warning_amber, color: Colors.orange),
                   SizedBox(height: 8),
-                  Text(
-                    "No classes found.\nPlease add students first.",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.orange),
-                  ),
+                  Text("No classes found.\nPlease add students first.", textAlign: TextAlign.center, style: TextStyle(color: Colors.orange)),
                 ],
               ),
             )
@@ -257,18 +264,13 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
                   value: _selectedClass,
                   hint: const Text("Select Class"),
                   decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     filled: true,
                     fillColor: Colors.grey.shade50,
                     prefixIcon: const Icon(Icons.school),
                   ),
                   items: _availableClasses.map((className) {
-                    return DropdownMenuItem(
-                      value: className,
-                      child: Text(className),
-                    );
+                    return DropdownMenuItem(value: className, child: Text(className));
                   }).toList(),
                   onChanged: (value) {
                     setState(() {
@@ -286,9 +288,7 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
                   decoration: InputDecoration(
                     labelText: "Or Enter Class Manually",
                     hintText: "e.g., Class 5, Grade 10",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     filled: true,
                     fillColor: Colors.grey.shade50,
                   ),
@@ -316,31 +316,22 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
             children: [
               Icon(Icons.group, color: Colors.green),
               SizedBox(width: 8),
-              Text(
-                "Select Section",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              Text("Select Section", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 16),
-
           if (_selectedClass != null && _availableSections.isNotEmpty)
             DropdownButtonFormField<String>(
               value: _selectedSection,
               hint: const Text("Select Section"),
               decoration: InputDecoration(
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: Colors.grey.shade50,
                 prefixIcon: const Icon(Icons.group),
               ),
               items: _availableSections.map((section) {
-                return DropdownMenuItem(
-                  value: section,
-                  child: Text(section),
-                );
+                return DropdownMenuItem(value: section, child: Text(section));
               }).toList(),
               onChanged: (value) {
                 setState(() {
@@ -355,9 +346,7 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
               decoration: InputDecoration(
                 labelText: "Enter Section",
                 hintText: "e.g., A, B, C",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: Colors.grey.shade50,
                 prefixIcon: const Icon(Icons.group),
@@ -397,38 +386,40 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
                 children: [
                   Icon(Icons.history, color: Colors.green),
                   SizedBox(width: 8),
-                  Text(
-                    "Recent Attendance",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  Text("Recent Attendance", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ],
               ),
               const SizedBox(height: 12),
               ...snapshot.data!.docs.take(3).map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                final date = data['date'] ?? '';
+                final dateStr = data['date'] ?? '';
                 final className = data['className'] ?? '';
                 final section = data['section'] ?? '';
                 final present = data['present'] ?? 0;
                 final total = data['totalStudents'] ?? 0;
                 final rate = total > 0 ? (present / total) * 100 : 0;
 
+                // FIXED: Safely parse date
+                String formattedDate = '';
+                if (dateStr.isNotEmpty) {
+                  try {
+                    final date = DateFormat('yyyy-MM-dd').parse(dateStr);
+                    formattedDate = DateFormat('dd MMM yyyy').format(date);
+                  } catch (e) {
+                    formattedDate = dateStr;
+                  }
+                }
+
                 return ListTile(
                   leading: CircleAvatar(
                     backgroundColor: Colors.green.shade100,
-                    child: Text(
-                      present.toString(),
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                    ),
+                    child: Text(present.toString(), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
                   ),
                   title: Text("$className - $section"),
-                  subtitle: Text(DateFormat('dd MMM yyyy').parse(date) as String),
+                  subtitle: Text(formattedDate),
                   trailing: Text(
                     "${rate.toStringAsFixed(0)}%",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: rate >= 75 ? Colors.green : Colors.orange,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, color: rate >= 75 ? Colors.green : Colors.orange),
                   ),
                 );
               }).toList(),
@@ -448,9 +439,7 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.green,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           elevation: 2,
         ),
         child: const Text(
@@ -465,7 +454,6 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
     String className = classController.text.trim();
     String section = sectionController.text.trim().toUpperCase();
 
-    // Validation
     if (className.isEmpty) {
       _showErrorSnackBar("Please enter or select a class");
       return;
@@ -476,7 +464,6 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
       return;
     }
 
-    // Check if there are students in this class
     setState(() => _isLoadingClasses = true);
 
     try {
@@ -493,10 +480,7 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                "No students found in $className - $section",
-                style: const TextStyle(color: Colors.white),
-              ),
+              content: Text("No students found in $className - $section", style: const TextStyle(color: Colors.white)),
               backgroundColor: Colors.orange,
               duration: const Duration(seconds: 3),
             ),
@@ -506,7 +490,6 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
         return;
       }
 
-      // Navigate to mark attendance page
       if (mounted) {
         Navigator.push(
           context,

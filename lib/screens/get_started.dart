@@ -26,50 +26,58 @@ class GetStarted extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-
-                  /// 🔹 LOGO
+                  /// Logo
                   Container(
-                    height: 110,
-                    width: 110,
+                    height: 120,
+                    width: 120,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withValues(alpha: 0.15),
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          blurRadius: 20,
+                          spreadRadius: 5,
+                        ),
+                      ],
                     ),
                     child: const Icon(
                       Icons.school_rounded,
-                      size: 55,
+                      size: 60,
                       color: Colors.white,
                     ),
                   ),
 
                   const SizedBox(height: 30),
 
-                  /// 🔹 TITLE
+                  /// Title
                   const Text(
-                    "School Management System",
+                    "School Management\nSystem",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 26,
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
+                      height: 1.2,
                     ),
                   ),
 
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
 
-                  /// 🔹 SUBTITLE
+                  /// Subtitle
                   const Text(
                     "Manage your school digitally\nSecure • Smart • Scalable",
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 15,
                       color: Colors.white70,
+                      height: 1.4,
                     ),
                   ),
 
                   const SizedBox(height: 50),
 
-                  /// 🔹 BUTTON
+                  /// Get Started Button
                   SizedBox(
                     width: double.infinity,
                     height: 55,
@@ -77,13 +85,14 @@ class GetStarted extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: const Color(0xFF0F9B8E),
-                        elevation: 6,
+                        elevation: 8,
+                        shadowColor: Colors.black.withValues(alpha: 0.2),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                       ),
                       onPressed: () {
-                        Navigator.push(
+                        Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
                             builder: (_) => const RoleSelectScreen(),
@@ -93,22 +102,30 @@ class GetStarted extends StatelessWidget {
                       child: const Text(
                         "Get Started",
                         style: TextStyle(
-                          fontSize: 17,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
                         ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 30),
 
-                  /// 🔹 FOOTER
-                  const Text(
-                    "For Schools Across Tamil Nadu",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                  /// Footer
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      "For Schools Across Tamil Nadu",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],

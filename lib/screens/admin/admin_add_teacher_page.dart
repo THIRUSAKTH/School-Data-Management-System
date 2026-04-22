@@ -37,7 +37,7 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
 
   final List<String> _genders = ['Male', 'Female', 'Other'];
   final List<String> _departments = [
-    'Tamizh',
+    'Tamil',
     'Science',
     'Mathematics',
     'Languages',

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/screens/teacher/homework_post_page.dart';
 import 'package:schoolprojectjan/screens/teacher/mark_attendance_page.dart';
 import 'package:schoolprojectjan/screens/teacher/select_class_attendance_page.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_timetable_page.dart';
+import 'package:schoolprojectjan/screens/teacher/teacher_upload_marks.dart';
 import 'teacher_dashboard.dart';
 
 class TeacherHome extends StatefulWidget {
@@ -21,6 +23,7 @@ class _TeacherHomeState extends State<TeacherHome> {
     "Dashboard",
     "Attendance",
     "Homework",
+    "Marks",
     "Timetable",
   ];
 
@@ -30,8 +33,11 @@ class _TeacherHomeState extends State<TeacherHome> {
 
     _pages = const [
       TeacherDashboard(),
-      SelectClassAttendancePage(schoolId: 'schoolId'),
+      SelectClassAttendancePage(
+        schoolId: AppConfig.schoolId,
+      ),
       HomeworkPostPage(),
+      TeacherUploadMarksPage(),
       TeacherTimetablePage(),
     ];
   }
