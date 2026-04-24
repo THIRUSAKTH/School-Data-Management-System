@@ -1,13 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
-import 'package:schoolprojectjan/screens/parents/parent_view_results.dart';
+import 'package:schoolprojectjan/screens/parents/attendance_view_page.dart';
 import 'package:schoolprojectjan/screens/parents/homework_view_page.dart';
-import 'parent_attendance_page.dart';
+import 'package:schoolprojectjan/screens/parents/notices_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_attendance_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_complaint_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_notifications_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_profile_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_settings_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_view_results.dart';
+import 'package:schoolprojectjan/screens/parents/parent_exam_schedule.dart';
+import 'package:schoolprojectjan/screens/parents/fee_history_page.dart';
 
 class ParentDashboard extends StatefulWidget {
   const ParentDashboard({super.key});
@@ -21,6 +28,14 @@ class _ParentDashboardState extends State<ParentDashboard>
   final String parentUid = FirebaseAuth.instance.currentUser!.uid;
   String? selectedStudentId;
   late TabController _tabController;
+  int _unreadNotifications = 0;
+  int _unreadComplaints = 0;
+
+  // Store current student data
+  String _currentStudentName = '';
+  String _currentClassName = '';
+  String _currentSection = '';
+  String _currentRollNo = '';
 
   @override
   void initState() {
@@ -32,6 +47,37 @@ class _ParentDashboardState extends State<ParentDashboard>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadUnreadCounts() async {
+    if (selectedStudentId == null) return;
+
+    try {
+      final notifications = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('notifications')
+          .where('studentId', isEqualTo: selectedStudentId)
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      final complaints = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('complaints')
+          .where('studentId', isEqualTo: selectedStudentId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      if (mounted) {
+        setState(() {
+          _unreadNotifications = notifications.docs.length;
+          _unreadComplaints = complaints.docs.length;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading counts: $e");
+    }
   }
 
   void _logout(BuildContext context) async {
@@ -48,19 +94,12 @@ class _ParentDashboardState extends State<ParentDashboard>
           ),
           TextButton(
             onPressed: () async {
-              // Close dialog
               Navigator.pop(context);
-
-              // Show loading
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Logging out...")),
               );
-
               try {
-                // Sign out from Firebase
                 await FirebaseAuth.instance.signOut();
-
-                // Clear all routes and navigate to login
                 if (mounted) {
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(
@@ -84,175 +123,578 @@ class _ParentDashboardState extends State<ParentDashboard>
       ),
     );
   }
+
+  void _showSelectChildSnackbar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Please select a child first"),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
-        title: const Text('Parent Dashboard'),
+        title: const Text(
+          'Parent Dashboard',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Notifications coming soon")),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Settings coming soon")),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.assignment),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const HomeworkViewPage(),
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined, size: 22),
+                onPressed: () {
+                  if (selectedStudentId != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ParentNotificationsPage(
+                          studentId: selectedStudentId!,
+                        ),
+                      ),
+                    ).then((_) => _loadUnreadCounts());
+                  } else {
+                    _showSelectChildSnackbar();
+                  }
+                },
+                tooltip: "Notifications",
+              ),
+              if (_unreadNotifications > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 14,
+                      minHeight: 14,
+                    ),
+                    child: Text(
+                      '$_unreadNotifications',
+                      style: const TextStyle(color: Colors.white, fontSize: 9),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ),
-              );
-            },
-            tooltip: "View Homework",
-          ),
-          IconButton(
-            icon: const Icon(Icons.assessment),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ParentViewResultsPage(),
-                ),
-              );
-            },
-            tooltip: "View Results",
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context),
-            tooltip: "Logout",
+            ],
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('schools')
-            .doc(AppConfig.schoolId)
-            .collection('students')
-            .where('parentUid', isEqualTo: parentUid)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return _buildNoChildrenWidget();
-          }
-
-          final students = snapshot.data!.docs;
-
-          // Set default selected student if not set
-          if (selectedStudentId == null && students.isNotEmpty) {
-            selectedStudentId = students.first.id;
-          }
-
-          // Safe find - manually find the selected student
-          QueryDocumentSnapshot? selectedDoc;
-          for (var doc in students) {
-            if (doc.id == selectedStudentId) {
-              selectedDoc = doc;
-              break;
-            }
-          }
-
-          // If selected student not found, use first one
-          if (selectedDoc == null && students.isNotEmpty) {
-            selectedDoc = students.first;
-            selectedStudentId = selectedDoc.id;
-          }
-
-          if (selectedDoc == null) {
-            return _buildNoChildrenWidget();
-          }
-
-          final data = selectedDoc.data() as Map<String, dynamic>;
-          final name = data['name'] ?? "Student";
-          final className = data['class'] ?? "";
-          final section = data['section'] ?? "";
-          final rollNo = data['rollNo'] ?? "";
-          final admissionNo = data['admissionNo'] ?? "";
-          final fatherName = data['fatherName'] ?? "";
-          final motherName = data['motherName'] ?? "";
-          final phone = data['phone'] ?? "";
-
-          return Column(
-            children: [
-              _buildHeader(name, className, section, rollNo),
-              _buildChildSelector(students),
-              Container(
-                color: Colors.white,
-                child: TabBar(
-                  controller: _tabController,
-                  labelColor: Colors.orange,
-                  unselectedLabelColor: Colors.grey,
-                  indicatorColor: Colors.orange,
-                  tabs: const [
-                    Tab(icon: Icon(Icons.dashboard), text: 'Overview'),
-                    Tab(icon: Icon(Icons.calendar_month), text: 'Attendance'),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildOverviewTab(
-                      studentId: selectedStudentId!,
-                      name: name,
-                      className: className,
-                      section: section,
-                      rollNo: rollNo,
-                      admissionNo: admissionNo,
-                      fatherName: fatherName,
-                      motherName: motherName,
-                      phone: phone,
-                    ),
-                    _buildAttendanceTab(selectedStudentId!, name),
-                  ],
-                ),
-              ),
-            ],
-          );
+      drawer: _buildDrawer(),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          setState(() {});
+          await _loadUnreadCounts();
         },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('schools')
+                  .doc(AppConfig.schoolId)
+                  .collection('students')
+                  .where('parentUid', isEqualTo: parentUid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return _buildNoChildrenWidget();
+                }
+
+                final students = snapshot.data!.docs;
+
+                if (selectedStudentId == null && students.isNotEmpty) {
+                  selectedStudentId = students.first.id;
+                  _updateCurrentStudentData(students.first.data() as Map<String, dynamic>);
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _loadUnreadCounts();
+                  });
+                }
+
+                QueryDocumentSnapshot? selectedDoc;
+                for (var doc in students) {
+                  if (doc.id == selectedStudentId) {
+                    selectedDoc = doc;
+                    break;
+                  }
+                }
+
+                if (selectedDoc == null && students.isNotEmpty) {
+                  selectedDoc = students.first;
+                  selectedStudentId = selectedDoc.id;
+                  _updateCurrentStudentData(selectedDoc.data() as Map<String, dynamic>);
+                }
+
+                if (selectedDoc == null) {
+                  return _buildNoChildrenWidget();
+                }
+
+                final data = selectedDoc.data() as Map<String, dynamic>;
+                _updateCurrentStudentData(data);
+
+                final name = data['name'] ?? "Student";
+                final className = data['class'] ?? "";
+                final section = data['section'] ?? "";
+                final rollNo = data['rollNo'] ?? "";
+
+                return Column(
+                  children: [
+                    _buildHeader(name, className, section, rollNo),
+                    _buildChildSelector(students),
+                    Container(
+                      color: Colors.white,
+                      child: TabBar(
+                        controller: _tabController,
+                        labelColor: Colors.orange,
+                        unselectedLabelColor: Colors.grey,
+                        indicatorColor: Colors.orange,
+                        tabs: const [
+                          Tab(icon: Icon(Icons.dashboard, size: 18), text: 'Overview'),
+                          Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Attendance'),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          SingleChildScrollView(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              children: [
+                                _buildStatsRow(selectedStudentId!),
+                                const SizedBox(height: 12),
+                                _buildStudentDetailsCard(data),
+                                const SizedBox(height: 12),
+                                _buildFeeSection(),
+                                const SizedBox(height: 12),
+                                _buildQuickActions(),
+                                const SizedBox(height: 20),
+                              ],
+                            ),
+                          ),
+                          _buildAttendanceTab(selectedStudentId!, name),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
+    );
+  }
+
+  void _updateCurrentStudentData(Map<String, dynamic> data) {
+    _currentStudentName = data['name'] ?? 'Student';
+    _currentClassName = data['class'] ?? '';
+    _currentSection = data['section'] ?? '';
+    _currentRollNo = data['rollNo'] ?? '';
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.orange, Colors.deepOrange],
+              ),
+            ),
+            child: Column(
+              children: [
+                const CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person, size: 35, color: Colors.orange),
+                ),
+                const SizedBox(height: 8),
+                StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('schools')
+                      .doc(AppConfig.schoolId)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    String schoolName = "School";
+                    if (snapshot.hasData && snapshot.data!.exists) {
+                      schoolName = snapshot.data!['schoolName'] ?? "School";
+                    }
+                    return Text(
+                      schoolName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Parent Portal",
+                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _drawerItem(
+                  icon: Icons.dashboard,
+                  title: "Dashboard",
+                  onTap: () {
+                    Navigator.pop(context);
+                    _tabController.animateTo(0);
+                  },
+                ),
+                const Divider(),
+                _drawerItem(
+                  icon: Icons.calendar_today,
+                  title: "Attendance",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AttendanceViewPage(
+                            studentId: selectedStudentId!,
+                            studentName: _currentStudentName,
+                            className: _currentClassName,
+                            section: _currentSection,
+                          ),
+                        ),
+                      );
+                      _tabController.animateTo(1);
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.assignment,
+                  title: "Homework",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const HomeworkViewPage(),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.assessment,
+                  title: "Results",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ParentViewResultsPage(),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.calendar_month,
+                  title: "Exam Schedule",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ParentExamSchedulePage(),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.receipt,
+                  title: "Fee History",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FeeHistoryPage(),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.announcement,
+                  title: "Notices",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ParentNoticesPage(),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.feedback,
+                  title: "Complaints",
+                  badge: _unreadComplaints > 0 ? _unreadComplaints.toString() : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ParentComplaintPage(
+                            studentId: selectedStudentId!,
+                          ),
+                        ),
+                      ).then((_) => _loadUnreadCounts());
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                const Divider(),
+                _drawerItem(
+                  icon: Icons.person,
+                  title: "My Profile",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ParentProfilePage(
+                            studentId: selectedStudentId!,
+                            schoolId: AppConfig.schoolId,
+                          ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.settings,
+                  title: "Settings",
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ParentSettingsPage(
+                          schoolId: AppConfig.schoolId,
+                          parentUid: parentUid,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(),
+                _drawerItem(
+                  icon: Icons.help_outline,
+                  title: "Help & Support",
+                  onTap: () => _showHelpDialog(),
+                ),
+                _drawerItem(
+                  icon: Icons.info_outline,
+                  title: "About",
+                  onTap: () => _showAboutDialog(),
+                ),
+                const Divider(),
+                _drawerItem(
+                  icon: Icons.logout,
+                  title: "Logout",
+                  isLogout: true,
+                  onTap: () => _logout(context),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              "Version 1.0.0",
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _drawerItem({
+    required IconData icon,
+    required String title,
+    VoidCallback? onTap,
+    bool isLogout = false,
+    String? badge,
+  }) {
+    return ListTile(
+      dense: true,
+      leading: Icon(icon, size: 20, color: isLogout ? Colors.red : Colors.orange),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isLogout ? Colors.red : Colors.black87,
+          fontWeight: FontWeight.w500,
+          fontSize: 13,
+        ),
+      ),
+      trailing: badge != null
+          ? Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          badge,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      )
+          : null,
+      onTap: onTap,
+    );
+  }
+
+  void _showHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Help & Support"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text("📞 Contact School:"),
+            SizedBox(height: 6),
+            Text("Phone: +91 98765 43210"),
+            Text("Email: support@school.com"),
+            SizedBox(height: 12),
+            Text("🕒 Support Hours:"),
+            SizedBox(height: 6),
+            Text("Monday - Friday: 9:00 AM - 5:00 PM"),
+            Divider(),
+            Text("For urgent issues, please contact the school office directly."),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close", style: TextStyle(color: Colors.orange)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAboutDialog() {
+    showAboutDialog(
+      context: context,
+      applicationName: "Smart School Management System",
+      applicationVersion: "1.0.0",
+      applicationIcon: const Icon(Icons.school, size: 40, color: Colors.orange),
+      children: const [
+        Text(
+          "A complete school ERP solution for parents, teachers, and administrators.\n\n"
+              "Features:\n"
+              "• Real-time attendance tracking\n"
+              "• Homework management\n"
+              "• Exam results and report cards\n"
+              "• Fee payment and tracking\n"
+              "• Complaint management\n"
+              "• Notifications and announcements\n\n"
+              "© 2025 Smart School. All rights reserved.",
+        ),
+      ],
     );
   }
 
   Widget _buildNoChildrenWidget() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.people_outline, size: 80, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
-          Text(
-            'No Children Linked',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Please contact the school admin to link your children.',
-            style: TextStyle(color: Colors.grey.shade500),
-          ),
-        ],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.people_outline, size: 60, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              'No Children Linked',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Please contact the school admin to link your children.',
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () => _showHelpDialog(),
+              icon: const Icon(Icons.support_agent, size: 16),
+              label: const Text("Contact Support"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -260,33 +702,33 @@ class _ParentDashboardState extends State<ParentDashboard>
   Widget _buildHeader(String name, String className, String section, String rollNo) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 40, 20, 20),
+      padding: const EdgeInsets.fromLTRB(16, 25, 16, 16),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.orange, Colors.deepOrange],
-        ),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
+        gradient: LinearGradient(colors: [Colors.orange, Colors.deepOrange]),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
       ),
       child: Column(
         children: [
           const CircleAvatar(
-            radius: 40,
+            radius: 30,
             backgroundColor: Colors.white,
-            child: Icon(Icons.school, size: 45, color: Colors.orange),
+            child: Icon(Icons.school, size: 35, color: Colors.orange),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           Text(
             name,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 22,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 4),
           Text(
             "Class $className-$section | Roll No: $rollNo",
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
           ),
         ],
       ),
@@ -295,14 +737,15 @@ class _ParentDashboardState extends State<ParentDashboard>
 
   Widget _buildChildSelector(List<QueryDocumentSnapshot> students) {
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -310,18 +753,15 @@ class _ParentDashboardState extends State<ParentDashboard>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(12),
-            child: Text(
-              'Select Child',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey),
-            ),
+          const Text(
+            'Select Child',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey),
           ),
+          const SizedBox(height: 6),
           SizedBox(
-            height: 50,
+            height: 38,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
               itemCount: students.length,
               itemBuilder: (context, index) {
                 final doc = students[index];
@@ -331,14 +771,16 @@ class _ParentDashboardState extends State<ParentDashboard>
                   onTap: () {
                     setState(() {
                       selectedStudentId = doc.id;
+                      _updateCurrentStudentData(d);
+                      _loadUnreadCounts();
                     });
                   },
                   child: Container(
-                    margin: const EdgeInsets.only(right: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
                       color: isSelected ? Colors.orange : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(
                         color: isSelected ? Colors.orange : Colors.transparent,
                       ),
@@ -347,14 +789,15 @@ class _ParentDashboardState extends State<ParentDashboard>
                       children: [
                         Icon(
                           Icons.person,
-                          size: 16,
+                          size: 12,
                           color: isSelected ? Colors.white : Colors.grey,
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 4),
                         Text(
                           d['name'] ?? 'Student',
                           style: TextStyle(
                             color: isSelected ? Colors.white : Colors.black87,
+                            fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -365,40 +808,6 @@ class _ParentDashboardState extends State<ParentDashboard>
               },
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOverviewTab({
-    required String studentId,
-    required String name,
-    required String className,
-    required String section,
-    required String rollNo,
-    required String admissionNo,
-    required String fatherName,
-    required String motherName,
-    required String phone,
-  }) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildStatsRow(studentId),
-          const SizedBox(height: 20),
-          _buildStudentDetailsCard(
-            name: name,
-            className: className,
-            section: section,
-            rollNo: rollNo,
-            admissionNo: admissionNo,
-            fatherName: fatherName,
-            motherName: motherName,
-            phone: phone,
-          ),
-          const SizedBox(height: 16),
-          _buildFeeSection(),
         ],
       ),
     );
@@ -428,103 +837,79 @@ class _ParentDashboardState extends State<ParentDashboard>
 
         double attendanceRate = total > 0 ? (present / total) * 100 : 0;
 
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('student_fees')
-              .where('studentId', isEqualTo: studentId)
-              .snapshots(),
-          builder: (context, feeSnapshot) {
-            double totalDue = 0;
-            double totalPaid = 0;
-
-            if (feeSnapshot.hasData) {
-              for (var doc in feeSnapshot.data!.docs) {
-                final data = doc.data() as Map<String, dynamic>;
-                double amount = (data['amount'] ?? 0).toDouble();
-                String status = data['status'] ?? "pending";
-
-                if (status == "paid") {
-                  totalPaid += amount;
-                } else {
-                  totalDue += amount;
-                }
-              }
-            }
-
-            return Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    title: "Attendance",
-                    value: "${attendanceRate.toStringAsFixed(1)}%",
-                    color: Colors.green,
-                    icon: Icons.check_circle,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    title: "Fees Paid",
-                    value: "₹${totalPaid.toInt()}",
-                    color: Colors.blue,
-                    icon: Icons.account_balance_wallet,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    title: "Fees Due",
-                    value: "₹${totalDue.toInt()}",
-                    color: Colors.red,
-                    icon: Icons.pending_actions,
-                  ),
-                ),
-              ],
-            );
-          },
+        return Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                title: "Attendance",
+                value: "${attendanceRate.toStringAsFixed(1)}%",
+                color: Colors.green,
+                icon: Icons.check_circle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _StatCard(
+                title: "Homework",
+                value: "View",
+                color: Colors.blue,
+                icon: Icons.assignment,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HomeworkViewPage()),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _StatCard(
+                title: "Complaint",
+                value: "Raise",
+                color: Colors.orange,
+                icon: Icons.feedback,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ParentComplaintPage(studentId: studentId),
+                    ),
+                  ).then((_) => _loadUnreadCounts());
+                },
+              ),
+            ),
+          ],
         );
       },
     );
   }
 
-  Widget _buildStudentDetailsCard({
-    required String name,
-    required String className,
-    required String section,
-    required String rollNo,
-    required String admissionNo,
-    required String fatherName,
-    required String motherName,
-    required String phone,
-  }) {
+  Widget _buildStudentDetailsCard(Map<String, dynamic> data) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Row(
               children: [
-                Icon(Icons.person_outline, color: Colors.orange),
-                SizedBox(width: 8),
+                Icon(Icons.person_outline, color: Colors.orange, size: 16),
+                SizedBox(width: 6),
                 Text(
-                  'Student Information',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  'Student Info',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
-            const Divider(height: 24),
-            _infoRow('Student Name', name),
-            _infoRow('Class & Section', '$className - $section'),
-            _infoRow('Roll Number', rollNo),
-            if (admissionNo.isNotEmpty) _infoRow('Admission No', admissionNo),
-            if (fatherName.isNotEmpty) _infoRow('Father\'s Name', fatherName),
-            if (motherName.isNotEmpty) _infoRow('Mother\'s Name', motherName),
-            if (phone.isNotEmpty) _infoRow('Phone', phone),
+            const Divider(height: 12),
+            _infoRow('Name', data['name'] ?? 'N/A'),
+            _infoRow('Class', '${data['class'] ?? ''}-${data['section'] ?? ''}'),
+            _infoRow('Roll No', data['rollNo'] ?? 'N/A'),
+            if (data['fatherName'] != null && data['fatherName'].toString().isNotEmpty)
+              _infoRow('Father', data['fatherName']),
           ],
         ),
       ),
@@ -533,23 +918,12 @@ class _ParentDashboardState extends State<ParentDashboard>
 
   Widget _infoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: const TextStyle(color: Colors.grey, fontSize: 14),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-            ),
-          ),
+          SizedBox(width: 55, child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11))),
+          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11))),
         ],
       ),
     );
@@ -565,108 +939,165 @@ class _ParentDashboardState extends State<ParentDashboard>
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const SizedBox(
+            height: 80,
+            child: Center(child: CircularProgressIndicator()),
+          );
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: const Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(
-                child: Text('No fee records found'),
-              ),
+              padding: EdgeInsets.all(12),
+              child: Center(child: Text('No fee records found', style: TextStyle(fontSize: 12))),
             ),
           );
         }
 
+        double totalPaid = 0;
+        double totalDue = 0;
+
+        for (var doc in snapshot.data!.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final amount = (data['amount'] ?? 0).toDouble();
+          final status = data['status'] ?? 'pending';
+          if (status == 'paid') {
+            totalPaid += amount;
+          } else {
+            totalDue += amount;
+          }
+        }
+
         return Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.receipt_outlined, color: Colors.orange),
-                    SizedBox(width: 8),
-                    Text(
-                      'Fee Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
+                    Icon(Icons.receipt_outlined, color: Colors.orange, size: 16),
+                    SizedBox(width: 6),
+                    Text('Fee Summary', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                   ],
                 ),
-                const Divider(height: 24),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: snapshot.data!.docs.length,
-                  separatorBuilder: (_, __) => const Divider(),
-                  itemBuilder: (context, index) {
-                    final doc = snapshot.data!.docs[index];
-                    final data = doc.data() as Map<String, dynamic>;
-                    final amount = (data['amount'] ?? 0).toDouble();
-                    final dueDate = data['dueDate'] != null
-                        ? (data['dueDate'] as Timestamp).toDate()
-                        : null;
-                    final status = data['status'] ?? 'pending';
-                    final feeType = data['feeType'] ?? 'Fee';
-
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: status == 'paid' ? Colors.green.shade100 : Colors.red.shade100,
-                        child: Icon(
-                          status == 'paid' ? Icons.check : Icons.pending,
-                          color: status == 'paid' ? Colors.green : Colors.red,
-                          size: 20,
-                        ),
-                      ),
-                      title: Text(
-                        feeType,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                      subtitle: dueDate != null
-                          ? Text('Due: ${DateFormat('dd MMM yyyy').format(dueDate)}')
-                          : null,
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                const Divider(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
                         children: [
+                          const Text('Paid', style: TextStyle(fontSize: 10, color: Colors.grey)),
                           Text(
-                            '₹${amount.toInt()}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: status == 'paid' ? Colors.green.shade100 : Colors.red.shade100,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              status.toUpperCase(),
-                              style: TextStyle(
-                                color: status == 'paid' ? Colors.green : Colors.red,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                            '₹${totalPaid.toInt()}',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green),
                           ),
                         ],
                       ),
-                    );
-                  },
+                    ),
+                    Container(width: 1, height: 25, color: Colors.grey.shade300),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          const Text('Due', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          Text(
+                            '₹${totalDue.toInt()}',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Quick Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _actionChip(Icons.calendar_today, "Attendance", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AttendanceViewPage(
+                        studentId: selectedStudentId!,
+                        studentName: _currentStudentName,
+                        className: _currentClassName,
+                        section: _currentSection,
+                      ),
+                    ),
+                  );
+                }),
+                _actionChip(Icons.assignment, "Homework", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HomeworkViewPage()),
+                  );
+                }),
+                _actionChip(Icons.assessment, "Results", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ParentViewResultsPage()),
+                  );
+                }),
+                _actionChip(Icons.calendar_month, "Exam Schedule", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ParentExamSchedulePage()),
+                  );
+                }),
+                _actionChip(Icons.receipt, "Fee History", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FeeHistoryPage()),
+                  );
+                }),
+                _actionChip(Icons.announcement, "Notices", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ParentNoticesPage()),
+                  );
+                }),
+                _actionChip(Icons.feedback, "Complaint", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ParentComplaintPage(studentId: selectedStudentId!),
+                    ),
+                  ).then((_) => _loadUnreadCounts());
+                }),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _actionChip(IconData icon, String label, VoidCallback onTap) {
+    return ActionChip(
+      avatar: Icon(icon, size: 14, color: Colors.orange),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      onPressed: onTap,
+      backgroundColor: Colors.grey.shade100,
+      padding: const EdgeInsets.all(4),
     );
   }
 
@@ -677,8 +1108,6 @@ class _ParentDashboardState extends State<ParentDashboard>
           .doc(AppConfig.schoolId)
           .collection('attendance')
           .where('studentId', isEqualTo: studentId)
-          .orderBy('date', descending: true)
-          .limit(30)
           .get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -686,16 +1115,13 @@ class _ParentDashboardState extends State<ParentDashboard>
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(
+          return const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.calendar_today, size: 64, color: Colors.grey.shade400),
-                const SizedBox(height: 16),
-                Text(
-                  'No attendance records found',
-                  style: TextStyle(color: Colors.grey.shade500),
-                ),
+                Icon(Icons.calendar_today, size: 40, color: Colors.grey),
+                SizedBox(height: 12),
+                Text('No attendance records found', style: TextStyle(fontSize: 12)),
               ],
             ),
           );
@@ -703,7 +1129,6 @@ class _ParentDashboardState extends State<ParentDashboard>
 
         int present = 0;
         int absent = 0;
-        int late = 0;
         List<Map<String, dynamic>> records = [];
 
         for (var doc in snapshot.data!.docs) {
@@ -712,349 +1137,131 @@ class _ParentDashboardState extends State<ParentDashboard>
           final date = data['date'] as String?;
 
           if (status == 'Present') present++;
-          else if (status == 'Absent') absent++;
-          else if (status == 'Late') late++;
+          else absent++;
 
           if (date != null) {
-            records.add({
-              'date': date,
-              'status': status,
-              'checkInTime': data['checkInTime'] ?? '',
-              'checkOutTime': data['checkOutTime'] ?? '',
-            });
+            records.add({'date': date, 'status': status});
           }
         }
 
-        int total = present + absent + late;
+        records.sort((a, b) => b['date'].compareTo(a['date']));
+        if (records.length > 10) records = records.sublist(0, 10);
+
+        int total = present + absent;
         double attendanceRate = total > 0 ? (present / total) * 100 : 0;
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             children: [
               Row(
                 children: [
-                  Expanded(
-                    child: _StatCard(
-                      title: "Present",
-                      value: present.toString(),
-                      color: Colors.green,
-                      icon: Icons.check_circle,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _StatCard(
-                      title: "Absent",
-                      value: absent.toString(),
-                      color: Colors.red,
-                      icon: Icons.cancel,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _StatCard(
-                      title: "Rate",
-                      value: "${attendanceRate.toStringAsFixed(1)}%",
-                      color: Colors.orange,
-                      icon: Icons.trending_up,
-                    ),
-                  ),
+                  Expanded(child: _StatCard(title: "Present", value: present.toString(), color: Colors.green, icon: Icons.check_circle)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _StatCard(title: "Absent", value: absent.toString(), color: Colors.red, icon: Icons.cancel)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _StatCard(title: "Rate", value: "${attendanceRate.toStringAsFixed(1)}%", color: Colors.orange, icon: Icons.trending_up)),
                 ],
               ),
-              const SizedBox(height: 20),
-              if (records.isNotEmpty) _buildAttendanceChart(records),
-              const SizedBox(height: 20),
-              _buildRecentRecordsCard(records),
+              const SizedBox(height: 16),
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Recent Records', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: records.length,
+                        separatorBuilder: (_, __) => const Divider(),
+                        itemBuilder: (context, index) {
+                          final record = records[index];
+                          final date = DateTime.tryParse(record['date']) ?? DateTime.now();
+                          final status = record['status'];
+
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            leading: Icon(
+                              status == 'Present' ? Icons.check_circle : Icons.cancel,
+                              color: status == 'Present' ? Colors.green : Colors.red,
+                              size: 18,
+                            ),
+                            title: Text(DateFormat('dd MMM yyyy').format(date), style: const TextStyle(fontSize: 12)),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: (status == 'Present' ? Colors.green : Colors.red).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                status,
+                                style: TextStyle(
+                                  color: status == 'Present' ? Colors.green : Colors.red,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         );
       },
     );
   }
-
-  Widget _buildRecentRecordsCard(List<Map<String, dynamic>> records) {
-    if (records.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Center(child: Text("No attendance records found")),
-      );
-    }
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.history, color: Colors.orange),
-                SizedBox(width: 8),
-                Text(
-                  'Recent Attendance',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: records.length > 10 ? 10 : records.length,
-              separatorBuilder: (_, __) => const Divider(),
-              itemBuilder: (context, index) {
-                final record = records[index];
-                final date = DateTime.tryParse(record['date']) ?? DateTime.now();
-                final status = record['status'];
-
-                Color statusColor;
-                IconData statusIcon;
-                if (status == 'Present') {
-                  statusColor = Colors.green;
-                  statusIcon = Icons.check_circle;
-                } else if (status == 'Late') {
-                  statusColor = Colors.orange;
-                  statusIcon = Icons.access_time;
-                } else {
-                  statusColor = Colors.red;
-                  statusIcon = Icons.cancel;
-                }
-
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: statusColor.withValues(alpha: 0.1),
-                    child: Icon(statusIcon, color: statusColor),
-                  ),
-                  title: Text(
-                    DateFormat('EEEE, dd MMM yyyy').format(date),
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  subtitle: record['checkInTime'].isNotEmpty
-                      ? Text('In: ${record['checkInTime']} | Out: ${record['checkOutTime']}')
-                      : null,
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-            if (records.length > 10)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: TextButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ParentAttendancePage(
-                          schoolId: AppConfig.schoolId,
-                          parentId: parentUid,
-                          parentName: 'Parent',
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.arrow_forward, size: 16),
-                  label: const Text('View All Records'),
-                  style: TextButton.styleFrom(foregroundColor: Colors.orange),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAttendanceChart(List<Map<String, dynamic>> records) {
-    List<String> last7Days = [];
-    for (int i = 6; i >= 0; i--) {
-      last7Days.add(DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(Duration(days: i))));
-    }
-
-    Map<String, String> statusMap = {};
-    for (var record in records) {
-      statusMap[record['date']] = record['status'];
-    }
-
-    List<BarChartGroupData> barGroups = [];
-    for (int i = 0; i < last7Days.length; i++) {
-      String status = statusMap[last7Days[i]] ?? 'Absent';
-      Color color;
-      double value;
-
-      if (status == 'Present') {
-        color = Colors.green;
-        value = 100;
-      } else if (status == 'Late') {
-        color = Colors.orange;
-        value = 50;
-      } else {
-        color = Colors.red;
-        value = 0;
-      }
-
-      barGroups.add(
-        BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: value,
-              color: color,
-              width: 30,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.bar_chart, color: Colors.orange),
-                SizedBox(width: 8),
-                Text(
-                  'Weekly Attendance',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              height: 200,
-              child: BarChart(
-                BarChartData(
-                  barGroups: barGroups,
-                  alignment: BarChartAlignment.spaceAround,
-                  maxY: 100,
-                  minY: 0,
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        interval: 25,
-                        getTitlesWidget: (value, meta) {
-                          return Text('${value.toInt()}%', style: const TextStyle(fontSize: 10));
-                        },
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          int index = value.toInt();
-                          if (index >= 0 && index < last7Days.length) {
-                            DateTime date = DateTime.parse(last7Days[index]);
-                            return Text(DateFormat('E').format(date), style: const TextStyle(fontSize: 10));
-                          }
-                          return const Text('');
-                        },
-                      ),
-                    ),
-                    rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  gridData: const FlGridData(show: true),
-                  borderData: FlBorderData(show: true),
-                  barTouchData: BarTouchData(enabled: true),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _legendItem(Colors.green, 'Present'),
-                const SizedBox(width: 16),
-                _legendItem(Colors.orange, 'Late'),
-                const SizedBox(width: 16),
-                _legendItem(Colors.red, 'Absent'),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _legendItem(Color color, String label) {
-    return Row(
-      children: [
-        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 11)),
-      ],
-    );
-  }
 }
 
-/// STAT CARD Widget
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
   final Color color;
   final IconData icon;
+  final VoidCallback? onTap;
 
   const _StatCard({
     required this.title,
     required this.value,
     required this.color,
     required this.icon,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: color,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 2),
+            Text(title, style: const TextStyle(fontSize: 9, color: Colors.grey), textAlign: TextAlign.center),
+          ],
+        ),
       ),
     );
   }

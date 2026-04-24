@@ -13,6 +13,7 @@ class ClassManagementPage extends StatefulWidget {
 class _ClassManagementPageState extends State<ClassManagementPage> {
   String searchText = "";
   bool _isLoading = false;
+  bool _isRefreshing = false;
 
   // Cache for teacher names to avoid repeated Firestore calls
   final Map<String, String> _teacherNameCache = {};
@@ -30,31 +31,51 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
           .doc(id)
           .get();
 
-      final name = doc.exists ? (doc['name'] ?? "Unknown") : "Unknown";
+      final name = doc.exists ? (doc.data()?['name'] ?? "Unknown") : "Unknown";
       _teacherNameCache[id] = name;
       return name;
     } catch (e) {
+      debugPrint('Error getting teacher name for $id: $e');
       return "Unknown";
     }
   }
 
   Future<void> _refreshData() async {
-    setState(() => _isLoading = true);
+    if (_isRefreshing) return;
+
+    setState(() {
+      _isRefreshing = true;
+      _isLoading = true;
+    });
+
     _teacherNameCache.clear();
     await Future.delayed(const Duration(milliseconds: 500));
-    setState(() => _isLoading = false);
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _isRefreshing = false;
+      });
+    }
   }
 
   void _showEditDialog(DocumentSnapshot classDoc) {
-    String? selectedClassTeacher = classDoc['classTeacherId'];
-    Map<String, dynamic> subjectTeachers =
-    Map<String, dynamic>.from(classDoc['subjectTeachers'] ?? {});
+    final data = classDoc.data() as Map<String, dynamic>;
 
-    final TextEditingController _newSubjectController = TextEditingController();
-    String? _selectedTeacherForSubject;
+    String? selectedClassTeacher = data['classTeacherId'] as String?;
+
+    // Safe casting of subjectTeachers
+    Map<String, dynamic> subjectTeachers = {};
+    if (data['subjectTeachers'] != null) {
+      subjectTeachers = Map<String, dynamic>.from(data['subjectTeachers']);
+    }
+
+    final TextEditingController newSubjectController = TextEditingController();
+    String? selectedTeacherForSubject;
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -63,11 +84,12 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                 children: [
                   const Icon(Icons.edit, color: Colors.blue),
                   const SizedBox(width: 8),
-                  Text("Edit ${classDoc['class']} - ${classDoc['section']}"),
+                  Text("Edit ${data['class']} - ${data['section']}"),
                 ],
               ),
               content: SizedBox(
                 width: double.maxFinite,
+                height: MediaQuery.of(context).size.height * 0.6,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -89,17 +111,18 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                             .collection('teachers')
                             .snapshots(),
                         builder: (context, snap) {
-                          if (!snap.hasData) {
+                          if (snap.connectionState == ConnectionState.waiting) {
                             return const Center(child: CircularProgressIndicator());
                           }
 
-                          final teachers = snap.data!.docs;
-                          if (teachers.isEmpty) {
+                          if (!snap.hasData || snap.data!.docs.isEmpty) {
                             return const Text(
                               "No teachers available",
                               style: TextStyle(color: Colors.grey),
                             );
                           }
+
+                          final teachers = snap.data!.docs;
 
                           return DropdownButtonFormField<String>(
                             value: selectedClassTeacher,
@@ -109,18 +132,22 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             ),
                             items: [
-                              const DropdownMenuItem(
+                              const DropdownMenuItem<String>(
                                 value: null,
                                 child: Text("None"),
                               ),
-                              ...teachers.map((t) {
-                                return DropdownMenuItem(
+                              ...teachers.map<DropdownMenuItem<String>>((t) {
+                                final teacherData = t.data() as Map<String, dynamic>;
+                                return DropdownMenuItem<String>(
                                   value: t.id,
-                                  child: Text(t['name'] ?? 'Unknown'),
+                                  child: Text(teacherData['name'] ?? 'Unknown'),
                                 );
                               }).toList(),
                             ],
-                            onChanged: (v) => selectedClassTeacher = v,
+                            onChanged: (value) {
+                              selectedClassTeacher = value;
+                              setDialogState(() {});
+                            },
                           );
                         },
                       ),
@@ -160,7 +187,7 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                                   style: const TextStyle(fontSize: 14),
                                 ),
                                 subtitle: FutureBuilder(
-                                  future: getTeacherName(entry.value),
+                                  future: getTeacherName(entry.value.toString()),
                                   builder: (context, snapshot) {
                                     return Text(
                                       "Teacher: ${snapshot.data ?? 'Loading...'}",
@@ -201,9 +228,10 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                             ),
                             const SizedBox(height: 8),
                             TextField(
-                              controller: _newSubjectController,
+                              controller: newSubjectController,
                               decoration: const InputDecoration(
                                 labelText: "Subject Name",
+                                hintText: "e.g., Mathematics, Physics",
                                 border: OutlineInputBorder(),
                                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                               ),
@@ -216,25 +244,36 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                                   .collection('teachers')
                                   .snapshots(),
                               builder: (context, snap) {
-                                if (!snap.hasData) {
+                                if (snap.connectionState == ConnectionState.waiting) {
                                   return const Center(child: CircularProgressIndicator());
+                                }
+
+                                if (!snap.hasData || snap.data!.docs.isEmpty) {
+                                  return const Text(
+                                    "No teachers available",
+                                    style: TextStyle(color: Colors.grey),
+                                  );
                                 }
 
                                 final teachers = snap.data!.docs;
                                 return DropdownButtonFormField<String>(
-                                  value: _selectedTeacherForSubject,
+                                  value: selectedTeacherForSubject,
                                   hint: const Text("Select Teacher"),
                                   decoration: const InputDecoration(
                                     border: OutlineInputBorder(),
                                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   ),
-                                  items: teachers.map((t) {
-                                    return DropdownMenuItem(
+                                  items: teachers.map<DropdownMenuItem<String>>((t) {
+                                    final teacherData = t.data() as Map<String, dynamic>;
+                                    return DropdownMenuItem<String>(
                                       value: t.id,
-                                      child: Text(t['name'] ?? 'Unknown'),
+                                      child: Text(teacherData['name'] ?? 'Unknown'),
                                     );
                                   }).toList(),
-                                  onChanged: (v) => _selectedTeacherForSubject = v,
+                                  onChanged: (value) {
+                                    selectedTeacherForSubject = value;
+                                    setDialogState(() {});
+                                  },
                                 );
                               },
                             ),
@@ -243,13 +282,21 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                               width: double.infinity,
                               child: ElevatedButton.icon(
                                 onPressed: () {
-                                  final subject = _newSubjectController.text.trim();
-                                  if (subject.isNotEmpty && _selectedTeacherForSubject != null) {
+                                  final subject = newSubjectController.text.trim();
+                                  if (subject.isNotEmpty && selectedTeacherForSubject != null) {
                                     setDialogState(() {
-                                      subjectTeachers[subject] = _selectedTeacherForSubject;
-                                      _newSubjectController.clear();
-                                      _selectedTeacherForSubject = null;
+                                      subjectTeachers[subject] = selectedTeacherForSubject;
+                                      newSubjectController.clear();
+                                      selectedTeacherForSubject = null;
                                     });
+                                  } else if (subject.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text("Please enter subject name")),
+                                    );
+                                  } else if (selectedTeacherForSubject == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text("Please select a teacher")),
+                                    );
                                   }
                                 },
                                 icon: const Icon(Icons.add, size: 18),
@@ -274,26 +321,39 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    await FirebaseFirestore.instance
-                        .collection('schools')
-                        .doc(widget.schoolId)
-                        .collection('classes')
-                        .doc(classDoc.id)
-                        .update({
-                      "classTeacherId": selectedClassTeacher,
-                      "subjectTeachers": subjectTeachers,
-                      "updatedAt": FieldValue.serverTimestamp(),
-                    });
+                    // Show loading indicator
+                    setDialogState(() {});
 
-                    _teacherNameCache.clear();
-                    if (mounted) {
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('schools')
+                          .doc(widget.schoolId)
+                          .collection('classes')
+                          .doc(classDoc.id)
+                          .update({
+                        "classTeacherId": selectedClassTeacher,
+                        "subjectTeachers": subjectTeachers,
+                        "updatedAt": FieldValue.serverTimestamp(),
+                      });
+
+                      _teacherNameCache.clear();
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Class updated successfully"),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                        Navigator.pop(context);
+                      }
+                    } catch (e) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Class updated successfully"),
-                          backgroundColor: Colors.green,
+                        SnackBar(
+                          content: Text("Error updating class: $e"),
+                          backgroundColor: Colors.red,
                         ),
                       );
-                      Navigator.pop(context);
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -324,18 +384,24 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refreshData,
+            icon: _isRefreshing
+                ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+                : const Icon(Icons.refresh),
+            onPressed: _isRefreshing ? null : _refreshData,
             tooltip: "Refresh",
           ),
         ],
       ),
       body: Column(
         children: [
-          // Search Bar
           _buildSearchBar(),
-
-          // Class List
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -396,6 +462,28 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                const SizedBox(height: 16),
+                const Text(
+                  "Error loading classes",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  snapshot.error.toString(),
+                  style: TextStyle(color: Colors.grey.shade600),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        }
+
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
             child: Column(
@@ -409,7 +497,7 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "Create a class first",
+                  "Create a class first using 'Create Class' option",
                   style: TextStyle(color: Colors.grey.shade500),
                 ),
               ],
@@ -418,7 +506,8 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
         }
 
         final docs = snapshot.data!.docs.where((doc) {
-          final name = "${doc['class']} ${doc['section']}".toLowerCase();
+          final data = doc.data() as Map<String, dynamic>;
+          final name = "${data['class']} ${data['section']}".toLowerCase();
           return name.contains(searchText);
         }).toList();
 
@@ -443,182 +532,185 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: docs.length,
-          itemBuilder: (context, index) {
-            final doc = docs[index];
-            final className = doc['class'] ?? 'Unknown';
-            final section = doc['section'] ?? '';
-            final classTeacherId = doc['classTeacherId'];
-            final subjectTeachers = Map<String, dynamic>.from(doc['subjectTeachers'] ?? {});
+        return RefreshIndicator(
+          onRefresh: _refreshData,
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>;
+              final className = data['class'] ?? 'Unknown';
+              final section = data['section'] ?? '';
+              final classTeacherId = data['classTeacherId'] as String?;
+              final subjectTeachers = Map<String, dynamic>.from(data['subjectTeachers'] ?? {});
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ExpansionTile(
-                leading: Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.class_,
-                    color: Colors.blue.shade700,
-                    size: 28,
-                  ),
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                title: Text(
-                  "$className - ${section.isEmpty ? 'A' : section}",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () => _showEditDialog(doc),
-                      tooltip: "Edit Class",
+                child: ExpansionTile(
+                  leading: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade100,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    const SizedBox(width: 4),
-                  ],
-                ),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Class Teacher
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.person, color: Colors.blue),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      "Class Teacher",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
+                    child: Icon(
+                      Icons.class_,
+                      color: Colors.blue.shade700,
+                      size: 28,
+                    ),
+                  ),
+                  title: Text(
+                    "$className - ${section.isEmpty ? 'A' : section}",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.blue),
+                        onPressed: () => _showEditDialog(doc),
+                        tooltip: "Edit Class",
+                      ),
+                    ],
+                  ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Class Teacher
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.person, color: Colors.blue),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        "Class Teacher",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    FutureBuilder(
-                                      future: classTeacherId != null ? getTeacherName(classTeacherId) : Future.value("Not Assigned"),
-                                      builder: (context, snapshot) {
-                                        return Text(
-                                          snapshot.data ?? "Loading...",
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
+                                      const SizedBox(height: 2),
+                                      FutureBuilder(
+                                        future: classTeacherId != null ? getTeacherName(classTeacherId) : Future.value("Not Assigned"),
+                                        builder: (context, snapshot) {
+                                          return Text(
+                                            snapshot.data ?? "Loading...",
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Subject Teachers
+                          if (subjectTeachers.isNotEmpty) ...[
+                            const Text(
+                              "Subject Teachers",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ...subjectTeachers.entries.map((entry) {
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey.shade200),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.book, size: 18, color: Colors.grey),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            entry.key,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w500,
+                                              fontSize: 13,
+                                            ),
                                           ),
-                                        );
-                                      },
+                                          const SizedBox(height: 2),
+                                          FutureBuilder(
+                                            future: getTeacherName(entry.value.toString()),
+                                            builder: (context, snapshot) {
+                                              return Text(
+                                                snapshot.data ?? "Loading...",
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.grey,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
+                              );
+                            }).toList(),
+                          ],
 
-                        const SizedBox(height: 16),
-
-                        // Subject Teachers
-                        if (subjectTeachers.isNotEmpty) ...[
-                          const Text(
-                            "Subject Teachers",
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ...subjectTeachers.entries.map((entry) {
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.all(10),
+                          if (subjectTeachers.isEmpty && classTeacherId == null)
+                            Container(
+                              padding: const EdgeInsets.all(20),
                               decoration: BoxDecoration(
                                 color: Colors.grey.shade50,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey.shade200),
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.book, size: 18, color: Colors.grey),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          entry.key,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        FutureBuilder(
-                                          future: getTeacherName(entry.value),
-                                          builder: (context, snapshot) {
-                                            return Text(
-                                              snapshot.data ?? "Loading...",
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                color: Colors.grey,
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                              child: const Center(
+                                child: Text(
+                                  "No teachers assigned yet.\nTap Edit to assign teachers.",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.grey),
+                                ),
                               ),
-                            );
-                          }).toList(),
+                            ),
                         ],
-
-                        if (subjectTeachers.isEmpty && classTeacherId == null)
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                "No teachers assigned yet.\nTap Edit to assign teachers.",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            ),
-                          ),
-                      ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            );
-          },
+                  ],
+                ),
+              );
+            },
+          ),
         );
       },
     );

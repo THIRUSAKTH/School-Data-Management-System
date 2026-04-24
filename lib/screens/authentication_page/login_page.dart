@@ -11,10 +11,7 @@ import 'package:schoolprojectjan/screens/authentication_page/change_password_scr
 class LoginPage extends StatefulWidget {
   final String role;
 
-  const LoginPage({
-    super.key,
-    required this.role,
-  });
+  const LoginPage({super.key, required this.role});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -23,6 +20,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  GlobalKey<FormState> formKey=GlobalKey<FormState>();
 
   bool hidePassword = true;
   bool isLoading = false;
@@ -35,7 +33,7 @@ class _LoginPageState extends State<LoginPage> {
       case "Teacher":
         return Colors.green;
       case "Parent":
-        return Colors.orange;
+        return Color(0xff01285f);
       default:
         return Colors.blue;
     }
@@ -117,59 +115,96 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ],
                   ),
-                  child: Column(
-                    children: [
-                      // Email Field
-                      _buildTextField(
-                        emailController,
-                        "Email Address",
-                        Icons.email_outlined,
-                        keyboardType: TextInputType.emailAddress,
-                      ),
-                      const SizedBox(height: 16),
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      children: [
+                        // Email Field
+                        _buildTextField(
+                          emailController,
+                          "Email Address",
+                          Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                        const SizedBox(height: 16),
 
-                      // Password Field
-                      _buildTextField(
-                        passwordController,
-                        "Password",
-                        Icons.lock_outline,
-                        isPassword: true,
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Login Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: roleColor,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                        // Password Field
+                        _buildTextField(
+                          passwordController,
+                          "Password",
+                          Icons.lock_outline,
+                          isPassword: true,
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () async {
+                                try {
+                                  await FirebaseAuth.instance
+                                      .sendPasswordResetEmail(
+                                        email: emailController.text.trim(),
+                                      );
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "Password reset link sent to your email",
+                                      ),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text("Something Went Wrong"),
+                                    ),
+                                  );
+                                }
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.black,
+                              ),
+                              child: Text("Forgot Password?"),
                             ),
-                            elevation: 2,
-                          ),
-                          onPressed: isLoading ? null : _loginUser,
-                          child: isLoading
-                              ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
+                          ],
+                        ),
+                        SizedBox(height: 15,),
+                        // Login Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: roleColor,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 2,
                             ),
-                          )
-                              : const Text(
-                            "Sign In",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            onPressed: isLoading ? null : _loginUser,
+                            child:
+                                isLoading
+                                    ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : const Text(
+                                      "Sign In",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -182,12 +217,12 @@ class _LoginPageState extends State<LoginPage> {
 
   /// ================= INPUT FIELD =================
   Widget _buildTextField(
-      TextEditingController controller,
-      String hint,
-      IconData icon, {
-        bool isPassword = false,
-        TextInputType keyboardType = TextInputType.text,
-      }) {
+    TextEditingController controller,
+    String hint,
+    IconData icon, {
+    bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
     return TextField(
       controller: controller,
       obscureText: isPassword ? hidePassword : false,
@@ -210,19 +245,20 @@ class _LoginPageState extends State<LoginPage> {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: roleColor, width: 1),
         ),
-        suffixIcon: isPassword
-            ? IconButton(
-          icon: Icon(
-            hidePassword ? Icons.visibility_off : Icons.visibility,
-            color: Colors.grey,
-          ),
-          onPressed: () {
-            setState(() {
-              hidePassword = !hidePassword;
-            });
-          },
-        )
-            : null,
+        suffixIcon:
+            isPassword
+                ? IconButton(
+                  icon: Icon(
+                    hidePassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      hidePassword = !hidePassword;
+                    });
+                  },
+                )
+                : null,
       ),
     );
   }
@@ -247,8 +283,7 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       // Sign in with Firebase Auth
-      final result = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(
+      final result = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
@@ -285,9 +320,7 @@ class _LoginPageState extends State<LoginPage> {
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (_) => const AdminDashboard(),
-          ),
+          MaterialPageRoute(builder: (_) => const AdminDashboard()),
         );
         return;
       }
@@ -299,11 +332,12 @@ class _LoginPageState extends State<LoginPage> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => ChangePasswordScreen(
-                schoolId: AppConfig.schoolId,
-                userId: uid,
-                role: "Teacher",
-              ),
+              builder:
+                  (_) => ChangePasswordScreen(
+                    schoolId: AppConfig.schoolId,
+                    userId: uid,
+                    role: "Teacher",
+                  ),
             ),
           );
           return;
@@ -312,9 +346,7 @@ class _LoginPageState extends State<LoginPage> {
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (_) => const TeacherHome(),
-          ),
+          MaterialPageRoute(builder: (_) => const TeacherHome()),
         );
         return;
       }
@@ -326,11 +358,12 @@ class _LoginPageState extends State<LoginPage> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => ChangePasswordScreen(
-                schoolId: AppConfig.schoolId,
-                userId: uid,
-                role: "Parent",
-              ),
+              builder:
+                  (_) => ChangePasswordScreen(
+                    schoolId: AppConfig.schoolId,
+                    userId: uid,
+                    role: "Parent",
+                  ),
             ),
           );
           return;
@@ -339,9 +372,7 @@ class _LoginPageState extends State<LoginPage> {
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (_) => const ParentDashboard(),
-          ),
+          MaterialPageRoute(builder: (_) => const ParentDashboard()),
         );
         return;
       }

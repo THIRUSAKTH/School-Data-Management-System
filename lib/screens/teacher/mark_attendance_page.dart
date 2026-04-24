@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -19,21 +20,32 @@ class MarkAttendancePage extends StatefulWidget {
 }
 
 class _MarkAttendancePageState extends State<MarkAttendancePage> {
-  final Map<String, bool> attendance = {};
-  final Map<String, String> remarks = {};
-  final Map<String, TimeOfDay?> checkInTimes = {};
-  final Map<String, TimeOfDay?> checkOutTimes = {};
+  // Attendance status: true = Present/Late, false = Absent
+  final Map<String, bool> _attendance = {};
 
-  bool isSaving = false;
+  // For Late status only - stores the reason
+  final Map<String, String> _lateReasons = {};
+
+  // For Late status - stores check-in time
+  final Map<String, TimeOfDay?> _checkInTimes = {};
+
+  // For Late status - stores check-out time
+  final Map<String, TimeOfDay?> _checkOutTimes = {};
+
+  // Track if student is marked as Late separately
+  final Map<String, bool> _isLate = {};
+
+  bool _isSaving = false;
   bool _isEditing = false;
   DateTime? _selectedDate;
 
   // Late reasons options
-  final List<String> lateReasons = [
+  final List<String> _lateReasonOptions = [
     'Traffic',
     'Weather',
     'Medical',
     'Transport Issue',
+    'Family Emergency',
     'Other'
   ];
 
@@ -44,27 +56,56 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
     _loadExistingAttendance();
   }
 
-  String get today => DateFormat('yyyy-MM-dd').format(_selectedDate ?? DateTime.now());
+  String get _today => DateFormat('yyyy-MM-dd').format(_selectedDate ?? DateTime.now());
 
   Future<void> _loadExistingAttendance() async {
     try {
-      final attendanceDoc = await FirebaseFirestore.instance
+      final recordsSnapshot = await FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
           .collection('attendance')
-          .doc(today)
+          .doc(_today)
           .collection('records')
           .get();
 
-      if (attendanceDoc.docs.isNotEmpty) {
+      if (recordsSnapshot.docs.isNotEmpty) {
         setState(() {
           _isEditing = true;
-          for (var doc in attendanceDoc.docs) {
+          for (var doc in recordsSnapshot.docs) {
             final data = doc.data();
             final status = data['status'];
-            attendance[doc.id] = status == 'Present' || status == 'Late';
-            if (status == 'Late') {
-              remarks[doc.id] = data['remark'] ?? '';
+            final studentId = doc.id;
+
+            if (status == 'Present') {
+              _attendance[studentId] = true;
+              _isLate[studentId] = false;
+            } else if (status == 'Late') {
+              _attendance[studentId] = true;
+              _isLate[studentId] = true;
+              _lateReasons[studentId] = data['remark'] ?? '';
+
+              // Load check-in/out times if available
+              if (data['checkInTime'] != null) {
+                final timeParts = data['checkInTime'].split(':');
+                if (timeParts.length == 2) {
+                  _checkInTimes[studentId] = TimeOfDay(
+                    hour: int.parse(timeParts[0]),
+                    minute: int.parse(timeParts[1]),
+                  );
+                }
+              }
+              if (data['checkOutTime'] != null) {
+                final timeParts = data['checkOutTime'].split(':');
+                if (timeParts.length == 2) {
+                  _checkOutTimes[studentId] = TimeOfDay(
+                    hour: int.parse(timeParts[0]),
+                    minute: int.parse(timeParts[1]),
+                  );
+                }
+              }
+            } else {
+              _attendance[studentId] = false;
+              _isLate[studentId] = false;
             }
           }
         });
@@ -100,14 +141,15 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
 
           // Initialize default values for new students
           for (var doc in students) {
-            if (!attendance.containsKey(doc.id)) {
-              attendance[doc.id] = true; // Default Present
+            if (!_attendance.containsKey(doc.id)) {
+              _attendance[doc.id] = true; // Default Present
+              _isLate[doc.id] = false;
             }
           }
 
-          int present = attendance.values.where((e) => e).length;
-          int absent = attendance.length - present;
-          int lateCount = remarks.values.where((r) => r.isNotEmpty).length;
+          int present = _attendance.values.where((e) => e).length;
+          int absent = _attendance.values.where((e) => !e).length;
+          int lateCount = _isLate.values.where((e) => e).length;
 
           return Column(
             children: [
@@ -122,14 +164,16 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
                     final data = doc.data() as Map<String, dynamic>;
                     final name = data['name'] ?? 'No Name';
                     final rollNo = data['rollNo'] ?? '';
-                    final isPresent = attendance[id] ?? true;
-                    final hasRemark = remarks[id]?.isNotEmpty ?? false;
+                    final isPresent = _attendance[id] ?? true;
+                    final lateStatus = _isLate[id] ?? false;
+                    final hasRemark = _lateReasons[id]?.isNotEmpty ?? false;
 
                     return _buildStudentCard(
                       id: id,
                       name: name,
-                      rollNo: rollNo,
+                      rollNo: rollNo.toString(),
                       isPresent: isPresent,
+                      isLate: lateStatus,
                       hasRemark: hasRemark,
                     );
                   },
@@ -151,9 +195,9 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             "Mark Attendance",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           Text(
             "${widget.className} - ${widget.section}",
@@ -167,7 +211,7 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
           onPressed: _selectDate,
           tooltip: "Select Date",
         ),
-        if (_selectedDate != DateTime.now())
+        if (_selectedDate != null && _selectedDate != DateTime.now())
           Container(
             margin: const EdgeInsets.only(right: 8),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -186,20 +230,33 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
             switch (value) {
               case 'mark_all_present':
                 setState(() {
-                  attendance.updateAll((key, value) => true);
-                  remarks.clear();
+                  for (var key in _attendance.keys) {
+                    _attendance[key] = true;
+                    _isLate[key] = false;
+                  }
+                  _lateReasons.clear();
+                  _checkInTimes.clear();
+                  _checkOutTimes.clear();
                 });
                 break;
               case 'mark_all_absent':
                 setState(() {
-                  attendance.updateAll((key, value) => false);
-                  remarks.clear();
+                  for (var key in _attendance.keys) {
+                    _attendance[key] = false;
+                    _isLate[key] = false;
+                  }
+                  _lateReasons.clear();
+                  _checkInTimes.clear();
+                  _checkOutTimes.clear();
                 });
                 break;
               case 'reset':
                 setState(() {
-                  attendance.clear();
-                  remarks.clear();
+                  _attendance.clear();
+                  _isLate.clear();
+                  _lateReasons.clear();
+                  _checkInTimes.clear();
+                  _checkOutTimes.clear();
                   _loadExistingAttendance();
                 });
                 break;
@@ -266,7 +323,7 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
         children: [
           _SummaryItem(
             label: "Present",
-            count: present,
+            count: present - lateCount,
             color: Colors.white,
             icon: Icons.check_circle,
           ),
@@ -275,25 +332,25 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
             height: 40,
             color: Colors.white.withValues(alpha: 0.3),
           ),
-          _SummaryItem(
-            label: "Absent",
-            count: absent,
-            color: Colors.white,
-            icon: Icons.cancel,
-          ),
           if (lateCount > 0) ...[
-            Container(
-              width: 1,
-              height: 40,
-              color: Colors.white.withValues(alpha: 0.3),
-            ),
             _SummaryItem(
               label: "Late",
               count: lateCount,
               color: Colors.white,
               icon: Icons.access_time,
             ),
+            Container(
+              width: 1,
+              height: 40,
+              color: Colors.white.withValues(alpha: 0.3),
+            ),
           ],
+          _SummaryItem(
+            label: "Absent",
+            count: absent,
+            color: Colors.white,
+            icon: Icons.cancel,
+          ),
         ],
       ),
     );
@@ -304,6 +361,7 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
     required String name,
     required String rollNo,
     required bool isPresent,
+    required bool isLate,
     required bool hasRemark,
   }) {
     return Card(
@@ -311,18 +369,22 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: hasRemark
+        side: isLate
             ? BorderSide(color: Colors.orange.shade300, width: 1)
             : BorderSide.none,
       ),
       child: ExpansionTile(
         leading: CircleAvatar(
-          backgroundColor: isPresent ? Colors.green.shade100 : Colors.red.shade100,
+          backgroundColor: isPresent
+              ? (isLate ? Colors.orange.shade100 : Colors.green.shade100)
+              : Colors.red.shade100,
           child: Text(
-            rollNo.toString(),
+            rollNo,
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: isPresent ? Colors.green : Colors.red,
+              color: isPresent
+                  ? (isLate ? Colors.orange : Colors.green)
+                  : Colors.red,
             ),
           ),
         ),
@@ -334,15 +396,17 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              isPresent ? "Present" : "Absent",
+              isPresent ? (isLate ? "Late" : "Present") : "Absent",
               style: TextStyle(
-                color: isPresent ? Colors.green : Colors.red,
+                color: isPresent
+                    ? (isLate ? Colors.orange : Colors.green)
+                    : Colors.red,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            if (remarks[id]?.isNotEmpty ?? false)
+            if (_lateReasons[id]?.isNotEmpty ?? false)
               Text(
-                "Note: ${remarks[id]}",
+                "Reason: ${_lateReasons[id]}",
                 style: TextStyle(
                   color: Colors.orange.shade700,
                   fontSize: 12,
@@ -352,12 +416,21 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
         ),
         trailing: Switch(
           value: isPresent,
-          activeColor: Colors.green,
+          activeThumbColor: Colors.green,
+          activeTrackColor: Colors.green.withValues(alpha: 0.5),
           onChanged: (value) {
             setState(() {
-              attendance[id] = value;
-              if (value) {
-                remarks.remove(id);
+              _attendance[id] = value;
+              if (!value) {
+                // If marked absent, clear late-related data
+                _isLate[id] = false;
+                _lateReasons.remove(id);
+                _checkInTimes.remove(id);
+                _checkOutTimes.remove(id);
+              } else if (value && (_isLate[id] == false)) {
+                // If marked present, reset late status
+                _isLate[id] = false;
+                _lateReasons.remove(id);
               }
             });
           },
@@ -375,7 +448,7 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
                   ),
                   const SizedBox(height: 8),
                   TextFormField(
-                    initialValue: remarks[id],
+                    initialValue: _lateReasons[id],
                     maxLines: 2,
                     decoration: InputDecoration(
                       hintText: "Enter reason for absence...",
@@ -387,7 +460,11 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
                     ),
                     onChanged: (value) {
                       setState(() {
-                        remarks[id] = value;
+                        if (value.isNotEmpty) {
+                          _lateReasons[id] = value;
+                        } else {
+                          _lateReasons.remove(id);
+                        }
                       });
                     },
                   ),
@@ -397,42 +474,122 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
           if (isPresent)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: _TimePickerButton(
-                      label: "Check In",
-                      time: checkInTimes[id],
-                      onTap: () async {
-                        final time = await showTimePicker(
-                          context: context,
-                          initialTime: TimeOfDay.now(),
-                        );
-                        if (time != null) {
+                  // Late Status Switch
+                  Row(
+                    children: [
+                      const Text(
+                        "Mark as Late:",
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(width: 12),
+                      Switch(
+                        value: isLate,
+                        activeThumbColor: Colors.orange,
+                        activeTrackColor: Colors.orange.withValues(alpha: 0.5),
+                        onChanged: (value) {
                           setState(() {
-                            checkInTimes[id] = time;
+                            _isLate[id] = value;
+                            if (!value) {
+                              _lateReasons.remove(id);
+                            }
                           });
-                        }
-                      },
-                    ),
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _TimePickerButton(
-                      label: "Check Out",
-                      time: checkOutTimes[id],
-                      onTap: () async {
-                        final time = await showTimePicker(
-                          context: context,
-                          initialTime: TimeOfDay.now(),
+                  if (isLate) ...[
+                    const SizedBox(height: 12),
+                    const Text(
+                      "Late Reason",
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _lateReasons.containsKey(id) ? _lateReasons[id] : null,
+                      hint: const Text("Select reason for being late"),
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                      ),
+                      items: _lateReasonOptions.map((reason) {
+                        return DropdownMenuItem(
+                          value: reason,
+                          child: Text(reason),
                         );
-                        if (time != null) {
-                          setState(() {
-                            checkOutTimes[id] = time;
-                          });
-                        }
+                      }).toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          if (value != null) {
+                            _lateReasons[id] = value;
+                          }
+                        });
                       },
                     ),
+                    if (_lateReasons[id] == 'Other')
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: TextFormField(
+                          decoration: InputDecoration(
+                            hintText: "Please specify...",
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
+                          ),
+                          onChanged: (value) {
+                            setState(() {
+                              _lateReasons[id] = value;
+                            });
+                          },
+                        ),
+                      ),
+                  ],
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _TimePickerButton(
+                          label: "Check In Time",
+                          time: _checkInTimes[id],
+                          onTap: () async {
+                            final time = await showTimePicker(
+                              context: context,
+                              initialTime: TimeOfDay.now(),
+                            );
+                            if (time != null) {
+                              setState(() {
+                                _checkInTimes[id] = time;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _TimePickerButton(
+                          label: "Check Out Time",
+                          time: _checkOutTimes[id],
+                          onTap: () async {
+                            final time = await showTimePicker(
+                              context: context,
+                              initialTime: TimeOfDay.now(),
+                            );
+                            if (time != null) {
+                              setState(() {
+                                _checkOutTimes[id] = time;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -464,8 +621,13 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
             color: Colors.green,
             onTap: () {
               setState(() {
-                attendance.updateAll((key, value) => true);
-                remarks.clear();
+                for (var key in _attendance.keys) {
+                  _attendance[key] = true;
+                  _isLate[key] = false;
+                }
+                _lateReasons.clear();
+                _checkInTimes.clear();
+                _checkOutTimes.clear();
               });
             },
           ),
@@ -475,8 +637,13 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
             color: Colors.red,
             onTap: () {
               setState(() {
-                attendance.updateAll((key, value) => false);
-                remarks.clear();
+                for (var key in _attendance.keys) {
+                  _attendance[key] = false;
+                  _isLate[key] = false;
+                }
+                _lateReasons.clear();
+                _checkInTimes.clear();
+                _checkOutTimes.clear();
               });
             },
           ),
@@ -486,8 +653,11 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
             color: Colors.blue,
             onTap: () {
               setState(() {
-                attendance.clear();
-                remarks.clear();
+                _attendance.clear();
+                _isLate.clear();
+                _lateReasons.clear();
+                _checkInTimes.clear();
+                _checkOutTimes.clear();
                 _loadExistingAttendance();
               });
             },
@@ -500,7 +670,8 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
   Widget _buildSaveButton() {
     return FloatingActionButton.extended(
       backgroundColor: Colors.green,
-      icon: isSaving
+      foregroundColor: Colors.white,
+      icon: _isSaving
           ? const SizedBox(
         height: 20,
         width: 20,
@@ -510,8 +681,8 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
         ),
       )
           : const Icon(Icons.save),
-      label: Text(isSaving ? "Saving..." : _isEditing ? "Update Attendance" : "Save Attendance"),
-      onPressed: isSaving ? null : _saveAttendance,
+      label: Text(_isSaving ? "Saving..." : _isEditing ? "Update Attendance" : "Save Attendance"),
+      onPressed: _isSaving ? null : _saveAttendance,
     );
   }
 
@@ -548,8 +719,11 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
-        attendance.clear();
-        remarks.clear();
+        _attendance.clear();
+        _isLate.clear();
+        _lateReasons.clear();
+        _checkInTimes.clear();
+        _checkOutTimes.clear();
         _isEditing = false;
       });
       _loadExistingAttendance();
@@ -557,17 +731,18 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
   }
 
   Future<void> _saveAttendance() async {
-    try {
-      setState(() => isSaving = true);
+    if (!mounted) return;
 
+    setState(() => _isSaving = true);
+
+    try {
       final batch = FirebaseFirestore.instance.batch();
 
-      final attendanceRef = FirebaseFirestore.instance
+      final attendanceDocRef = FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
           .collection('attendance')
-          .doc(today)
-          .collection('records');
+          .doc(_today);
 
       final studentsSnapshot = await FirebaseFirestore.instance
           .collection('schools')
@@ -579,87 +754,119 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
 
       for (var doc in studentsSnapshot.docs) {
         final studentId = doc.id;
-        final data = doc.data();
-        final isPresent = attendance[studentId] ?? true;
+        final studentData = doc.data();
+        final isPresent = _attendance[studentId] ?? true;
+        final lateStatus = _isLate[studentId] ?? false;
 
-        // Determine status
+        // Determine final status
         String status;
-        if (isPresent) {
-          status = 'Present';
-        } else {
+        if (!isPresent) {
           status = 'Absent';
+        } else if (lateStatus) {
+          status = 'Late';
+        } else {
+          status = 'Present';
         }
 
-        final recordData = {
+        // Prepare record data
+        final recordData = <String, dynamic>{
           "studentId": studentId,
-          "name": data['name'] ?? "",
-          "rollNo": data['rollNo'] ?? "",
+          "name": studentData['name'] ?? "",
+          "rollNo": studentData['rollNo'] ?? "",
           "className": widget.className,
           "section": widget.section,
           "status": status,
-          "date": today,
+          "date": _today,
           "updatedAt": FieldValue.serverTimestamp(),
-          "updatedBy": "Teacher", // You can add teacher ID here
+          "updatedBy": FirebaseAuth.instance.currentUser?.uid ?? "",
+          "updatedByName": FirebaseAuth.instance.currentUser?.email ?? "Teacher",
         };
 
-        // Add optional fields
-        if (remarks[studentId]?.isNotEmpty ?? false) {
-          recordData["remark"] = remarks[studentId];
+        // Add late-specific fields
+        if (status == 'Late') {
+          recordData["remark"] = _lateReasons[studentId] ?? "Not specified";
+
+          // Add check-in time if available
+          if (_checkInTimes.containsKey(studentId) && _checkInTimes[studentId] != null) {
+            final time = _checkInTimes[studentId]!;
+            recordData["checkInTime"] = "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+          }
+
+          // Add check-out time if available
+          if (_checkOutTimes.containsKey(studentId) && _checkOutTimes[studentId] != null) {
+            final time = _checkOutTimes[studentId]!;
+            recordData["checkOutTime"] = "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+          }
+        } else if (status == 'Present') {
+          // For regular present, add check-in/out times if available
+          if (_checkInTimes.containsKey(studentId) && _checkInTimes[studentId] != null) {
+            final time = _checkInTimes[studentId]!;
+            recordData["checkInTime"] = "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+          }
+          if (_checkOutTimes.containsKey(studentId) && _checkOutTimes[studentId] != null) {
+            final time = _checkOutTimes[studentId]!;
+            recordData["checkOutTime"] = "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+          }
+        } else if (status == 'Absent') {
+          // Add absence reason if provided
+          if (_lateReasons.containsKey(studentId) && _lateReasons[studentId]!.isNotEmpty) {
+            recordData["remark"] = _lateReasons[studentId];
+          }
         }
 
-        if (checkInTimes[studentId] != null) {
-          recordData["checkInTime"] = checkInTimes[studentId]!.format(context);
-        }
+        final recordRef = attendanceDocRef
+            .collection('records')
+            .doc(studentId);
 
-        if (checkOutTimes[studentId] != null) {
-          recordData["checkOutTime"] = checkOutTimes[studentId]!.format(context);
-        }
-
-        final recordRef = attendanceRef.doc(studentId);
         batch.set(recordRef, recordData);
       }
 
-      // Also save a summary document for quick lookup
+      // Also update a summary document for quick access
+      final summaryData = <String, dynamic>{
+        "date": _today,
+        "className": widget.className,
+        "section": widget.section,
+        "totalStudents": studentsSnapshot.docs.length,
+        "present": _attendance.values.where((e) => e).length,
+        "absent": _attendance.values.where((e) => !e).length,
+        "late": _isLate.values.where((e) => e).length,
+        "updatedAt": FieldValue.serverTimestamp(),
+      };
+
       final summaryRef = FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
           .collection('attendance_summary')
-          .doc(today);
+          .doc(_today);
 
-      batch.set(summaryRef, {
-        "date": today,
-        "className": widget.className,
-        "section": widget.section,
-        "totalStudents": studentsSnapshot.docs.length,
-        "present": attendance.values.where((e) => e).length,
-        "absent": attendance.values.where((e) => !e).length,
-        "updatedAt": FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      batch.set(summaryRef, summaryData);
 
       await batch.commit();
 
-      setState(() => isSaving = false);
-
       if (mounted) {
+        setState(() => _isSaving = false);
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_isEditing ? "Attendance updated successfully" : "Attendance saved successfully"),
+          const SnackBar(
+            content: Text("Attendance saved successfully!"),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
           ),
         );
+
         Navigator.pop(context);
       }
     } catch (e) {
-      setState(() => isSaving = false);
-
       if (mounted) {
+        setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Error: $e"),
+            content: Text("Error saving attendance: $e"),
             backgroundColor: Colors.red,
           ),
         );
       }
+      debugPrint('Error saving attendance: $e');
     }
   }
 }

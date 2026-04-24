@@ -39,32 +39,47 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
     _loadSubjects();
   }
 
-  Future<void> _loadClasses() async {
-    final classesSnapshot = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(AppConfig.schoolId)
-        .collection('classes')
-        .get();
+  @override
+  void dispose() {
+    _homeworkController.dispose();
+    _titleController.dispose();
+    super.dispose();
+  }
 
-    setState(() {
-      classes = ['All Classes', ...classesSnapshot.docs.map((doc) => doc['className'] as String).toList()];
-    });
+  Future<void> _loadClasses() async {
+    try {
+      final classesSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('classes')
+          .get();
+
+      setState(() {
+        classes = ['All Classes', ...classesSnapshot.docs.map((doc) => doc['className'] as String).toList()];
+      });
+    } catch (e) {
+      debugPrint('Error loading classes: $e');
+    }
   }
 
   Future<void> _loadSubjects() async {
-    final subjectsSnapshot = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(AppConfig.schoolId)
-        .collection('subjects')
-        .get();
+    try {
+      final subjectsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('subjects')
+          .get();
 
-    if (subjectsSnapshot.docs.isNotEmpty) {
-      setState(() {
-        subjects = subjectsSnapshot.docs.map((doc) => doc['name'] as String).toList();
-      });
-    } else {
-      // Default subjects
-      subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'History', 'Geography'];
+      if (subjectsSnapshot.docs.isNotEmpty) {
+        setState(() {
+          subjects = subjectsSnapshot.docs.map((doc) => doc['name'] as String).toList();
+        });
+      } else {
+        // Default subjects
+        subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'History', 'Geography'];
+      }
+    } catch (e) {
+      debugPrint('Error loading subjects: $e');
     }
   }
 
@@ -249,27 +264,31 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
   }
 
   Future<void> _loadSections(String className) async {
-    final studentsSnapshot = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(AppConfig.schoolId)
-        .collection('students')
-        .where('class', isEqualTo: className)
-        .get();
+    try {
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('students')
+          .where('class', isEqualTo: className)
+          .get();
 
-    final sectionsSet = <String>{};
-    for (var doc in studentsSnapshot.docs) {
-      final section = doc['section'] as String?;
-      if (section != null && section.isNotEmpty) {
-        sectionsSet.add(section);
+      final sectionsSet = <String>{};
+      for (var doc in studentsSnapshot.docs) {
+        final section = doc['section'] as String?;
+        if (section != null && section.isNotEmpty) {
+          sectionsSet.add(section);
+        }
       }
+
+      setState(() {
+        sections = sectionsSet.toList()..sort();
+        if (sections.isNotEmpty) {
+          selectedSection = sections.first;
+        }
+      });
+    } catch (e) {
+      debugPrint('Error loading sections: $e');
     }
-
-    setState(() {
-      sections = sectionsSet.toList()..sort();
-      if (sections.isNotEmpty) {
-        selectedSection = sections.first;
-      }
-    });
   }
 
   Widget _buildSubjectSelector() {
@@ -411,7 +430,8 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
                 isUrgent = value;
               });
             },
-            activeColor: Colors.red,
+            activeThumbColor: Colors.red,
+            activeTrackColor: Colors.red.withValues(alpha: 0.5),
           ),
         ],
       ),
@@ -484,39 +504,52 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
 
     setState(() => isLoading = true);
 
-    final teacherUid = FirebaseAuth.instance.currentUser!.uid;
-
-    // Get teacher name
-    final teacherDoc = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(AppConfig.schoolId)
-        .collection('teachers')
-        .where('uid', isEqualTo: teacherUid)
-        .limit(1)
-        .get();
-
-    String teacherName = "Teacher";
-    if (teacherDoc.docs.isNotEmpty) {
-      teacherName = teacherDoc.docs.first['name'] ?? "Teacher";
-    }
-
-    final homeworkData = {
-      "title": _titleController.text.trim(),
-      "description": _homeworkController.text.trim(),
-      "class": selectedClass,
-      "section": selectedSection,
-      "subject": selectedSubject,
-      "dueDate": DateFormat("yyyy-MM-dd").format(dueDate!),
-      "dueTime": dueTime != null ? dueTime!.format(context) : null,
-      "isUrgent": isUrgent,
-      "createdAt": FieldValue.serverTimestamp(),
-      "updatedAt": FieldValue.serverTimestamp(),
-      "teacherId": teacherUid,
-      "teacherName": teacherName,
-      "schoolId": AppConfig.schoolId,
-    };
-
     try {
+      final teacherUid = FirebaseAuth.instance.currentUser!.uid;
+
+      // Get teacher name
+      final teacherDoc = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('teachers')
+          .where('uid', isEqualTo: teacherUid)
+          .limit(1)
+          .get();
+
+      String teacherName = "Teacher";
+      if (teacherDoc.docs.isNotEmpty) {
+        teacherName = teacherDoc.docs.first['name'] ?? "Teacher";
+      }
+
+      // Prepare due date timestamp
+      DateTime dueDateTime = dueDate!;
+      if (dueTime != null) {
+        dueDateTime = DateTime(
+          dueDate!.year,
+          dueDate!.month,
+          dueDate!.day,
+          dueTime!.hour,
+          dueTime!.minute,
+        );
+      }
+
+      final homeworkData = {
+        "title": _titleController.text.trim(),
+        "description": _homeworkController.text.trim(),
+        "class": selectedClass,
+        "section": selectedSection,
+        "subject": selectedSubject,
+        "dueDate": DateFormat("yyyy-MM-dd").format(dueDate!),
+        "dueTime": dueTime != null ? "${dueTime!.hour.toString().padLeft(2, '0')}:${dueTime!.minute.toString().padLeft(2, '0')}" : null,
+        "dueDateTime": Timestamp.fromDate(dueDateTime),
+        "isUrgent": isUrgent,
+        "createdAt": FieldValue.serverTimestamp(),
+        "updatedAt": FieldValue.serverTimestamp(),
+        "teacherId": teacherUid,
+        "teacherName": teacherName,
+        "schoolId": AppConfig.schoolId,
+      };
+
       if (isEditing && editingHomeworkId != null) {
         // Update existing homework
         await FirebaseFirestore.instance
@@ -526,9 +559,14 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
             .doc(editingHomeworkId)
             .update(homeworkData);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Homework updated successfully")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Homework updated successfully"),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       } else {
         // Create new homework
         await FirebaseFirestore.instance
@@ -537,19 +575,34 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
             .collection('homework')
             .add(homeworkData);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Homework published successfully")),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Homework published successfully"),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
 
       _clearForm();
-      Navigator.pop(context);
+      if (mounted) {
+        Navigator.pop(context);
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      debugPrint('Error publishing homework: $e');
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -576,18 +629,36 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
     if (confirm == true && editingHomeworkId != null) {
       setState(() => isLoading = true);
 
-      await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('homework')
-          .doc(editingHomeworkId)
-          .delete();
+      try {
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('homework')
+            .doc(editingHomeworkId)
+            .delete();
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Homework deleted successfully")),
-        );
-        Navigator.pop(context);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Homework deleted successfully"),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Error deleting homework: $e"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => isLoading = false);
+        }
       }
     }
   }
@@ -601,6 +672,9 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
       isUrgent = false;
       isEditing = false;
       editingHomeworkId = null;
+      selectedClass = "All Classes";
+      selectedSection = "All Sections";
+      selectedSubject = "Mathematics";
     });
   }
 }

@@ -4,7 +4,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
-import 'parent_view_results.dart';
+import 'package:schoolprojectjan/screens/parents/attendance_view_page.dart';
+import 'package:schoolprojectjan/screens/parents/homework_view_page.dart';
+import 'package:schoolprojectjan/screens/parents/notices_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_attendance_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_complaint_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_notifications_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_profile_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_settings_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_view_results.dart';
 
 class ParentHomePage extends StatefulWidget {
   const ParentHomePage({super.key});
@@ -16,8 +24,22 @@ class ParentHomePage extends StatefulWidget {
 class _ParentHomePageState extends State<ParentHomePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+
+  // Student related variables
   String? _selectedStudentId;
+  String? _selectedStudentName;
+  String? _selectedClassName;
+  String? _selectedSection;
+  String? _selectedRollNo;
+
+  // School related
   String? _schoolId;
+
+  // Counters for badges
+  int _unreadNotifications = 0;
+  int _unreadNotices = 0;
+  int _unreadComplaints = 0;
+  int _pendingHomeworkCount = 0;
 
   @override
   void initState() {
@@ -29,6 +51,57 @@ class _ParentHomePageState extends State<ParentHomePage>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadUnreadCounts() async {
+    if (_selectedStudentId == null || _schoolId == null) return;
+
+    try {
+      // Load unread notifications
+      final notifications = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(_schoolId)
+          .collection('notifications')
+          .where('studentId', isEqualTo: _selectedStudentId)
+          .where('isRead', isEqualTo: false)
+          .get();
+
+      // Load pending complaints
+      final complaints = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(_schoolId)
+          .collection('complaints')
+          .where('studentId', isEqualTo: _selectedStudentId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      // Load pending homework
+      final homework = await FirebaseFirestore.instance
+          .collectionGroup('homework')
+          .where('class', isEqualTo: _selectedClassName)
+          .where('section', isEqualTo: _selectedSection)
+          .where('dueDate', isGreaterThanOrEqualTo: Timestamp.now())
+          .get();
+
+      setState(() {
+        _unreadNotifications = notifications.docs.length;
+        _unreadComplaints = complaints.docs.length;
+        _pendingHomeworkCount = homework.docs.length;
+      });
+    } catch (e) {
+      debugPrint("Error loading unread counts: $e");
+    }
+  }
+
+  void _selectStudent(String studentId, Map<String, dynamic> studentData) {
+    setState(() {
+      _selectedStudentId = studentId;
+      _selectedStudentName = studentData['name'] ?? 'Student';
+      _selectedClassName = studentData['class'] ?? '';
+      _selectedSection = studentData['section'] ?? '';
+      _selectedRollNo = studentData['rollNo'] ?? '';
+      _loadUnreadCounts();
+    });
   }
 
   void _logout(BuildContext context) async {
@@ -45,19 +118,12 @@ class _ParentHomePageState extends State<ParentHomePage>
           ),
           TextButton(
             onPressed: () async {
-              // Close dialog
               Navigator.pop(context);
-
-              // Show loading
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Logging out...")),
               );
-
               try {
-                // Sign out from Firebase
                 await FirebaseAuth.instance.signOut();
-
-                // Clear all routes and navigate to login
                 if (mounted) {
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(
@@ -69,7 +135,10 @@ class _ParentHomePageState extends State<ParentHomePage>
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+                    SnackBar(
+                      content: Text("Error: $e"),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                 }
               }
@@ -81,6 +150,223 @@ class _ParentHomePageState extends State<ParentHomePage>
       ),
     );
   }
+
+  void _showSelectChildSnackbar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Please select a child first"),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Help & Support"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("📞 Contact School:"),
+            const SizedBox(height: 8),
+            const Text("Phone: +91 98765 43210"),
+            const Text("Email: support@school.com"),
+            const SizedBox(height: 16),
+            const Text("🕒 Support Hours:"),
+            const SizedBox(height: 8),
+            const Text("Monday - Friday: 9:00 AM - 5:00 PM"),
+            const Divider(),
+            const Text(
+                "For urgent issues, please contact the school office directly."),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Close", style: TextStyle(color: Colors.orange)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAboutDialog() {
+    showAboutDialog(
+      context: context,
+      applicationName: "Smart School Management System",
+      applicationVersion: "1.0.0",
+      applicationIcon: const Icon(Icons.school, size: 48, color: Colors.orange),
+      children: const [
+        Text(
+          "A complete school ERP solution for parents, teachers, and administrators.\n\n"
+              "Features:\n"
+              "• Real-time attendance tracking\n"
+              "• Homework management\n"
+              "• Exam results and report cards\n"
+              "• Fee payment and tracking\n"
+              "• Complaint management\n"
+              "• Notifications and announcements\n\n"
+              "© 2024 Smart School. All rights reserved.",
+        ),
+      ],
+    );
+  }
+
+  void _showQuickActionsMenu() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Wrap(
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                "Quick Actions",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            _quickActionItem(
+              icon: Icons.calendar_today,
+              title: "Attendance",
+              color: Colors.green,
+              onTap: () {
+                Navigator.pop(context);
+                if (_selectedStudentId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ParentAttendancePage(),
+                    ),
+                  );
+                } else {
+                  _showSelectChildSnackbar();
+                }
+              },
+            ),
+            _quickActionItem(
+              icon: Icons.assignment,
+              title: "Homework",
+              color: Colors.blue,
+              onTap: () {
+                Navigator.pop(context);
+                if (_selectedStudentId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const HomeworkViewPage(),
+                    ),
+                  );
+                } else {
+                  _showSelectChildSnackbar();
+                }
+              },
+            ),
+            _quickActionItem(
+              icon: Icons.assessment,
+              title: "Results",
+              color: Colors.purple,
+              onTap: () {
+                Navigator.pop(context);
+                if (_selectedStudentId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ParentViewResultsPage(),
+                    ),
+                  );
+                } else {
+                  _showSelectChildSnackbar();
+                }
+              },
+            ),
+            _quickActionItem(
+              icon: Icons.announcement,
+              title: "Notices",
+              color: Colors.orange,
+              onTap: () {
+                Navigator.pop(context);
+                if (_selectedStudentId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ParentNoticesPage(),
+                    ),
+                  );
+                } else {
+                  _showSelectChildSnackbar();
+                }
+              },
+            ),
+            _quickActionItem(
+              icon: Icons.feedback,
+              title: "Complaint",
+              color: Colors.red,
+              onTap: () {
+                Navigator.pop(context);
+                if (_selectedStudentId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ParentComplaintPage(),
+                    ),
+                  ).then((_) => _loadUnreadCounts());
+                } else {
+                  _showSelectChildSnackbar();
+                }
+              },
+            ),
+            _quickActionItem(
+              icon: Icons.notifications,
+              title: "Notifications",
+              color: Colors.teal,
+              onTap: () {
+                Navigator.pop(context);
+                if (_selectedStudentId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ParentNotificationsPage(),
+                    ),
+                  ).then((_) => _loadUnreadCounts());
+                } else {
+                  _showSelectChildSnackbar();
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _quickActionItem({
+    required IconData icon,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: color),
+      ),
+      title: Text(title),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      onTap: onTap,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     _schoolId = ModalRoute.of(context)!.settings.arguments as String;
@@ -89,7 +375,10 @@ class _ParentHomePageState extends State<ParentHomePage>
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
-        title: const Text("Parent Dashboard"),
+        title: const Text(
+          "Parent Dashboard",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -104,24 +393,52 @@ class _ParentHomePageState extends State<ParentHomePage>
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              setState(() {});
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.assessment),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ParentViewResultsPage(),
+          // Notifications Button with Badge
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                onPressed: () {
+                  if (_selectedStudentId != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ParentNotificationsPage(),
+                      ),
+                    ).then((_) => _loadUnreadCounts());
+                  } else {
+                    _showSelectChildSnackbar();
+                  }
+                },
+                tooltip: "Notifications",
+              ),
+              if (_unreadNotifications > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      '$_unreadNotifications',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ),
-              );
-            },
-            tooltip: "View Results",
+            ],
           ),
+          // Logout Button
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _logout(context),
@@ -129,6 +446,7 @@ class _ParentHomePageState extends State<ParentHomePage>
           ),
         ],
       ),
+      drawer: _buildDrawer(),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('schools')
@@ -147,9 +465,11 @@ class _ParentHomePageState extends State<ParentHomePage>
 
           final students = snapshot.data!.docs;
 
-          // Set default selected student only if not set
+          // Set default selected student if not set
           if (_selectedStudentId == null && students.isNotEmpty) {
-            _selectedStudentId = students.first.id;
+            final firstStudent = students.first;
+            final data = firstStudent.data() as Map<String, dynamic>;
+            _selectStudent(firstStudent.id, data);
           }
 
           return TabBarView(
@@ -161,6 +481,315 @@ class _ParentHomePageState extends State<ParentHomePage>
           );
         },
       ),
+      floatingActionButton: _buildQuickActionFab(),
+    );
+  }
+
+  // ================= DRAWER =================
+  Widget _buildDrawer() {
+    return Drawer(
+      child: Column(
+        children: [
+          // Drawer Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.orange, Colors.deepOrange],
+              ),
+            ),
+            child: Column(
+              children: [
+                const CircleAvatar(
+                  radius: 40,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person, size: 45, color: Colors.orange),
+                ),
+                const SizedBox(height: 10),
+                StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('schools')
+                      .doc(_schoolId)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    String schoolName = "School";
+                    if (snapshot.hasData && snapshot.data!.exists) {
+                      schoolName = snapshot.data!['schoolName'] ?? "School";
+                    }
+                    return Text(
+                      schoolName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Parent Portal",
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+                ),
+              ],
+            ),
+          ),
+          // Drawer Items
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _drawerItem(
+                  icon: Icons.dashboard,
+                  title: "Dashboard",
+                  onTap: () {
+                    Navigator.pop(context);
+                    _tabController.animateTo(0);
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.analytics,
+                  title: "Analytics",
+                  onTap: () {
+                    Navigator.pop(context);
+                    _tabController.animateTo(1);
+                  },
+                ),
+                const Divider(),
+                _drawerItem(
+                  icon: Icons.calendar_today,
+                  title: "Attendance",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null &&
+                        _selectedStudentName != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AttendanceViewPage(
+                            studentId: _selectedStudentId!,
+                            studentName: _selectedStudentName!,
+                            className: _selectedClassName ?? '',
+                            section: _selectedSection ?? '',
+                          ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.assignment,
+                  title: "Homework",
+                  badge: _pendingHomeworkCount > 0
+                      ? _pendingHomeworkCount.toString()
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const HomeworkViewPage(),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.assessment,
+                  title: "Results",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ParentViewResultsPage(),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.announcement,
+                  title: "Notices",
+                  badge: _unreadNotices > 0 ? _unreadNotices.toString() : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ParentNoticesPage(),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.feedback,
+                  title: "Complaints",
+                  badge: _unreadComplaints > 0
+                      ? _unreadComplaints.toString()
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ParentComplaintPage(),
+                        ),
+                      ).then((_) => _loadUnreadCounts());
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.notifications,
+                  title: "Notifications",
+                  badge: _unreadNotifications > 0
+                      ? _unreadNotifications.toString()
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ParentNotificationsPage(),
+                        ),
+                      ).then((_) => _loadUnreadCounts());
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                const Divider(),
+                _drawerItem(
+                  icon: Icons.person,
+                  title: "My Profile",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null && _schoolId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ParentProfilePage(
+                            studentId: _selectedStudentId!,
+                            schoolId: _schoolId!,
+                          ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.settings,
+                  title: "Settings",
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ParentSettingsPage(
+                          schoolId: _schoolId!,
+                          parentUid: FirebaseAuth.instance.currentUser!.uid,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(),
+                _drawerItem(
+                  icon: Icons.help_outline,
+                  title: "Help & Support",
+                  onTap: () => _showHelpDialog(),
+                ),
+                _drawerItem(
+                  icon: Icons.info_outline,
+                  title: "About",
+                  onTap: () => _showAboutDialog(),
+                ),
+                const Divider(),
+                _drawerItem(
+                  icon: Icons.logout,
+                  title: "Logout",
+                  isLogout: true,
+                  onTap: () => _logout(context),
+                ),
+              ],
+            ),
+          ),
+          // Version Text
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              "Version 1.0.0",
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _drawerItem({
+    required IconData icon,
+    required String title,
+    VoidCallback? onTap,
+    bool isLogout = false,
+    String? badge,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: isLogout ? Colors.red : Colors.orange),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isLogout ? Colors.red : Colors.black87,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      trailing: badge != null
+          ? Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          badge,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      )
+          : null,
+      onTap: onTap,
+    );
+  }
+
+  Widget _buildQuickActionFab() {
+    return FloatingActionButton.extended(
+      onPressed: () => _showQuickActionsMenu(),
+      backgroundColor: Colors.orange,
+      foregroundColor: Colors.white,
+      icon: const Icon(Icons.menu),
+      label: const Text("Quick Actions"),
     );
   }
 
@@ -173,12 +802,30 @@ class _ParentHomePageState extends State<ParentHomePage>
           const SizedBox(height: 16),
           Text(
             "No Child Linked",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+            style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade600),
           ),
           const SizedBox(height: 8),
           Text(
             "Please contact the school admin to link your children.",
             style: TextStyle(color: Colors.grey.shade500),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              _showHelpDialog();
+            },
+            icon: const Icon(Icons.support_agent),
+            label: const Text("Contact Support"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ],
       ),
@@ -196,10 +843,8 @@ class _ParentHomePageState extends State<ParentHomePage>
 
         return GestureDetector(
           onTap: () {
-            setState(() {
-              _selectedStudentId = s.id;
-              _tabController.animateTo(1);
-            });
+            _selectStudent(s.id, data);
+            _tabController.animateTo(1);
           },
           child: Card(
             elevation: isSelected ? 4 : 2,
@@ -223,7 +868,8 @@ class _ParentHomePageState extends State<ParentHomePage>
               ),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: isSelected ? Colors.orange : Colors.orange.shade100,
+                  backgroundColor:
+                  isSelected ? Colors.orange : Colors.orange.shade100,
                   child: Icon(
                     Icons.person,
                     color: isSelected ? Colors.white : Colors.orange,
@@ -240,23 +886,29 @@ class _ParentHomePageState extends State<ParentHomePage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 4),
-                    Text("Class: ${data['class'] ?? 'N/A'} ${data['section'] ?? ''}"),
+                    Text(
+                        "Class: ${data['class'] ?? 'N/A'} ${data['section'] ?? ''}"),
                     Text("Roll No: ${data['rollNo'] ?? 'N/A'}"),
                   ],
                 ),
                 trailing: isSelected
                     ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: Colors.orange,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Text(
                     'SELECTED',
-                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold),
                   ),
                 )
-                    : const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                    : const Icon(Icons.arrow_forward_ios,
+                    size: 16, color: Colors.grey),
               ),
             ),
           ),
@@ -267,10 +919,19 @@ class _ParentHomePageState extends State<ParentHomePage>
 
   Widget _buildAnalyticsTab(List<QueryDocumentSnapshot> students) {
     if (_selectedStudentId == null) {
-      return const Center(child: Text('Select a child to view details'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.info_outline, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            const Text('Select a child to view details'),
+          ],
+        ),
+      );
     }
 
-    // Safe find with null check
+    // Find selected student with null safety
     QueryDocumentSnapshot? selectedStudent;
     for (var student in students) {
       if (student.id == _selectedStudentId) {
@@ -280,8 +941,10 @@ class _ParentHomePageState extends State<ParentHomePage>
     }
 
     if (selectedStudent == null && students.isNotEmpty) {
-      selectedStudent = students.first;
-      _selectedStudentId = selectedStudent.id;
+      final firstStudent = students.first;
+      final data = firstStudent.data() as Map<String, dynamic>;
+      _selectStudent(firstStudent.id, data);
+      selectedStudent = firstStudent;
     }
 
     if (selectedStudent == null) {
@@ -298,34 +961,156 @@ class _ParentHomePageState extends State<ParentHomePage>
     final motherName = data['motherName'] ?? '';
     final phone = data['phone'] ?? '';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildStudentHeader(studentName, className, section, rollNo),
-          const SizedBox(height: 16),
-          _buildStatsRow(_selectedStudentId!),
-          const SizedBox(height: 16),
-          _buildAttendanceSummary(_selectedStudentId!),
-          const SizedBox(height: 16),
-          _buildFeeDetails(_selectedStudentId!),
-          const SizedBox(height: 16),
-          _buildStudentDetails(
-            name: studentName,
-            className: className,
-            section: section,
-            rollNo: rollNo,
-            admissionNo: admissionNo,
-            fatherName: fatherName,
-            motherName: motherName,
-            phone: phone,
-          ),
-        ],
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {});
+        await _loadUnreadCounts();
+      },
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          children: [
+            _buildStudentHeader(
+                studentName, className, section, rollNo, admissionNo),
+            const SizedBox(height: 16),
+            _buildStatsRow(_selectedStudentId!),
+            const SizedBox(height: 16),
+            _buildAttendanceSummary(_selectedStudentId!),
+            const SizedBox(height: 16),
+            _buildAttendanceChart(_selectedStudentId!),
+            const SizedBox(height: 16),
+            _buildFeeDetails(_selectedStudentId!),
+            const SizedBox(height: 16),
+            _buildStudentDetails(
+              name: studentName,
+              className: className,
+              section: section,
+              rollNo: rollNo,
+              admissionNo: admissionNo,
+              fatherName: fatherName,
+              motherName: motherName,
+              phone: phone,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildStudentHeader(String name, String className, String section, String rollNo) {
+  // ================= ADDITIONAL WIDGETS =================
+
+  Widget _buildAttendanceChart(String studentId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('schools')
+          .doc(_schoolId)
+          .collection('attendance')
+          .where('studentId', isEqualTo: studentId)
+          .orderBy('date', descending: false)
+          .limit(30)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const SizedBox();
+        }
+
+        Map<String, int> weeklyData = {};
+        for (var doc in snapshot.data!.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final dateStr = data['date'];
+          if (dateStr != null) {
+            try {
+              final date = DateTime.parse(dateStr);
+              final week = ((date.day - 1) ~/ 7) + 1;
+              final weekKey = "Week $week";
+              if (data['status'] == 'Present') {
+                weeklyData[weekKey] = (weeklyData[weekKey] ?? 0) + 1;
+              }
+            } catch (e) {
+              // Skip invalid dates
+            }
+          }
+        }
+
+        final weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+        final dataPoints =
+        weeks.map((w) => weeklyData[w]?.toDouble() ?? 0).toList();
+        final maxValue = dataPoints.reduce((a, b) => a > b ? a : b);
+
+        return Card(
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.bar_chart, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text(
+                      'Attendance Trend',
+                      style:
+                      TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 200,
+                  child: BarChart(
+                    BarChartData(
+                      barGroups: List.generate(weeks.length, (i) {
+                        return BarChartGroupData(
+                          x: i,
+                          barRods: [
+                            BarChartRodData(
+                              toY: dataPoints[i],
+                              color: Colors.orange,
+                              width: 30,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ],
+                        );
+                      }),
+                      maxY: maxValue + 2,
+                      titlesData: FlTitlesData(
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            getTitlesWidget: (value, meta) =>
+                                Text('${value.toInt()}'),
+                          ),
+                        ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            getTitlesWidget: (value, meta) {
+                              int index = value.toInt();
+                              return index < weeks.length
+                                  ? Text(weeks[index])
+                                  : const Text('');
+                            },
+                          ),
+                        ),
+                      ),
+                      gridData: const FlGridData(show: true),
+                      borderData: FlBorderData(show: true),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStudentHeader(String name, String className, String section,
+      String rollNo, String admissionNo) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -337,7 +1122,7 @@ class _ParentHomePageState extends State<ParentHomePage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withValues(alpha: 0.3),
+            color: Colors.orange.withOpacity(0.3),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -364,6 +1149,14 @@ class _ParentHomePageState extends State<ParentHomePage>
             "Class $className-$section | Roll No: $rollNo",
             style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
+          if (admissionNo.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                "Admission No: $admissionNo",
+                style: const TextStyle(color: Colors.white60, fontSize: 12),
+              ),
+            ),
         ],
       ),
     );
@@ -491,13 +1284,17 @@ class _ParentHomePageState extends State<ParentHomePage>
         for (var doc in records) {
           final data = doc.data() as Map<String, dynamic>;
           final status = data['status'] ?? 'Absent';
-          if (status == 'Present') present++;
-          else if (status == 'Late') late++;
-          else absent++;
+          if (status == 'Present')
+            present++;
+          else if (status == 'Late')
+            late++;
+          else
+            absent++;
         }
 
         return Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -509,7 +1306,8 @@ class _ParentHomePageState extends State<ParentHomePage>
                     SizedBox(width: 8),
                     Text(
                       'Recent Attendance',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -572,22 +1370,27 @@ class _ParentHomePageState extends State<ParentHomePage>
 
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: statusColor.withValues(alpha: 0.1),
+                        backgroundColor: statusColor.withOpacity(0.1),
                         child: Icon(statusIcon, color: statusColor, size: 20),
                       ),
                       title: Text(
                         DateFormat('EEEE, dd MMM yyyy').format(date),
-                        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w500, fontSize: 14),
                       ),
                       trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.1),
+                          color: statusColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           status,
-                          style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                          style: TextStyle(
+                              color: statusColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12),
                         ),
                       ),
                     );
@@ -629,7 +1432,8 @@ class _ParentHomePageState extends State<ParentHomePage>
         }
 
         return Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -641,7 +1445,8 @@ class _ParentHomePageState extends State<ParentHomePage>
                     SizedBox(width: 8),
                     Text(
                       'Fee Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -663,7 +1468,9 @@ class _ParentHomePageState extends State<ParentHomePage>
 
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: status == 'paid' ? Colors.green.shade100 : Colors.red.shade100,
+                        backgroundColor: status == 'paid'
+                            ? Colors.green.shade100
+                            : Colors.red.shade100,
                         radius: 20,
                         child: Icon(
                           status == 'paid' ? Icons.check : Icons.pending,
@@ -690,15 +1497,20 @@ class _ParentHomePageState extends State<ParentHomePage>
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: status == 'paid' ? Colors.green.shade100 : Colors.red.shade100,
+                              color: status == 'paid'
+                                  ? Colors.green.shade100
+                                  : Colors.red.shade100,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               status.toUpperCase(),
                               style: TextStyle(
-                                color: status == 'paid' ? Colors.green : Colors.red,
+                                color: status == 'paid'
+                                    ? Colors.green
+                                    : Colors.red,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -749,8 +1561,10 @@ class _ParentHomePageState extends State<ParentHomePage>
             _infoRow('Class & Section', '$className - $section'),
             _infoRow('Roll Number', rollNo),
             if (admissionNo.isNotEmpty) _infoRow('Admission No', admissionNo),
-            _infoRow('Father\'s Name', fatherName.isNotEmpty ? fatherName : 'Not provided'),
-            _infoRow('Mother\'s Name', motherName.isNotEmpty ? motherName : 'Not provided'),
+            _infoRow('Father\'s Name',
+                fatherName.isNotEmpty ? fatherName : 'Not provided'),
+            _infoRow('Mother\'s Name',
+                motherName.isNotEmpty ? motherName : 'Not provided'),
             if (phone.isNotEmpty) _infoRow('Phone', phone),
           ],
         ),
@@ -802,7 +1616,7 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -845,7 +1659,7 @@ class _MiniStat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
