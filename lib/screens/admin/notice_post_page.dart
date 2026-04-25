@@ -12,27 +12,27 @@ class NoticePostPage extends StatefulWidget {
 }
 
 class _NoticePostPageState extends State<NoticePostPage> {
-  final titleController = TextEditingController();
-  final messageController = TextEditingController();
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _messageController = TextEditingController();
 
-  String priority = "Normal";
-  String targetAudience = "All";
-  List<String> selectedClasses = [];
-  List<String> selectedSections = [];
+  String _priority = "Normal";
+  String _targetAudience = "All";
+  List<String> _selectedClasses = [];
+  List<String> _selectedSections = [];
 
-  DateTime? expiryDate;
-  bool isPinned = false;
-  bool isLoading = false;
+  DateTime? _expiryDate;
+  bool _isPinned = false;
+  bool _isLoading = false;
 
   // Available options
-  final List<String> priorityOptions = ["Normal", "Important", "Urgent"];
-  final List<String> audienceOptions = ["All", "Students", "Parents", "Teachers", "Specific Class"];
+  final List<String> _priorityOptions = ["Normal", "Important", "Urgent"];
+  final List<String> _audienceOptions = ["All", "Students", "Parents", "Teachers", "Specific Class"];
 
   List<String> _availableClasses = [];
   List<String> _availableSections = ['A', 'B', 'C', 'D'];
 
   // Colors for priorities
-  final Map<String, Color> priorityColors = {
+  final Map<String, Color> _priorityColors = {
     "Normal": Colors.blue,
     "Important": Colors.orange,
     "Urgent": Colors.red,
@@ -46,8 +46,8 @@ class _NoticePostPageState extends State<NoticePostPage> {
 
   @override
   void dispose() {
-    titleController.dispose();
-    messageController.dispose();
+    _titleController.dispose();
+    _messageController.dispose();
     super.dispose();
   }
 
@@ -62,6 +62,7 @@ class _NoticePostPageState extends State<NoticePostPage> {
       setState(() {
         _availableClasses = classesSnapshot.docs
             .map((doc) => doc['class'] as String)
+            .where((className) => className.isNotEmpty)
             .toList();
       });
     } catch (e) {
@@ -87,6 +88,11 @@ class _NoticePostPageState extends State<NoticePostPage> {
             onPressed: _showPreview,
             tooltip: "Preview",
           ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => setState(() {}),
+            tooltip: "Refresh",
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -94,23 +100,15 @@ class _NoticePostPageState extends State<NoticePostPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Card
             _buildHeaderCard(),
             const SizedBox(height: 20),
-
-            // Notice Form Card
             _buildFormCard(),
             const SizedBox(height: 20),
-
-            // Additional Options Card
             _buildOptionsCard(),
             const SizedBox(height: 20),
-
-            // Preview Card
-            _buildPreviewCard(),
+            if (_titleController.text.isNotEmpty || _messageController.text.isNotEmpty)
+              _buildPreviewCard(),
             const SizedBox(height: 24),
-
-            // Submit Button
             _buildSubmitButton(),
           ],
         ),
@@ -129,6 +127,13 @@ class _NoticePostPageState extends State<NoticePostPage> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.deepPurple.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -191,7 +196,7 @@ class _NoticePostPageState extends State<NoticePostPage> {
 
           // Title Field
           TextField(
-            controller: titleController,
+            controller: _titleController,
             decoration: _buildInputDecoration(
               "Enter notice title",
               Icons.title,
@@ -201,7 +206,7 @@ class _NoticePostPageState extends State<NoticePostPage> {
 
           // Message Field
           TextField(
-            controller: messageController,
+            controller: _messageController,
             maxLines: 5,
             decoration: _buildInputDecoration(
               "Enter notice details...",
@@ -219,8 +224,8 @@ class _NoticePostPageState extends State<NoticePostPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: priority,
-                  items: priorityOptions.map((p) {
+                  value: _priority,
+                  items: _priorityOptions.map((p) {
                     return DropdownMenuItem(
                       value: p,
                       child: Row(
@@ -229,7 +234,7 @@ class _NoticePostPageState extends State<NoticePostPage> {
                             width: 10,
                             height: 10,
                             decoration: BoxDecoration(
-                              color: priorityColors[p],
+                              color: _priorityColors[p],
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -239,7 +244,7 @@ class _NoticePostPageState extends State<NoticePostPage> {
                       ),
                     );
                   }).toList(),
-                  onChanged: (value) => setState(() => priority = value!),
+                  onChanged: (value) => setState(() => _priority = value!),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
@@ -278,14 +283,14 @@ class _NoticePostPageState extends State<NoticePostPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: targetAudience,
-                  items: audienceOptions.map((audience) {
+                  value: _targetAudience,
+                  items: _audienceOptions.map((audience) {
                     return DropdownMenuItem(
                       value: audience,
                       child: Text(audience),
                     );
                   }).toList(),
-                  onChanged: (value) => setState(() => targetAudience = value!),
+                  onChanged: (value) => setState(() => _targetAudience = value!),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
@@ -296,7 +301,7 @@ class _NoticePostPageState extends State<NoticePostPage> {
           ),
 
           // Specific Class Selection (if applicable)
-          if (targetAudience == "Specific Class") ...[
+          if (_targetAudience == "Specific Class") ...[
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 12),
@@ -305,29 +310,38 @@ class _NoticePostPageState extends State<NoticePostPage> {
               style: TextStyle(fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _availableClasses.map((className) {
-                final isSelected = selectedClasses.contains(className);
-                return FilterChip(
-                  label: Text(className),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    setState(() {
-                      if (selected) {
-                        selectedClasses.add(className);
-                      } else {
-                        selectedClasses.remove(className);
-                      }
-                    });
-                  },
-                  backgroundColor: Colors.grey.shade100,
-                  selectedColor: Colors.deepPurple.shade100,
-                  checkmarkColor: Colors.deepPurple,
-                );
-              }).toList(),
-            ),
+            if (_availableClasses.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  "No classes available. Please add classes first.",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _availableClasses.map((className) {
+                  final isSelected = _selectedClasses.contains(className);
+                  return FilterChip(
+                    label: Text(className),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedClasses.add(className);
+                        } else {
+                          _selectedClasses.remove(className);
+                        }
+                      });
+                    },
+                    backgroundColor: Colors.grey.shade100,
+                    selectedColor: Colors.deepPurple.shade100,
+                    checkmarkColor: Colors.deepPurple,
+                  );
+                }).toList(),
+              ),
           ],
 
           const SizedBox(height: 16),
@@ -343,19 +357,19 @@ class _NoticePostPageState extends State<NoticePostPage> {
                 child: TextButton(
                   onPressed: _selectExpiryDate,
                   child: Text(
-                    expiryDate == null
+                    _expiryDate == null
                         ? "No expiry (Optional)"
-                        : DateFormat('dd MMM yyyy').format(expiryDate!),
+                        : DateFormat('dd MMM yyyy').format(_expiryDate!),
                     style: TextStyle(
-                      color: expiryDate == null ? Colors.grey : Colors.deepPurple,
+                      color: _expiryDate == null ? Colors.grey : Colors.deepPurple,
                     ),
                   ),
                 ),
               ),
-              if (expiryDate != null)
+              if (_expiryDate != null)
                 IconButton(
                   icon: const Icon(Icons.close, size: 16),
-                  onPressed: () => setState(() => expiryDate = null),
+                  onPressed: () => setState(() => _expiryDate = null),
                 ),
             ],
           ),
@@ -364,8 +378,8 @@ class _NoticePostPageState extends State<NoticePostPage> {
           SwitchListTile(
             title: const Text("Pin this notice"),
             subtitle: const Text("Pinned notices appear at the top"),
-            value: isPinned,
-            onChanged: (value) => setState(() => isPinned = value),
+            value: _isPinned,
+            onChanged: (value) => setState(() => _isPinned = value),
             activeColor: Colors.deepPurple,
             contentPadding: EdgeInsets.zero,
           ),
@@ -375,10 +389,6 @@ class _NoticePostPageState extends State<NoticePostPage> {
   }
 
   Widget _buildPreviewCard() {
-    if (titleController.text.isEmpty && messageController.text.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: _cardDecoration(),
@@ -396,10 +406,10 @@ class _NoticePostPageState extends State<NoticePostPage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: priorityColors[priority]?.withValues(alpha: 0.1),
+              color: _priorityColors[_priority]?.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: priorityColors[priority]?.withValues(alpha: 0.3) ?? Colors.grey,
+                color: _priorityColors[_priority]?.withValues(alpha: 0.3) ?? Colors.grey,
               ),
             ),
             child: Column(
@@ -410,11 +420,11 @@ class _NoticePostPageState extends State<NoticePostPage> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: priorityColors[priority],
+                        color: _priorityColors[_priority],
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        priority.toUpperCase(),
+                        _priority.toUpperCase(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -423,13 +433,13 @@ class _NoticePostPageState extends State<NoticePostPage> {
                       ),
                     ),
                     const Spacer(),
-                    if (isPinned)
+                    if (_isPinned)
                       const Icon(Icons.push_pin, size: 16, color: Colors.deepPurple),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  titleController.text.isEmpty ? "Notice Title" : titleController.text,
+                  _titleController.text.isEmpty ? "Notice Title" : _titleController.text,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -437,9 +447,9 @@ class _NoticePostPageState extends State<NoticePostPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  messageController.text.isEmpty
+                  _messageController.text.isEmpty
                       ? "Notice message will appear here..."
-                      : messageController.text,
+                      : _messageController.text,
                   style: TextStyle(
                     color: Colors.grey.shade700,
                     fontSize: 14,
@@ -459,14 +469,14 @@ class _NoticePostPageState extends State<NoticePostPage> {
   }
 
   Widget _buildSubmitButton() {
-    final isValid = titleController.text.isNotEmpty && messageController.text.isNotEmpty;
+    final isValid = _titleController.text.isNotEmpty && _messageController.text.isNotEmpty;
 
     return SizedBox(
       width: double.infinity,
       height: 52,
       child: ElevatedButton.icon(
-        onPressed: isLoading || !isValid ? null : _publishNotice,
-        icon: isLoading
+        onPressed: _isLoading || !isValid ? null : _publishNotice,
+        icon: _isLoading
             ? const SizedBox(
           width: 20,
           height: 20,
@@ -476,13 +486,14 @@ class _NoticePostPageState extends State<NoticePostPage> {
           ),
         )
             : const Icon(Icons.send),
-        label: Text(isLoading ? "Publishing..." : "Publish Notice"),
+        label: Text(_isLoading ? "Publishing..." : "Publish Notice"),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.deepPurple,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
+          elevation: 2,
         ),
       ),
     );
@@ -491,41 +502,41 @@ class _NoticePostPageState extends State<NoticePostPage> {
   Future<void> _selectExpiryDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: expiryDate ?? DateTime.now().add(const Duration(days: 30)),
+      initialDate: _expiryDate ?? DateTime.now().add(const Duration(days: 30)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
 
     if (picked != null) {
-      setState(() => expiryDate = picked);
+      setState(() => _expiryDate = picked);
     }
   }
 
   Future<void> _publishNotice() async {
-    if (titleController.text.trim().isEmpty) {
+    if (_titleController.text.trim().isEmpty) {
       _showError("Please enter a title");
       return;
     }
 
-    if (messageController.text.trim().isEmpty) {
+    if (_messageController.text.trim().isEmpty) {
       _showError("Please enter a message");
       return;
     }
 
-    setState(() => isLoading = true);
+    setState(() => _isLoading = true);
 
     try {
       final adminUser = FirebaseAuth.instance.currentUser;
       final adminName = adminUser?.email?.split('@').first ?? "Admin";
 
       final noticeData = {
-        "title": titleController.text.trim(),
-        "message": messageController.text.trim(),
-        "priority": priority,
-        "targetAudience": targetAudience,
-        "selectedClasses": targetAudience == "Specific Class" ? selectedClasses : [],
-        "isPinned": isPinned,
-        "expiryDate": expiryDate != null ? Timestamp.fromDate(expiryDate!) : null,
+        "title": _titleController.text.trim(),
+        "description": _messageController.text.trim(),
+        "priority": _priority,
+        "targetAudience": _targetAudience,
+        "selectedClasses": _targetAudience == "Specific Class" ? _selectedClasses : [],
+        "isPinned": _isPinned,
+        "expiryDate": _expiryDate != null ? Timestamp.fromDate(_expiryDate!) : null,
         "createdBy": adminName,
         "createdByUid": adminUser?.uid,
         "createdAt": FieldValue.serverTimestamp(),
@@ -549,25 +560,25 @@ class _NoticePostPageState extends State<NoticePostPage> {
         );
 
         // Clear form
-        titleController.clear();
-        messageController.clear();
+        _titleController.clear();
+        _messageController.clear();
         setState(() {
-          priority = "Normal";
-          targetAudience = "All";
-          selectedClasses.clear();
-          isPinned = false;
-          expiryDate = null;
+          _priority = "Normal";
+          _targetAudience = "All";
+          _selectedClasses.clear();
+          _isPinned = false;
+          _expiryDate = null;
         });
       }
     } catch (e) {
       _showError("Error: $e");
     } finally {
-      setState(() => isLoading = false);
+      setState(() => _isLoading = false);
     }
   }
 
   void _showPreview() {
-    if (titleController.text.isEmpty && messageController.text.isEmpty) {
+    if (_titleController.text.isEmpty && _messageController.text.isEmpty) {
       _showError("Add some content to preview");
       return;
     }
@@ -575,13 +586,16 @@ class _NoticePostPageState extends State<NoticePostPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
         title: const Text("Notice Preview"),
         content: SizedBox(
           width: double.maxFinite,
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: priorityColors[priority]?.withValues(alpha: 0.05),
+              color: _priorityColors[_priority]?.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -593,11 +607,11 @@ class _NoticePostPageState extends State<NoticePostPage> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: priorityColors[priority],
+                        color: _priorityColors[_priority],
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        priority.toUpperCase(),
+                        _priority.toUpperCase(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -606,13 +620,13 @@ class _NoticePostPageState extends State<NoticePostPage> {
                       ),
                     ),
                     const Spacer(),
-                    if (isPinned)
+                    if (_isPinned)
                       const Icon(Icons.push_pin, size: 16, color: Colors.deepPurple),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  titleController.text.isEmpty ? "Notice Title" : titleController.text,
+                  _titleController.text.isEmpty ? "Notice Title" : _titleController.text,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -620,14 +634,14 @@ class _NoticePostPageState extends State<NoticePostPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  messageController.text.isEmpty
+                  _messageController.text.isEmpty
                       ? "Notice message will appear here..."
-                      : messageController.text,
+                      : _messageController.text,
                   style: TextStyle(color: Colors.grey.shade700),
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  "Target: $targetAudience",
+                  "Target: $_targetAudience",
                   style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
                 ),
               ],
@@ -653,7 +667,6 @@ class _NoticePostPageState extends State<NoticePostPage> {
     );
   }
 
-  // FIXED: Changed return type from Widget to InputDecoration
   InputDecoration _buildInputDecoration(String hint, IconData icon) {
     return InputDecoration(
       hintText: hint,
@@ -670,8 +683,9 @@ class _NoticePostPageState extends State<NoticePostPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.deepPurple, width: 1),
+        borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
       ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 

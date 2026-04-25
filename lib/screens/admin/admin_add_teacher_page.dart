@@ -15,37 +15,51 @@ class AdminAddTeacherPage extends StatefulWidget {
 class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
   final _formKey = GlobalKey<FormState>();
 
-  final nameController = TextEditingController();
-  final emailController = TextEditingController();
-  final phoneController = TextEditingController();
-  final qualificationController = TextEditingController();
-  final experienceController = TextEditingController();
-  final addressController = TextEditingController();
-  final passwordController = TextEditingController();
-  final confirmPasswordController = TextEditingController();
+  // Controllers
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _qualificationController = TextEditingController();
+  final TextEditingController _experienceController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
 
+  // Data variables
   List<String> _selectedSubjects = [];
   List<String> _availableSubjects = [];
   List<Map<String, String>> _assignedClasses = [];
 
-  bool loading = false;
+  bool _isLoading = false;
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   DateTime? _joiningDate;
   String? _gender;
   String? _selectedDepartment;
 
+  // Constants
   final List<String> _genders = ['Male', 'Female', 'Other'];
   final List<String> _departments = [
     'Tamil',
-    'Science',
+    'English',
     'Mathematics',
-    'Languages',
-    'Social Studies',
+    'Science',
+    'Physics',
+    'Chemistry',
+    'Biology',
+    'History',
+    'Geography',
     'Computer Science',
+    'Accountancy',
+    'Commerce',
+    'Economics',
     'Physical Education',
     'Arts',
+    'Music',
   ];
+
+  // Default password for new teacher accounts
+  static const String defaultTeacherPassword = "Teacher@123";
 
   @override
   void initState() {
@@ -55,52 +69,41 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
 
   @override
   void dispose() {
-    nameController.dispose();
-    emailController.dispose();
-    phoneController.dispose();
-    qualificationController.dispose();
-    experienceController.dispose();
-    addressController.dispose();
-    passwordController.dispose();
-    confirmPasswordController.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _qualificationController.dispose();
+    _experienceController.dispose();
+    _addressController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
   Future<void> _loadAvailableSubjects() async {
     try {
-      final subjectsSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(widget.schoolId)
-              .collection('subjects')
-              .get();
+      final subjectsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('subjects')
+          .get();
 
       if (subjectsSnapshot.docs.isNotEmpty) {
         setState(() {
-          _availableSubjects =
-              subjectsSnapshot.docs
-                  .map((doc) => doc['name'] as String)
-                  .toList();
+          _availableSubjects = subjectsSnapshot.docs
+              .map((doc) => doc['name'] as String)
+              .toList();
         });
       } else {
-        // Default subjects
-        _availableSubjects = [
-          "Tamil",
-          "English",
-          'Mathematics',
-          'Physics',
-          'Chemistry',
-          'Biology',
-          'History',
-          'Geography',
-          'Computer Science',
-          "Accountancy",
-          'Physical Education',
-          'Art',
-          'Music',
-          "Commerce",
-          "Economics",
-        ];
+        // Default subjects as fallback
+        setState(() {
+          _availableSubjects = [
+            "Tamil", "English", "Mathematics", "Physics", "Chemistry",
+            "Biology", "History", "Geography", "Computer Science",
+            "Accountancy", "Commerce", "Economics", "Physical Education",
+            "Art", "Music",
+          ];
+        });
       }
     } catch (e) {
       debugPrint('Error loading subjects: $e');
@@ -120,6 +123,13 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadAvailableSubjects,
+            tooltip: "Refresh Subjects",
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -132,7 +142,7 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
               _buildSectionHeader("Personal Information", Icons.person),
               const SizedBox(height: 12),
               _buildTextField(
-                nameController,
+                _nameController,
                 "Full Name *",
                 Icons.person_outline,
               ),
@@ -140,14 +150,14 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
               _buildGenderDropdown(),
               const SizedBox(height: 12),
               _buildTextField(
-                emailController,
+                _emailController,
                 "Email Address *",
                 Icons.email,
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 12),
               _buildTextField(
-                phoneController,
+                _phoneController,
                 "Phone Number *",
                 Icons.phone,
                 keyboardType: TextInputType.phone,
@@ -165,20 +175,20 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
               _buildSubjectsMultiselect(),
               const SizedBox(height: 12),
               _buildTextField(
-                qualificationController,
+                _qualificationController,
                 "Qualification",
                 Icons.school,
               ),
               const SizedBox(height: 12),
               _buildTextField(
-                experienceController,
+                _experienceController,
                 "Years of Experience",
                 Icons.timeline,
                 keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 12),
               _buildTextField(
-                addressController,
+                _addressController,
                 "Address",
                 Icons.location_on,
                 maxLines: 2,
@@ -190,19 +200,18 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
               _buildSectionHeader("Account Information", Icons.lock),
               const SizedBox(height: 12),
               _buildTextField(
-                passwordController,
+                _passwordController,
                 "Temporary Password *",
                 Icons.lock,
-                hide: !_showPassword,
                 isPassword: true,
               ),
               const SizedBox(height: 12),
               _buildTextField(
-                confirmPasswordController,
+                _confirmPasswordController,
                 "Confirm Password *",
                 Icons.lock_outline,
-                hide: !_showConfirmPassword,
                 isPassword: true,
+                isConfirmPassword: true,
               ),
 
               const SizedBox(height: 24),
@@ -224,8 +233,15 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: Colors.deepPurple, size: 22),
-        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.deepPurple.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: Colors.deepPurple, size: 20),
+        ),
+        const SizedBox(width: 10),
         Text(
           title,
           style: const TextStyle(
@@ -239,35 +255,38 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
   }
 
   Widget _buildTextField(
-    TextEditingController controller,
-    String label,
-    IconData icon, {
-    TextInputType keyboardType = TextInputType.text,
-    bool hide = false,
-    int maxLines = 1,
-    bool isPassword = false,
-  }) {
+      TextEditingController controller,
+      String label,
+      IconData icon, {
+        TextInputType keyboardType = TextInputType.text,
+        int maxLines = 1,
+        bool isPassword = false,
+        bool isConfirmPassword = false,
+      }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
-      obscureText: hide,
+      obscureText: isPassword
+          ? (label.contains('Temporary') ? !_showPassword : !_showConfirmPassword)
+          : false,
       maxLines: maxLines,
-      validator: (v) {
-        if (label.contains('*') && (v == null || v.isEmpty)) {
+      style: const TextStyle(fontSize: 14),
+      validator: (value) {
+        if (label.contains('*') && (value == null || value.isEmpty)) {
           return "This field is required";
         }
-        if (label.contains('Email') && v != null && v.isNotEmpty) {
-          if (!v.contains('@') || !v.contains('.')) {
+        if (label.contains('Email') && value != null && value.isNotEmpty) {
+          if (!value.contains('@') || !value.contains('.')) {
             return "Enter a valid email";
           }
         }
-        if (label.contains('Phone') && v != null && v.isNotEmpty) {
-          if (v.length < 10) {
-            return "Enter a valid phone number";
+        if (label.contains('Phone') && value != null && value.isNotEmpty) {
+          if (value.length < 10) {
+            return "Enter a valid phone number (min 10 digits)";
           }
         }
-        if (isPassword && v != null && v.isNotEmpty) {
-          if (v.length < 6) {
+        if (isPassword && value != null && value.isNotEmpty) {
+          if (value.length < 6) {
             return "Password must be at least 6 characters";
           }
         }
@@ -275,25 +294,44 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
       },
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: Colors.deepPurple),
-        suffixIcon:
-            isPassword
-                ? IconButton(
-                  icon: Icon(hide ? Icons.visibility_off : Icons.visibility),
-                  onPressed: () {
-                    setState(() {
-                      if (label.contains('Temporary')) {
-                        _showPassword = !_showPassword;
-                      } else if (label.contains('Confirm')) {
-                        _showConfirmPassword = !_showConfirmPassword;
-                      }
-                    });
-                  },
-                )
-                : null,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        labelStyle: const TextStyle(fontSize: 13),
+        prefixIcon: Icon(icon, color: Colors.deepPurple, size: 20),
+        suffixIcon: isPassword
+            ? IconButton(
+          icon: Icon(
+            (label.contains('Temporary') ? _showPassword : _showConfirmPassword)
+                ? Icons.visibility_off
+                : Icons.visibility,
+            color: Colors.grey,
+          ),
+          onPressed: () {
+            setState(() {
+              if (label.contains('Temporary')) {
+                _showPassword = !_showPassword;
+              } else if (label.contains('Confirm')) {
+                _showConfirmPassword = !_showConfirmPassword;
+              }
+            });
+          },
+        )
+            : null,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+        ),
         filled: true,
         fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }
@@ -302,22 +340,39 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
     return DropdownButtonFormField<String>(
       value: _gender,
       hint: const Text("Select Gender *"),
+      isExpanded: true,
       decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.people, color: Colors.deepPurple),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        prefixIcon: const Icon(Icons.people, color: Colors.deepPurple, size: 20),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+        ),
         filled: true,
         fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
-      items:
-          _genders.map((gender) {
-            return DropdownMenuItem(value: gender, child: Text(gender));
-          }).toList(),
+      items: _genders.map((gender) {
+        return DropdownMenuItem(
+          value: gender,
+          child: Text(gender),
+        );
+      }).toList(),
       onChanged: (value) {
         setState(() {
           _gender = value;
         });
       },
-      validator: (v) => v == null ? "Please select gender" : null,
+      validator: (value) => value == null ? "Please select gender" : null,
     );
   }
 
@@ -325,16 +380,39 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
     return DropdownButtonFormField<String>(
       value: _selectedDepartment,
       hint: const Text("Select Department"),
+      isExpanded: true,
       decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.business, color: Colors.deepPurple),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        prefixIcon: const Icon(Icons.business, color: Colors.deepPurple, size: 20),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+        ),
         filled: true,
         fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
-      items:
-          _departments.map((dept) {
-            return DropdownMenuItem(value: dept, child: Text(dept));
-          }).toList(),
+      items: [
+        const DropdownMenuItem<String>(
+          value: null,
+          child: Text("Select Department"),
+        ),
+        ..._departments.map((dept) {
+          return DropdownMenuItem(
+            value: dept,
+            child: Text(dept),
+          );
+        }).toList(),
+      ],
       onChanged: (value) {
         setState(() {
           _selectedDepartment = value;
@@ -345,6 +423,7 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
 
   Widget _buildSubjectsMultiselect() {
     return Container(
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey.shade400),
         borderRadius: BorderRadius.circular(12),
@@ -352,40 +431,37 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.all(12),
-            child: Text(
-              "Subjects *",
-              style: TextStyle(fontWeight: FontWeight.w500),
-            ),
+          const Text(
+            "Subjects *",
+            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
           ),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children:
-                _availableSubjects.map((subject) {
-                  final isSelected = _selectedSubjects.contains(subject);
-                  return FilterChip(
-                    label: Text(subject),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      setState(() {
-                        if (selected) {
-                          _selectedSubjects.add(subject);
-                        } else {
-                          _selectedSubjects.remove(subject);
-                        }
-                      });
-                    },
-                    backgroundColor: Colors.grey.shade100,
-                    selectedColor: Colors.deepPurple.shade100,
-                    checkmarkColor: Colors.deepPurple,
-                  );
-                }).toList(),
+            children: _availableSubjects.map((subject) {
+              final isSelected = _selectedSubjects.contains(subject);
+              return FilterChip(
+                label: Text(subject, style: const TextStyle(fontSize: 12)),
+                selected: isSelected,
+                onSelected: (selected) {
+                  setState(() {
+                    if (selected) {
+                      _selectedSubjects.add(subject);
+                    } else {
+                      _selectedSubjects.remove(subject);
+                    }
+                  });
+                },
+                backgroundColor: Colors.grey.shade100,
+                selectedColor: Colors.deepPurple.shade100,
+                checkmarkColor: Colors.deepPurple,
+              );
+            }).toList(),
           ),
           if (_selectedSubjects.isEmpty)
             const Padding(
-              padding: EdgeInsets.all(12),
+              padding: EdgeInsets.only(top: 12),
               child: Text(
                 "Please select at least one subject",
                 style: TextStyle(color: Colors.red, fontSize: 12),
@@ -399,35 +475,45 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
   Widget _buildDatePickerField() {
     return GestureDetector(
       onTap: () async {
-        final date = await showDatePicker(
+        final DateTime? picked = await showDatePicker(
           context: context,
           initialDate: _joiningDate ?? DateTime.now(),
           firstDate: DateTime(2000),
           lastDate: DateTime.now(),
         );
-        if (date != null) {
+        if (picked != null) {
           setState(() {
-            _joiningDate = date;
+            _joiningDate = picked;
           });
         }
       },
       child: AbsorbPointer(
         child: TextFormField(
           controller: TextEditingController(
-            text:
-                _joiningDate != null
-                    ? "${_joiningDate!.day}/${_joiningDate!.month}/${_joiningDate!.year}"
-                    : '',
+            text: _joiningDate != null
+                ? "${_joiningDate!.day}/${_joiningDate!.month}/${_joiningDate!.year}"
+                : '',
           ),
           decoration: InputDecoration(
             labelText: "Joining Date",
-            prefixIcon: const Icon(
-              Icons.calendar_today,
-              color: Colors.deepPurple,
+            prefixIcon: const Icon(Icons.calendar_today, color: Colors.deepPurple, size: 20),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+            ),
             filled: true,
             fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
         ),
       ),
@@ -438,33 +524,62 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.deepPurple.shade50,
-        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          colors: [Colors.deepPurple.shade50, Colors.deepPurple.shade100],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.deepPurple.shade200),
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline, color: Colors.deepPurple.shade700),
-          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.info_outline, color: Colors.deepPurple.shade700, size: 24),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "Teacher Account Info",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "Teacher will receive a welcome email with login credentials",
+                  "Teacher Account Information",
                   style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.deepPurple.shade700,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
                   ),
                 ),
-                Text(
+                const SizedBox(height: 4),
+                RichText(
+                  text: TextSpan(
+                    style: const TextStyle(fontSize: 11),
+                    children: [
+                      const TextSpan(
+                        text: "Default Password: ",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      TextSpan(
+                        text: defaultTeacherPassword,
+                        style: TextStyle(
+                          color: Colors.deepPurple.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
                   "Teacher must change password on first login",
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey,
+                  ),
                 ),
               ],
             ),
@@ -479,7 +594,7 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
       width: double.infinity,
       height: 52,
       child: ElevatedButton(
-        onPressed: loading ? null : _addTeacher,
+        onPressed: _isLoading ? null : _addTeacher,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.deepPurple,
           foregroundColor: Colors.white,
@@ -488,71 +603,79 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
           ),
           elevation: 2,
         ),
-        child:
-            loading
-                ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                )
-                : const Text(
-                  "Create Teacher Account",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+        child: _isLoading
+            ? const SizedBox(
+          height: 20,
+          width: 20,
+          child: CircularProgressIndicator(
+            color: Colors.white,
+            strokeWidth: 2,
+          ),
+        )
+            : const Text(
+          "Create Teacher Account",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
 
   Future<void> _addTeacher() async {
+    // Validate form
     if (!_formKey.currentState!.validate()) return;
 
+    // Validate subjects
     if (_selectedSubjects.isEmpty) {
       _showError("Please select at least one subject");
       return;
     }
 
-    if (passwordController.text.trim() !=
-        confirmPasswordController.text.trim()) {
+    // Validate password match
+    final String password = _passwordController.text.trim();
+    final String confirmPassword = _confirmPasswordController.text.trim();
+
+    if (password != confirmPassword) {
       _showError("Passwords do not match");
       return;
     }
 
-    setState(() => loading = true);
+    if (password.length < 6) {
+      _showError("Password must be at least 6 characters");
+      return;
+    }
+
+    setState(() => _isLoading = true);
 
     try {
-      final email = emailController.text.trim();
-      final password = passwordController.text.trim();
+      final String email = _emailController.text.trim().toLowerCase();
 
       // Create Firebase Auth user
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      final UserCredential userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      final uid = cred.user!.uid;
+      final String uid = userCredential.user!.uid;
 
       // Send email verification
-      await cred.user!.sendEmailVerification();
+      await userCredential.user!.sendEmailVerification();
 
       // Prepare teacher data
-      final teacherData = {
+      final Map<String, dynamic> teacherData = {
         'uid': uid,
-        'name': nameController.text.trim(),
+        'name': _nameController.text.trim(),
         'email': email,
-        'phone': phoneController.text.trim(),
+        'phone': _phoneController.text.trim(),
         'gender': _gender,
-        'qualification': qualificationController.text.trim(),
-        'experience': experienceController.text.trim(),
-        'address': addressController.text.trim(),
+        'qualification': _qualificationController.text.trim(),
+        'experience': _experienceController.text.trim(),
+        'address': _addressController.text.trim(),
         'subjects': _selectedSubjects,
         'department': _selectedDepartment,
-        'joiningDate':
-            _joiningDate != null
-                ? "${_joiningDate!.year}-${_joiningDate!.month.toString().padLeft(2, '0')}-${_joiningDate!.day.toString().padLeft(2, '0')}"
-                : null,
+        'joiningDate': _joiningDate != null
+            ? "${_joiningDate!.year}-${_joiningDate!.month.toString().padLeft(2, '0')}-${_joiningDate!.day.toString().padLeft(2, '0')}"
+            : null,
         'assignedClasses': [], // Initially no classes assigned
         'firstLogin': true, // Force password change on first login
         'isActive': true,
@@ -578,28 +701,76 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              "Teacher created successfully!\nEmail: $email\nPassword: $password",
+              "✅ Teacher created successfully!\n\nEmail: $email\nPassword: $password",
+              style: const TextStyle(fontSize: 13),
             ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 5),
           ),
         );
-        Navigator.pop(context);
+
+        // Clear form after success
+        _clearForm();
+
+        // Wait a moment before popping
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          Navigator.pop(context);
+        }
       }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = "";
+      switch (e.code) {
+        case 'email-already-in-use':
+          errorMessage = "Email already in use. Please use a different email.";
+          break;
+        case 'invalid-email':
+          errorMessage = "Invalid email format.";
+          break;
+        case 'weak-password':
+          errorMessage = "Password is too weak. Use at least 6 characters.";
+          break;
+        default:
+          errorMessage = "Error: ${e.message}";
+      }
+      _showError(errorMessage);
     } catch (e) {
       debugPrint('Error adding teacher: $e');
-      _showError("Error: $e");
+      _showError("Error: ${e.toString()}");
     } finally {
       if (mounted) {
-        setState(() => loading = false);
+        setState(() => _isLoading = false);
       }
     }
+  }
+
+  void _clearForm() {
+    _nameController.clear();
+    _emailController.clear();
+    _phoneController.clear();
+    _qualificationController.clear();
+    _experienceController.clear();
+    _addressController.clear();
+    _passwordController.clear();
+    _confirmPasswordController.clear();
+    setState(() {
+      _selectedSubjects = [];
+      _gender = null;
+      _selectedDepartment = null;
+      _joiningDate = null;
+      _showPassword = false;
+      _showConfirmPassword = false;
+    });
   }
 
   void _showError(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
       );
     }
   }

@@ -19,6 +19,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
   int _teacherCount = 0;
   int _activeTeachers = 0;
   int _totalAssignedClasses = 0;
+  bool _isLoadingStats = true;
 
   @override
   void initState() {
@@ -27,6 +28,8 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
   }
 
   Future<void> _loadStatistics() async {
+    setState(() => _isLoadingStats = true);
+
     try {
       final teachersSnapshot = await FirebaseFirestore.instance
           .collection('schools')
@@ -50,9 +53,11 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
         _teacherCount = teachersSnapshot.docs.length;
         _activeTeachers = active;
         _totalAssignedClasses = totalClasses;
+        _isLoadingStats = false;
       });
     } catch (e) {
       debugPrint('Error loading statistics: $e');
+      setState(() => _isLoadingStats = false);
     }
   }
 
@@ -89,7 +94,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
             _buildStatisticsRow(),
             const SizedBox(height: 24),
 
-            // Action Cards
+            // Quick Actions Section
             const Text(
               "Quick Actions",
               style: TextStyle(
@@ -99,28 +104,30 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
             ),
             const SizedBox(height: 12),
 
+            // Add Teacher Card
             _buildActionCard(
-              context,
               icon: Icons.person_add,
               title: "Add Teacher",
               subtitle: "Create new teacher account",
               color: Colors.green,
               onTap: () async {
-                await Navigator.push(
+                final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => AdminAddTeacherPage(schoolId: widget.schoolId),
                   ),
                 );
-                _loadStatistics();
+                if (result == true) {
+                  _loadStatistics();
+                }
               },
             ),
 
+            // Teachers List Card
             _buildActionCard(
-              context,
               icon: Icons.list,
               title: "Teachers List",
-              subtitle: "View all teachers",
+              subtitle: "View all teachers and manage",
               color: Colors.blue,
               onTap: () async {
                 await Navigator.push(
@@ -133,11 +140,11 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
               },
             ),
 
+            // Assign Classes Card
             _buildActionCard(
-              context,
               icon: Icons.school,
               title: "Assign Classes",
-              subtitle: "Select teacher and assign class",
+              subtitle: "Select teacher and assign classes",
               color: Colors.orange,
               onTap: () async {
                 await Navigator.push(
@@ -153,9 +160,28 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
               },
             ),
 
+            // Manage Subjects Card
+            _buildActionCard(
+              icon: Icons.book,
+              title: "Manage Subjects",
+              subtitle: "Assign subjects to teachers",
+              color: Colors.purple,
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => TeacherListPage(
+                      schoolId: widget.schoolId,
+                    ),
+                  ),
+                );
+                _loadStatistics();
+              },
+            ),
+
             const SizedBox(height: 16),
 
-            // Recent Activity (Optional)
+            // Recently Added Section
             _buildRecentActivity(),
           ],
         ),
@@ -174,6 +200,13 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -219,10 +252,22 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
   }
 
   Widget _buildStatisticsRow() {
+    if (_isLoadingStats) {
+      return Row(
+        children: [
+          Expanded(child: _buildStatCardSkeleton()),
+          const SizedBox(width: 12),
+          Expanded(child: _buildStatCardSkeleton()),
+          const SizedBox(width: 12),
+          Expanded(child: _buildStatCardSkeleton()),
+        ],
+      );
+    }
+
     return Row(
       children: [
         Expanded(
-          child: _statCard(
+          child: _buildStatCard(
             "Total Teachers",
             _teacherCount.toString(),
             Icons.people,
@@ -231,7 +276,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _statCard(
+          child: _buildStatCard(
             "Active Teachers",
             _activeTeachers.toString(),
             Icons.check_circle,
@@ -240,7 +285,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: _statCard(
+          child: _buildStatCard(
             "Classes Assigned",
             _totalAssignedClasses.toString(),
             Icons.class_,
@@ -251,7 +296,54 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
     );
   }
 
-  Widget _statCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCardSkeleton() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 40,
+            height: 22,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            width: 60,
+            height: 11,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -288,14 +380,13 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
     );
   }
 
-  Widget _buildActionCard(
-      BuildContext context, {
-        required IconData icon,
-        required String title,
-        required String subtitle,
-        required Color color,
-        required VoidCallback onTap,
-      }) {
+  Widget _buildActionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -304,7 +395,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
+            blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
@@ -373,9 +464,28 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
           .limit(5)
           .snapshots(),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Center(
+              child: SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const SizedBox.shrink();
         }
+
+        final teachers = snapshot.data!.docs.take(3).toList();
 
         return Container(
           padding: const EdgeInsets.all(16),
@@ -395,10 +505,10 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.history, color: Colors.blue),
+                  Icon(Icons.history, color: Colors.blue, size: 20),
                   SizedBox(width: 8),
                   Text(
-                    "Recently Added",
+                    "Recently Added Teachers",
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -410,25 +520,40 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: snapshot.data!.docs.length > 3 ? 3 : snapshot.data!.docs.length,
+                itemCount: teachers.length,
                 separatorBuilder: (_, __) => const Divider(),
                 itemBuilder: (context, index) {
-                  final doc = snapshot.data!.docs[index];
-                  final data = doc.data() as Map<String, dynamic>;
+                  final data = teachers[index].data() as Map<String, dynamic>;
                   final name = data['name'] ?? 'Unknown';
                   final email = data['email'] ?? '';
 
                   return ListTile(
+                    contentPadding: EdgeInsets.zero,
                     leading: CircleAvatar(
+                      radius: 20,
                       backgroundColor: Colors.blue.shade100,
                       child: Text(
                         name.isNotEmpty ? name[0].toUpperCase() : "T",
-                        style: const TextStyle(color: Colors.blue),
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
-                    title: Text(name),
-                    subtitle: Text(email),
-                    trailing: const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                    title: Text(
+                      name,
+                      style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                    ),
+                    subtitle: Text(
+                      email,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: const Icon(
+                      Icons.access_time,
+                      size: 14,
+                      color: Colors.grey,
+                    ),
                   );
                 },
               ),

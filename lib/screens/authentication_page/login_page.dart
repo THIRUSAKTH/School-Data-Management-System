@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/screens/admin/admin_dashboard.dart';
 import 'package:schoolprojectjan/screens/parents/parent_dashboard.dart';
+import 'package:schoolprojectjan/screens/parents/select_child_page.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
 import 'package:schoolprojectjan/screens/authentication_page/change_password_screen.dart';
 
@@ -354,26 +355,44 @@ class _LoginPageState extends State<LoginPage> {
       // ---------- PARENT ----------
       if (widget.role == "Parent") {
         if (firstLogin) {
-          if (!mounted) return;
+          // First login - go to change password
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder:
-                  (_) => ChangePasswordScreen(
-                    schoolId: AppConfig.schoolId,
-                    userId: uid,
-                    role: "Parent",
-                  ),
+              builder: (_) => ChangePasswordScreen(
+                schoolId: AppConfig.schoolId,
+                userId: uid,
+                role: "Parent",
+              ),
             ),
           );
-          return;
-        }
+        } else {
+          // Check number of children
+          final childrenSnapshot = await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('parentUid', isEqualTo: uid)
+              .get();
 
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const ParentDashboard()),
-        );
+          if (childrenSnapshot.docs.length > 1) {
+            // Multiple children - show Select Child page
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const SelectChildPage(),
+              ),
+            );
+          } else {
+            // Single child - go directly to dashboard
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ParentDashboard(),
+              ),
+            );
+          }
+        }
         return;
       }
     } on FirebaseAuthException catch (e) {

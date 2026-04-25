@@ -5,11 +5,13 @@ import 'assign_class_to_teacher_page.dart';
 class TeacherListPage extends StatefulWidget {
   final String schoolId;
   final bool isAssignMode;
+  final bool isSubjectAssignMode;
 
   const TeacherListPage({
     super.key,
     required this.schoolId,
     this.isAssignMode = false,
+    this.isSubjectAssignMode = false,
   });
 
   @override
@@ -17,8 +19,8 @@ class TeacherListPage extends StatefulWidget {
 }
 
 class _TeacherListPageState extends State<TeacherListPage> {
-  String searchQuery = "";
-  String? selectedDepartmentFilter;
+  String _searchQuery = "";
+  String? _selectedDepartmentFilter;
   List<String> _availableDepartments = [];
 
   @override
@@ -52,13 +54,22 @@ class _TeacherListPageState extends State<TeacherListPage> {
     }
   }
 
+  String _getPageTitle() {
+    if (widget.isSubjectAssignMode) {
+      return "Assign Subjects";
+    } else if (widget.isAssignMode) {
+      return "Select Teacher";
+    }
+    return "Teachers";
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
         title: Text(
-          widget.isAssignMode ? "Select Teacher" : "Teachers",
+          _getPageTitle(),
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.blue,
@@ -75,8 +86,7 @@ class _TeacherListPageState extends State<TeacherListPage> {
       body: Column(
         children: [
           _buildSearchBar(),
-          if (_availableDepartments.isNotEmpty)
-            _buildDepartmentFilter(),
+          if (_availableDepartments.isNotEmpty) _buildDepartmentFilter(),
           _buildTeacherCount(),
           Expanded(
             child: _buildTeacherList(),
@@ -91,13 +101,13 @@ class _TeacherListPageState extends State<TeacherListPage> {
       margin: const EdgeInsets.all(12),
       child: TextField(
         decoration: InputDecoration(
-          hintText: "Search by name or email...",
+          hintText: "Search by name, email, or phone...",
           prefixIcon: const Icon(Icons.search, color: Colors.blue),
-          suffixIcon: searchQuery.isNotEmpty
+          suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
             icon: const Icon(Icons.clear),
             onPressed: () {
-              setState(() => searchQuery = "");
+              setState(() => _searchQuery = "");
             },
           )
               : null,
@@ -117,7 +127,7 @@ class _TeacherListPageState extends State<TeacherListPage> {
           ),
         ),
         onChanged: (value) {
-          setState(() => searchQuery = value.toLowerCase());
+          setState(() => _searchQuery = value.toLowerCase());
         },
       ),
     );
@@ -136,10 +146,10 @@ class _TeacherListPageState extends State<TeacherListPage> {
               padding: const EdgeInsets.only(right: 8),
               child: FilterChip(
                 label: const Text("All"),
-                selected: selectedDepartmentFilter == null,
+                selected: _selectedDepartmentFilter == null,
                 onSelected: (_) {
                   setState(() {
-                    selectedDepartmentFilter = null;
+                    _selectedDepartmentFilter = null;
                   });
                 },
                 backgroundColor: Colors.grey.shade100,
@@ -154,10 +164,10 @@ class _TeacherListPageState extends State<TeacherListPage> {
             padding: const EdgeInsets.only(right: 8),
             child: FilterChip(
               label: Text(department),
-              selected: selectedDepartmentFilter == department,
+              selected: _selectedDepartmentFilter == department,
               onSelected: (selected) {
                 setState(() {
-                  selectedDepartmentFilter = selected ? department : null;
+                  _selectedDepartmentFilter = selected ? department : null;
                 });
               },
               backgroundColor: Colors.grey.shade100,
@@ -219,21 +229,24 @@ class _TeacherListPageState extends State<TeacherListPage> {
         var teachers = snapshot.data!.docs;
 
         // Apply search filter
-        if (searchQuery.isNotEmpty) {
+        if (_searchQuery.isNotEmpty) {
           teachers = teachers.where((teacher) {
             final data = teacher.data() as Map<String, dynamic>;
             final name = (data['name'] ?? '').toString().toLowerCase();
             final email = (data['email'] ?? '').toString().toLowerCase();
-            return name.contains(searchQuery) || email.contains(searchQuery);
+            final phone = (data['phone'] ?? '').toString().toLowerCase();
+            return name.contains(_searchQuery) ||
+                email.contains(_searchQuery) ||
+                phone.contains(_searchQuery);
           }).toList();
         }
 
         // Apply department filter
-        if (selectedDepartmentFilter != null) {
+        if (_selectedDepartmentFilter != null) {
           teachers = teachers.where((teacher) {
             final data = teacher.data() as Map<String, dynamic>;
             final dept = (data['department'] ?? '').toString();
-            return dept == selectedDepartmentFilter;
+            return dept == _selectedDepartmentFilter;
           }).toList();
         }
 
@@ -246,7 +259,11 @@ class _TeacherListPageState extends State<TeacherListPage> {
                 const SizedBox(height: 16),
                 Text(
                   "No teachers found",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -261,6 +278,7 @@ class _TeacherListPageState extends State<TeacherListPage> {
         return RefreshIndicator(
           onRefresh: () async {
             setState(() {});
+            await _loadDepartments();
           },
           child: ListView.builder(
             padding: const EdgeInsets.all(12),
@@ -269,11 +287,10 @@ class _TeacherListPageState extends State<TeacherListPage> {
               final doc = teachers[index];
               final data = doc.data() as Map<String, dynamic>;
 
-              // Safe access using toString() and fallbacks
               final name = (data['name'] ?? data['teacherName'] ?? "Teacher").toString();
               final email = (data['email'] ?? "").toString();
               final phone = (data['phone'] ?? "").toString();
-              final subject = (data['subject'] ?? "").toString();
+              final subjects = data['subjects'] as List? ?? [];
               final department = (data['department'] ?? "").toString();
               final assignedClasses = data['assignedClasses'] as List? ?? [];
 
@@ -284,18 +301,22 @@ class _TeacherListPageState extends State<TeacherListPage> {
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: InkWell(
-                  onTap: widget.isAssignMode
+                  onTap: widget.isAssignMode || widget.isSubjectAssignMode
                       ? () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AssignClassToTeacherPage(
-                          schoolId: widget.schoolId,
-                          teacherId: doc.id,
-                          teacherName: name,
+                    if (widget.isSubjectAssignMode) {
+                      _showSubjectAssignmentDialog(doc.id, name, subjects);
+                    } else if (widget.isAssignMode) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AssignClassToTeacherPage(
+                            schoolId: widget.schoolId,
+                            teacherId: doc.id,
+                            teacherName: name,
+                          ),
                         ),
-                      ),
-                    );
+                      );
+                    }
                   }
                       : null,
                   borderRadius: BorderRadius.circular(16),
@@ -303,6 +324,7 @@ class _TeacherListPageState extends State<TeacherListPage> {
                     padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
+                        // Avatar
                         Container(
                           width: 60,
                           height: 60,
@@ -322,6 +344,8 @@ class _TeacherListPageState extends State<TeacherListPage> {
                           ),
                         ),
                         const SizedBox(width: 16),
+
+                        // Teacher Info
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -329,11 +353,12 @@ class _TeacherListPageState extends State<TeacherListPage> {
                               Text(
                                 name,
                                 style: const TextStyle(
-                                  fontSize: 18,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const SizedBox(height: 4),
+
                               if (email.isNotEmpty)
                                 Row(
                                   children: [
@@ -348,6 +373,7 @@ class _TeacherListPageState extends State<TeacherListPage> {
                                     ),
                                   ],
                                 ),
+
                               if (phone.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 2),
@@ -362,21 +388,32 @@ class _TeacherListPageState extends State<TeacherListPage> {
                                     ],
                                   ),
                                 ),
-                              if (subject.isNotEmpty)
+
+                              if (subjects.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.shade100,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      subject,
-                                      style: TextStyle(fontSize: 10, color: Colors.green.shade700),
-                                    ),
+                                  child: Wrap(
+                                    spacing: 4,
+                                    runSpacing: 4,
+                                    children: subjects.take(2).map((subject) {
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.shade100,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          subject.toString(),
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.green.shade700,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
                                   ),
                                 ),
+
                               if (department.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4),
@@ -385,6 +422,7 @@ class _TeacherListPageState extends State<TeacherListPage> {
                                     style: const TextStyle(fontSize: 11, color: Colors.purple),
                                   ),
                                 ),
+
                               if (assignedClasses.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4),
@@ -396,7 +434,25 @@ class _TeacherListPageState extends State<TeacherListPage> {
                             ],
                           ),
                         ),
-                        if (widget.isAssignMode)
+
+                        // Action Button
+                        if (widget.isSubjectAssignMode)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.purple,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              "Subjects",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          )
+                        else if (widget.isAssignMode)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             decoration: BoxDecoration(
@@ -439,6 +495,105 @@ class _TeacherListPageState extends State<TeacherListPage> {
     );
   }
 
+  void _showSubjectAssignmentDialog(String teacherId, String teacherName, List<dynamic> currentSubjects) {
+    List<String> availableSubjects = [
+      "Tamil", "English", "Mathematics", "Physics", "Chemistry",
+      "Biology", "History", "Geography", "Computer Science",
+      "Accountancy", "Commerce", "Economics", "Physical Education",
+      "Art", "Music",
+    ];
+
+    List<String> selectedSubjects = List<String>.from(currentSubjects.map((s) => s.toString()));
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text("Assign Subjects to $teacherName"),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 300,
+              child: Column(
+                children: [
+                  const Text(
+                    "Select subjects taught by this teacher",
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: availableSubjects.length,
+                      itemBuilder: (context, index) {
+                        final subject = availableSubjects[index];
+                        final isSelected = selectedSubjects.contains(subject);
+                        return CheckboxListTile(
+                          title: Text(subject),
+                          value: isSelected,
+                          onChanged: (selected) {
+                            setStateDialog(() {
+                              if (selected == true) {
+                                selectedSubjects.add(subject);
+                              } else {
+                                selectedSubjects.remove(subject);
+                              }
+                            });
+                          },
+                          activeColor: Colors.purple,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await _updateTeacherSubjects(teacherId, selectedSubjects);
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Subjects updated successfully"),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                    setState(() {});
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Save"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _updateTeacherSubjects(String teacherId, List<String> subjects) async {
+    await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(widget.schoolId)
+        .collection('teachers')
+        .doc(teacherId)
+        .update({
+      'subjects': subjects,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Widget _emptyState() {
     return Center(
       child: Column(
@@ -448,7 +603,11 @@ class _TeacherListPageState extends State<TeacherListPage> {
           const SizedBox(height: 16),
           Text(
             "No teachers added yet",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(

@@ -15,45 +15,44 @@ class SchoolSettingsPage extends StatefulWidget {
 }
 
 class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController addressController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController websiteController = TextEditingController();
-  final TextEditingController establishedYearController = TextEditingController();
-  final TextEditingController principalNameController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _websiteController = TextEditingController();
+  final TextEditingController _establishedYearController = TextEditingController();
+  final TextEditingController _principalNameController = TextEditingController();
 
-  bool loading = true;
-  bool isSaving = false;
-  bool isUploading = false;
+  bool _isLoading = true;
+  bool _isSaving = false;
+  bool _isUploading = false;
 
-  File? logoImage;
-  String logoUrl = "";
+  File? _logoImage;
+  String _logoUrl = "";
   String? _schoolCode;
 
-  final ImagePicker picker = ImagePicker();
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    loadSchool();
+    _loadSchoolData();
   }
 
   @override
   void dispose() {
-    nameController.dispose();
-    addressController.dispose();
-    phoneController.dispose();
-    emailController.dispose();
-    websiteController.dispose();
-    establishedYearController.dispose();
-    principalNameController.dispose();
+    _nameController.dispose();
+    _addressController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _websiteController.dispose();
+    _establishedYearController.dispose();
+    _principalNameController.dispose();
     super.dispose();
   }
 
-  /// LOAD SCHOOL DATA
-  Future<void> loadSchool() async {
-    setState(() => loading = true);
+  Future<void> _loadSchoolData() async {
+    setState(() => _isLoading = true);
 
     try {
       final doc = await FirebaseFirestore.instance
@@ -64,25 +63,24 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
 
-        nameController.text = data['schoolName'] ?? "";
-        addressController.text = data['address'] ?? "";
-        phoneController.text = data['phone'] ?? "";
-        emailController.text = data['email'] ?? "";
-        websiteController.text = data['website'] ?? "";
-        establishedYearController.text = data['establishedYear'] ?? "";
-        principalNameController.text = data['principalName'] ?? "";
-        logoUrl = data['logoUrl'] ?? "";
+        _nameController.text = data['schoolName'] ?? "";
+        _addressController.text = data['address'] ?? "";
+        _phoneController.text = data['phone'] ?? "";
+        _emailController.text = data['email'] ?? "";
+        _websiteController.text = data['website'] ?? "";
+        _establishedYearController.text = data['establishedYear'] ?? "";
+        _principalNameController.text = data['principalName'] ?? "";
+        _logoUrl = data['logoUrl'] ?? "";
         _schoolCode = data['schoolCode'] ?? "SCH${widget.schoolId.substring(0, 4)}";
       }
     } catch (e) {
       _showError("Error loading school data: $e");
     } finally {
-      setState(() => loading = false);
+      setState(() => _isLoading = false);
     }
   }
 
-  /// PICK IMAGE
-  Future<void> pickLogo() async {
+  Future<void> _pickLogo() async {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -106,9 +104,9 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                   label: "Camera",
                   onTap: () async {
                     Navigator.pop(context);
-                    final picked = await picker.pickImage(source: ImageSource.camera);
+                    final picked = await _picker.pickImage(source: ImageSource.camera);
                     if (picked != null) {
-                      setState(() => logoImage = File(picked.path));
+                      setState(() => _logoImage = File(picked.path));
                     }
                   },
                 ),
@@ -117,9 +115,9 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                   label: "Gallery",
                   onTap: () async {
                     Navigator.pop(context);
-                    final picked = await picker.pickImage(source: ImageSource.gallery);
+                    final picked = await _picker.pickImage(source: ImageSource.gallery);
                     if (picked != null) {
-                      setState(() => logoImage = File(picked.path));
+                      setState(() => _logoImage = File(picked.path));
                     }
                   },
                 ),
@@ -129,8 +127,8 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                   onTap: () {
                     Navigator.pop(context);
                     setState(() {
-                      logoImage = null;
-                      logoUrl = "";
+                      _logoImage = null;
+                      _logoUrl = "";
                     });
                   },
                 ),
@@ -166,14 +164,13 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     );
   }
 
-  /// UPLOAD LOGO
-  Future<void> uploadLogo() async {
-    if (logoImage == null) {
+  Future<void> _uploadLogo() async {
+    if (_logoImage == null) {
       _showError("Please select an image first");
       return;
     }
 
-    setState(() => isUploading = true);
+    setState(() => _isUploading = true);
 
     try {
       final ref = FirebaseStorage.instance
@@ -181,7 +178,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
           .child('school_logos')
           .child('${widget.schoolId}.png');
 
-      await ref.putFile(logoImage!);
+      await ref.putFile(_logoImage!);
       final url = await ref.getDownloadURL();
 
       await FirebaseFirestore.instance
@@ -190,8 +187,8 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
           .update({"logoUrl": url});
 
       setState(() {
-        logoUrl = url;
-        logoImage = null;
+        _logoUrl = url;
+        _logoImage = null;
       });
 
       if (mounted) {
@@ -205,28 +202,27 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     } catch (e) {
       _showError("Error uploading logo: $e");
     } finally {
-      setState(() => isUploading = false);
+      setState(() => _isUploading = false);
     }
   }
 
-  /// SAVE SCHOOL INFO
-  Future<void> saveSchool() async {
-    if (nameController.text.trim().isEmpty) {
+  Future<void> _saveSchool() async {
+    if (_nameController.text.trim().isEmpty) {
       _showError("School name is required");
       return;
     }
 
-    setState(() => isSaving = true);
+    setState(() => _isSaving = true);
 
     try {
       final schoolData = {
-        "schoolName": nameController.text.trim(),
-        "address": addressController.text.trim(),
-        "phone": phoneController.text.trim(),
-        "email": emailController.text.trim(),
-        "website": websiteController.text.trim(),
-        "establishedYear": establishedYearController.text.trim(),
-        "principalName": principalNameController.text.trim(),
+        "schoolName": _nameController.text.trim(),
+        "address": _addressController.text.trim(),
+        "phone": _phoneController.text.trim(),
+        "email": _emailController.text.trim(),
+        "website": _websiteController.text.trim(),
+        "establishedYear": _establishedYearController.text.trim(),
+        "principalName": _principalNameController.text.trim(),
         "updatedAt": FieldValue.serverTimestamp(),
       };
 
@@ -246,7 +242,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     } catch (e) {
       _showError("Error saving school details: $e");
     } finally {
-      setState(() => isSaving = false);
+      setState(() => _isSaving = false);
     }
   }
 
@@ -263,7 +259,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
+    if (_isLoading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
@@ -282,7 +278,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: loadSchool,
+            onPressed: _loadSchoolData,
             tooltip: "Refresh",
           ),
         ],
@@ -291,23 +287,14 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Logo Section
             _buildLogoSecion(),
             const SizedBox(height: 20),
-
-            // School Information Card
             _buildSchoolInfoCard(),
             const SizedBox(height: 20),
-
-            // Contact Information Card
             _buildContactInfoCard(),
             const SizedBox(height: 20),
-
-            // Additional Information Card
             _buildAdditionalInfoCard(),
             const SizedBox(height: 24),
-
-            // Save Button
             _buildSaveButton(),
           ],
         ),
@@ -317,12 +304,12 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
 
   Widget _buildLogoSecion() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: _cardDecoration(),
       child: Column(
         children: [
           GestureDetector(
-            onTap: pickLogo,
+            onTap: _pickLogo,
             child: Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -335,42 +322,47 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                 ],
               ),
               child: CircleAvatar(
-                radius: 60,
+                radius: 65,
                 backgroundColor: Colors.grey.shade200,
-                backgroundImage: logoImage != null
-                    ? FileImage(logoImage!)
-                    : (logoUrl.isNotEmpty
-                    ? NetworkImage(logoUrl)
+                backgroundImage: _logoImage != null
+                    ? FileImage(_logoImage!)
+                    : (_logoUrl.isNotEmpty
+                    ? NetworkImage(_logoUrl)
                     : null) as ImageProvider?,
-                child: logoImage == null && logoUrl.isEmpty
-                    ? Icon(Icons.add_photo_alternate, size: 40, color: Colors.grey.shade400)
+                child: _logoImage == null && _logoUrl.isEmpty
+                    ? Icon(Icons.add_photo_alternate, size: 45, color: Colors.grey.shade400)
                     : null,
               ),
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            logoImage != null ? "New logo selected" : (logoUrl.isNotEmpty ? "Tap to change logo" : "Tap to add logo"),
+            _logoImage != null
+                ? "New logo selected - tap upload to save"
+                : (_logoUrl.isNotEmpty ? "Tap to change logo" : "Tap to add logo"),
             style: TextStyle(
               fontSize: 12,
               color: Colors.grey.shade600,
             ),
           ),
-          if (logoImage != null) ...[
-            const SizedBox(height: 12),
+          if (_logoImage != null) ...[
+            const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton.icon(
-                  onPressed: isUploading ? null : uploadLogo,
-                  icon: isUploading
+                  onPressed: _isUploading ? null : _uploadLogo,
+                  icon: _isUploading
                       ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
-                      : const Icon(Icons.cloud_upload),
-                  label: Text(isUploading ? "Uploading..." : "Upload Logo"),
+                      : const Icon(Icons.cloud_upload, size: 18),
+                  label: Text(_isUploading ? "Uploading..." : "Upload Logo"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
@@ -379,20 +371,27 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                 const SizedBox(width: 12),
                 TextButton.icon(
                   onPressed: () {
-                    setState(() => logoImage = null);
+                    setState(() => _logoImage = null);
                   },
-                  icon: const Icon(Icons.cancel),
+                  icon: const Icon(Icons.cancel, size: 18),
                   label: const Text("Cancel"),
                 ),
               ],
             ),
           ],
-          if (logoUrl.isNotEmpty && logoImage == null)
+          if (_logoUrl.isNotEmpty && _logoImage == null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                "Logo saved successfully",
-                style: TextStyle(fontSize: 11, color: Colors.green.shade700),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle, size: 14, color: Colors.green.shade700),
+                  const SizedBox(width: 6),
+                  Text(
+                    "Logo saved",
+                    style: TextStyle(fontSize: 11, color: Colors.green.shade700),
+                  ),
+                ],
               ),
             ),
         ],
@@ -415,7 +414,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                   color: Colors.blue.shade100,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.business, color: Colors.blue),
+                child: const Icon(Icons.business, color: Colors.blue, size: 22),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -426,30 +425,33 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
           ),
           const SizedBox(height: 20),
           TextField(
-            controller: nameController,
+            controller: _nameController,
             decoration: const InputDecoration(
-              labelText: "School Name",
+              labelText: "School Name *",
               prefixIcon: Icon(Icons.school),
               border: OutlineInputBorder(),
+              hintText: "Enter school name",
             ),
           ),
           const SizedBox(height: 16),
           TextField(
-            controller: addressController,
+            controller: _addressController,
             maxLines: 2,
             decoration: const InputDecoration(
               labelText: "Address",
               prefixIcon: Icon(Icons.location_on),
               border: OutlineInputBorder(),
+              hintText: "Enter school address",
             ),
           ),
           const SizedBox(height: 16),
           TextField(
-            controller: principalNameController,
+            controller: _principalNameController,
             decoration: const InputDecoration(
               labelText: "Principal Name",
               prefixIcon: Icon(Icons.person),
               border: OutlineInputBorder(),
+              hintText: "Enter principal's name",
             ),
           ),
           if (_schoolCode != null) ...[
@@ -471,6 +473,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontFamily: 'monospace',
+                      fontSize: 14,
                     ),
                   ),
                 ],
@@ -497,7 +500,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                   color: Colors.blue.shade100,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.contact_phone, color: Colors.blue),
+                child: const Icon(Icons.contact_phone, color: Colors.blue, size: 22),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -508,32 +511,35 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
           ),
           const SizedBox(height: 20),
           TextField(
-            controller: phoneController,
+            controller: _phoneController,
             keyboardType: TextInputType.phone,
             decoration: const InputDecoration(
               labelText: "Phone Number",
               prefixIcon: Icon(Icons.phone),
               border: OutlineInputBorder(),
+              hintText: "Enter contact number",
             ),
           ),
           const SizedBox(height: 16),
           TextField(
-            controller: emailController,
+            controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             decoration: const InputDecoration(
               labelText: "Email Address",
               prefixIcon: Icon(Icons.email),
               border: OutlineInputBorder(),
+              hintText: "Enter email address",
             ),
           ),
           const SizedBox(height: 16),
           TextField(
-            controller: websiteController,
+            controller: _websiteController,
             keyboardType: TextInputType.url,
             decoration: const InputDecoration(
               labelText: "Website",
               prefixIcon: Icon(Icons.language),
               border: OutlineInputBorder(),
+              hintText: "Enter website URL",
             ),
           ),
         ],
@@ -556,7 +562,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                   color: Colors.blue.shade100,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.info, color: Colors.blue),
+                child: const Icon(Icons.info, color: Colors.blue, size: 22),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -567,12 +573,13 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
           ),
           const SizedBox(height: 20),
           TextField(
-            controller: establishedYearController,
+            controller: _establishedYearController,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
               labelText: "Established Year",
               prefixIcon: Icon(Icons.calendar_today),
               border: OutlineInputBorder(),
+              hintText: "e.g., 2000",
             ),
           ),
         ],
@@ -585,8 +592,8 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
       width: double.infinity,
       height: 52,
       child: ElevatedButton.icon(
-        onPressed: isSaving ? null : saveSchool,
-        icon: isSaving
+        onPressed: _isSaving ? null : _saveSchool,
+        icon: _isSaving
             ? const SizedBox(
           width: 20,
           height: 20,
@@ -596,13 +603,14 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
           ),
         )
             : const Icon(Icons.save),
-        label: Text(isSaving ? "Saving..." : "Save Settings"),
+        label: Text(_isSaving ? "Saving..." : "Save Settings"),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.blue,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
+          elevation: 2,
         ),
       ),
     );

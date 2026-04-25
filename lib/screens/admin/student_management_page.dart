@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:schoolprojectjan/screens/admin/admin-add-student-page.dart';
+import 'package:schoolprojectjan/screens/admin/admin_add_student_page.dart';
 import 'package:schoolprojectjan/screens/admin/students_profile_page.dart';
 import 'student_edit_page.dart';
 
@@ -17,10 +17,10 @@ class StudentManagementPage extends StatefulWidget {
 }
 
 class _StudentManagementPageState extends State<StudentManagementPage> {
-  String searchQuery = "";
-  String? selectedClassFilter;
-  String? selectedSectionFilter;
-  String selectedSortBy = "Name";
+  String _searchQuery = "";
+  String? _selectedClassFilter;
+  String? _selectedSectionFilter;
+  String _selectedSortBy = "Name";
 
   List<String> _availableClasses = [];
   List<String> _availableSections = [];
@@ -103,15 +103,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: Colors.cyan,
-        icon: const Icon(Icons.person_add, color: Colors.white),
-        label: const Text("Add Student",
-            style: TextStyle(color: Colors.white)),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.person_add),
+        label: const Text("Add Student"),
         onPressed: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) =>
-                  AdminAddStudentPage(schoolId: widget.schoolId),
+              builder: (_) => AdminAddStudentPage(schoolId: widget.schoolId),
             ),
           ).then((_) => setState(() {}));
         },
@@ -119,7 +118,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       body: Column(
         children: [
           _buildSearchBar(),
-          if (selectedClassFilter != null || selectedSectionFilter != null)
+          if (_selectedClassFilter != null || _selectedSectionFilter != null)
             _buildActiveFilters(),
           _buildStudentCount(),
           Expanded(
@@ -135,13 +134,13 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       margin: const EdgeInsets.all(12),
       child: TextField(
         decoration: InputDecoration(
-          hintText: "Search by student name...",
+          hintText: "Search by student name or roll number...",
           prefixIcon: const Icon(Icons.search, color: Colors.cyan),
-          suffixIcon: searchQuery.isNotEmpty
+          suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
             icon: const Icon(Icons.clear),
             onPressed: () {
-              setState(() => searchQuery = "");
+              setState(() => _searchQuery = "");
             },
           )
               : null,
@@ -161,7 +160,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           ),
         ),
         onChanged: (val) {
-          setState(() => searchQuery = val.toLowerCase());
+          setState(() => _searchQuery = val.toLowerCase());
         },
       ),
     );
@@ -175,24 +174,25 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         color: Colors.cyan.shade50,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
         children: [
           const Icon(Icons.filter_alt, size: 16, color: Colors.cyan),
-          const SizedBox(width: 8),
           const Text("Active Filters:", style: TextStyle(fontSize: 12)),
-          const SizedBox(width: 8),
-          if (selectedClassFilter != null)
+          if (_selectedClassFilter != null)
             Chip(
-              label: Text("Class: $selectedClassFilter"),
-              onDeleted: () => setState(() => selectedClassFilter = null),
+              label: Text("Class: $_selectedClassFilter"),
+              onDeleted: () => setState(() => _selectedClassFilter = null),
               deleteIcon: const Icon(Icons.close, size: 14),
               backgroundColor: Colors.white,
               visualDensity: VisualDensity.compact,
             ),
-          if (selectedSectionFilter != null)
+          if (_selectedSectionFilter != null)
             Chip(
-              label: Text("Section: $selectedSectionFilter"),
-              onDeleted: () => setState(() => selectedSectionFilter = null),
+              label: Text("Section: $_selectedSectionFilter"),
+              onDeleted: () => setState(() => _selectedSectionFilter = null),
               deleteIcon: const Icon(Icons.close, size: 14),
               backgroundColor: Colors.white,
               visualDensity: VisualDensity.compact,
@@ -251,27 +251,29 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
         var students = snapshot.data!.docs;
 
-        // Apply filters
-        if (selectedClassFilter != null) {
+        // Apply class filter
+        if (_selectedClassFilter != null) {
           students = students.where((s) {
             final data = s.data() as Map<String, dynamic>;
-            return data['class'] == selectedClassFilter;
+            return data['class'] == _selectedClassFilter;
           }).toList();
         }
-        if (selectedSectionFilter != null) {
+
+        // Apply section filter
+        if (_selectedSectionFilter != null) {
           students = students.where((s) {
             final data = s.data() as Map<String, dynamic>;
-            return data['section'] == selectedSectionFilter;
+            return data['section'] == _selectedSectionFilter;
           }).toList();
         }
 
         // Apply search
-        if (searchQuery.isNotEmpty) {
+        if (_searchQuery.isNotEmpty) {
           students = students.where((s) {
             final data = s.data() as Map<String, dynamic>;
             final name = (data['name'] ?? "").toString().toLowerCase();
             final roll = (data['rollNo'] ?? "").toString().toLowerCase();
-            return name.contains(searchQuery) || roll.contains(searchQuery);
+            return name.contains(_searchQuery) || roll.contains(_searchQuery);
           }).toList();
         }
 
@@ -279,7 +281,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         students.sort((a, b) {
           final aData = a.data() as Map<String, dynamic>;
           final bData = b.data() as Map<String, dynamic>;
-          switch (selectedSortBy) {
+
+          switch (_selectedSortBy) {
             case "Name":
               return (aData['name'] ?? "").compareTo(bData['name'] ?? "");
             case "Roll Number":
@@ -297,13 +300,14 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
 
         if (students.isEmpty) {
           return const Center(
-            child: Text("No matching students"),
+            child: Text("No matching students found"),
           );
         }
 
         return RefreshIndicator(
           onRefresh: () async {
             setState(() {});
+            await _loadFilters();
           },
           child: ListView.builder(
             padding: const EdgeInsets.only(bottom: 90),
@@ -313,12 +317,13 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
               final data = s.data() as Map<String, dynamic>;
               final studentId = s.id;
 
-              // Safe access with null handling
               final name = (data['name'] ?? "No Name").toString();
               final className = (data['class'] ?? "-").toString();
               final section = (data['section'] ?? "-").toString();
               final roll = (data['rollNo'] ?? "-").toString();
-              // Safe parent name access - check both possible field names
+              final admissionNo = (data['admissionNo'] ?? "-").toString();
+
+              // Get parent name from parentUid or direct field
               String parentName = "";
               if (data['parentName'] != null) {
                 parentName = data['parentName'].toString();
@@ -342,6 +347,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   return await showDialog(
                     context: context,
                     builder: (context) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       title: const Text("Delete Student"),
                       content: Text("Are you sure you want to delete $name?"),
                       actions: [
@@ -350,8 +358,12 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                           child: const Text("Cancel"),
                         ),
                         TextButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                          onPressed: () async {
+                            Navigator.pop(context, true);
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
                           child: const Text("Delete"),
                         ),
                       ],
@@ -359,17 +371,44 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   );
                 },
                 onDismissed: (direction) async {
-                  await FirebaseFirestore.instance
-                      .collection('schools')
-                      .doc(widget.schoolId)
-                      .collection('students')
-                      .doc(studentId)
-                      .delete();
+                  try {
+                    // Delete student document
+                    await FirebaseFirestore.instance
+                        .collection('schools')
+                        .doc(widget.schoolId)
+                        .collection('students')
+                        .doc(studentId)
+                        .delete();
 
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text("$name deleted")),
-                    );
+                    // Also delete from class subcollection
+                    if (className != "-") {
+                      await FirebaseFirestore.instance
+                          .collection('schools')
+                          .doc(widget.schoolId)
+                          .collection('classes')
+                          .doc(className)
+                          .collection('students')
+                          .doc(studentId)
+                          .delete();
+                    }
+
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("$name deleted successfully"),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Error deleting: $e"),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
                   }
                 },
                 child: Card(
@@ -380,15 +419,18 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                   ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     leading: CircleAvatar(
-                      radius: 24,
-                      backgroundColor: Colors.cyan.withValues(alpha: 0.15),
+                      radius: 26,
+                      backgroundColor: Colors.cyan.withValues(alpha: 0.1),
                       child: Text(
                         roll,
                         style: const TextStyle(
                           color: Colors.cyan,
                           fontWeight: FontWeight.bold,
+                          fontSize: 14,
                         ),
                       ),
                     ),
@@ -400,18 +442,29 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                       ),
                     ),
                     subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.only(top: 6),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "Class $className - $section | Roll $roll",
+                            "Class $className - $section | Roll: $roll",
                             style: const TextStyle(fontSize: 12),
                           ),
+                          if (admissionNo != "-")
+                            Text(
+                              "Admission No: $admissionNo",
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
                           if (parentName.isNotEmpty)
                             Text(
                               "Parent: $parentName",
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
                             ),
                         ],
                       ),
@@ -433,7 +486,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                             ).then((_) => setState(() {}));
                           },
                         ),
-                        const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                        const Icon(Icons.arrow_forward_ios,
+                            size: 16, color: Colors.grey),
                       ],
                     ),
                     onTap: () {
@@ -461,21 +515,27 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
         title: const Text("Filter Students"),
         content: StatefulBuilder(
           builder: (context, setState) {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButtonFormField<String>(
-                  value: selectedClassFilter,
+                DropdownButtonFormField<String?>(
+                  value: _selectedClassFilter,
                   hint: const Text("All Classes"),
                   decoration: const InputDecoration(
                     labelText: "Class",
                     border: OutlineInputBorder(),
                   ),
                   items: [
-                    const DropdownMenuItem(value: null, child: Text("All Classes")),
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text("All Classes"),
+                    ),
                     ..._availableClasses.map((className) {
                       return DropdownMenuItem(
                         value: className,
@@ -484,19 +544,24 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                     }).toList(),
                   ],
                   onChanged: (value) {
-                    setState(() => selectedClassFilter = value);
+                    setState(() {
+                      _selectedClassFilter = value;
+                    });
                   },
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedSectionFilter,
+                DropdownButtonFormField<String?>(
+                  value: _selectedSectionFilter,
                   hint: const Text("All Sections"),
                   decoration: const InputDecoration(
                     labelText: "Section",
                     border: OutlineInputBorder(),
                   ),
                   items: [
-                    const DropdownMenuItem(value: null, child: Text("All Sections")),
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text("All Sections"),
+                    ),
                     ..._availableSections.map((section) {
                       return DropdownMenuItem(
                         value: section,
@@ -505,7 +570,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                     }).toList(),
                   ],
                   onChanged: (value) {
-                    setState(() => selectedSectionFilter = value);
+                    setState(() {
+                      _selectedSectionFilter = value;
+                    });
                   },
                 ),
               ],
@@ -516,8 +583,8 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           TextButton(
             onPressed: () {
               setState(() {
-                selectedClassFilter = null;
-                selectedSectionFilter = null;
+                _selectedClassFilter = null;
+                _selectedSectionFilter = null;
               });
               Navigator.pop(context);
             },
@@ -536,6 +603,9 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
         title: const Text("Sort By"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -543,12 +613,15 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
             return RadioListTile<String>(
               title: Text(option),
               value: option,
-              groupValue: selectedSortBy,
+              groupValue: _selectedSortBy,
+              activeColor: Colors.cyan,
               onChanged: (value) {
-                setState(() {
-                  selectedSortBy = value!;
-                });
-                Navigator.pop(context);
+                if (value != null) {
+                  setState(() {
+                    _selectedSortBy = value;
+                  });
+                  Navigator.pop(context);
+                }
               },
             );
           }).toList(),
@@ -566,7 +639,11 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           const SizedBox(height: 16),
           Text(
             "No students added yet",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(

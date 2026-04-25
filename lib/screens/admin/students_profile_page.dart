@@ -60,7 +60,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
             onPressed: () => _editStudent(context),
           ),
           IconButton(
-            icon: const Icon(Icons.delete),
+            icon: const Icon(Icons.delete_outline),
             onPressed: () => _confirmDelete(context),
           ),
         ],
@@ -100,7 +100,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
     final name = data['name'] ?? "Student";
     final className = data['class'] ?? "-";
     final section = data['section'] ?? "-";
-    final roll = data['rollNo'] ?? "-";
+    final rollNo = data['rollNo'] ?? "-";
     final admissionNo = data['admissionNo'] ?? "-";
     final parentName = data['parentName'] ?? "-";
     final parentEmail = data['parentEmail'] ?? "-";
@@ -110,8 +110,6 @@ class _StudentProfilePageState extends State<StudentProfilePage>
     final address = data['address'] ?? "-";
 
     String dob = "-";
-
-    // FIXED: Handle both String and Timestamp formats for DOB
     if (data['dob'] != null) {
       try {
         if (data['dob'] is Timestamp) {
@@ -139,11 +137,11 @@ class _StudentProfilePageState extends State<StudentProfilePage>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          _buildHeaderCard(name, className, section, roll),
+          _buildHeaderCard(name, className, section, rollNo),
           const SizedBox(height: 16),
           _buildInfoCard("Personal Information", Icons.person, [
             _infoRow("Student Name", name),
-            _infoRow("Roll Number", roll),
+            _infoRow("Roll Number", rollNo),
             _infoRow("Admission Number", admissionNo),
             _infoRow("Gender", gender),
             _infoRow("Date of Birth", dob),
@@ -170,7 +168,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
     );
   }
 
-  Widget _buildHeaderCard(String name, String className, String section, String roll) {
+  Widget _buildHeaderCard(String name, String className, String section, String rollNo) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -218,7 +216,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
           ),
           const SizedBox(height: 4),
           Text(
-            "Class $className - $section | Roll No: $roll",
+            "Class $className - $section | Roll No: $rollNo",
             style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
@@ -298,13 +296,25 @@ class _StudentProfilePageState extends State<StudentProfilePage>
   Widget _buildAttendanceTab() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('attendance')
+          .collectionGroup('records')
+          .where('studentId', isEqualTo: widget.studentId)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.calendar_today, size: 64, color: Colors.grey.shade400),
+                const SizedBox(height: 16),
+                const Text("No attendance records found"),
+              ],
+            ),
+          );
         }
 
         int present = 0;
@@ -312,27 +322,22 @@ class _StudentProfilePageState extends State<StudentProfilePage>
         int late = 0;
         List<Map<String, dynamic>> records = [];
 
-        if (snapshot.hasData) {
-          for (var doc in snapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final date = doc.id;
+        for (var doc in snapshot.data!.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final parentDoc = doc.reference.parent.parent;
+          final date = parentDoc?.id ?? '';
+          final status = data['status'] ?? 'Absent';
 
-            if (data.containsKey(widget.studentId)) {
-              final studentRecord = data[widget.studentId] as Map<String, dynamic>;
-              final status = studentRecord['status'] ?? 'Absent';
+          records.add({
+            'date': date,
+            'status': status,
+            'checkInTime': data['checkInTime'],
+            'checkOutTime': data['checkOutTime'],
+          });
 
-              records.add({
-                'date': date,
-                'status': status,
-                'checkInTime': studentRecord['checkInTime'],
-                'checkOutTime': studentRecord['checkOutTime'],
-              });
-
-              if (status == 'Present') present++;
-              else if (status == 'Late') late++;
-              else absent++;
-            }
-          }
+          if (status == 'Present') present++;
+          else if (status == 'Late') late++;
+          else absent++;
         }
 
         final total = present + absent + late;
@@ -419,7 +424,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
         color = Colors.red;
         value = 0;
       }
-      barGroups.add(BarChartGroupData(x: i, barRods: [BarChartRodData(toY: value, color: color, width: 30, borderRadius: BorderRadius.circular(4))]));
+      barGroups.add(BarChartGroupData(x: i, barRods: [BarChartRodData(toY: value, color: color, width: 30) ]));
     }
 
     return Container(
@@ -439,16 +444,26 @@ class _StudentProfilePageState extends State<StudentProfilePage>
                 maxY: 100,
                 minY: 0,
                 titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (value, meta) => Text('${value.toInt()}%', style: const TextStyle(fontSize: 10)))),
-                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (value, meta) {
-                    int index = value.toInt();
-                    if (index >= 0 && index < last7Days.length) {
-                      return Text(DateFormat('E').format(DateTime.parse(last7Days[index])), style: const TextStyle(fontSize: 10));
-                    }
-                    return const Text('');
-                  })),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) => Text('${value.toInt()}%', style: const TextStyle(fontSize: 10)),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        int index = value.toInt();
+                        if (index >= 0 && index < last7Days.length) {
+                          return Text(DateFormat('E').format(DateTime.parse(last7Days[index])), style: const TextStyle(fontSize: 10));
+                        }
+                        return const Text('');
+                      },
+                    ),
+                  ),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
                 gridData: const FlGridData(show: true),
                 borderData: FlBorderData(show: true),
@@ -469,8 +484,9 @@ class _StudentProfilePageState extends State<StudentProfilePage>
   }
 
   Widget _buildRecentRecords(List<Map<String, dynamic>> records) {
-    var recentRecords = records.take(5).toList();
+    var recentRecords = List<Map<String, dynamic>>.from(records);
     recentRecords.sort((a, b) => b['date'].compareTo(a['date']));
+    if (recentRecords.length > 5) recentRecords = recentRecords.sublist(0, 5);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -491,11 +507,21 @@ class _StudentProfilePageState extends State<StudentProfilePage>
               final status = record['status'];
               final statusColor = status == 'Present' ? Colors.green : (status == 'Late' ? Colors.orange : Colors.red);
               return ListTile(
-                leading: CircleAvatar(backgroundColor: statusColor.withValues(alpha: 0.1), child: Icon(status == 'Present' ? Icons.check_circle : Icons.cancel, color: statusColor, size: 20)),
+                leading: CircleAvatar(
+                  backgroundColor: statusColor.withValues(alpha: 0.1),
+                  child: Icon(
+                    status == 'Present' ? Icons.check_circle : (status == 'Late' ? Icons.access_time : Icons.cancel),
+                    color: statusColor,
+                    size: 20,
+                  ),
+                ),
                 title: Text(DateFormat('EEEE, dd MMM yyyy').format(date)),
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
                 ),
               );
@@ -575,7 +601,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
                     ]),
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
-                      value: collectionRate / 100,
+                      value: (collectionRate / 100).toDouble(),
                       backgroundColor: Colors.grey.shade200,
                       valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
                       minHeight: 8,
@@ -602,14 +628,29 @@ class _StudentProfilePageState extends State<StudentProfilePage>
                         itemBuilder: (context, index) {
                           final fee = feesList[index];
                           final isPaid = fee['status'] == 'paid';
+                          String dueDateStr = "";
+                          if (fee['dueDate'] != null) {
+                            try {
+                              if (fee['dueDate'] is Timestamp) {
+                                dueDateStr = DateFormat('dd MMM yyyy').format((fee['dueDate'] as Timestamp).toDate());
+                              } else if (fee['dueDate'] is String) {
+                                dueDateStr = fee['dueDate'].toString();
+                              }
+                            } catch (e) {
+                              dueDateStr = "";
+                            }
+                          }
                           return ListTile(
                             leading: CircleAvatar(
                               backgroundColor: isPaid ? Colors.green.shade100 : Colors.red.shade100,
                               child: Icon(isPaid ? Icons.check : Icons.pending, color: isPaid ? Colors.green : Colors.red, size: 20),
                             ),
                             title: Text(fee['feeType']),
-                            subtitle: fee['dueDate'] != null ? Text("Due: ${DateFormat('dd MMM yyyy').format((fee['dueDate'] as Timestamp).toDate())}") : null,
-                            trailing: Text("₹${fee['amount'].toInt()}", style: TextStyle(fontWeight: FontWeight.bold, color: isPaid ? Colors.green : Colors.red)),
+                            subtitle: dueDateStr.isNotEmpty ? Text("Due: $dueDateStr") : null,
+                            trailing: Text(
+                              "₹${fee['amount'].toInt()}",
+                              style: TextStyle(fontWeight: FontWeight.bold, color: isPaid ? Colors.green : Colors.red),
+                            ),
                           );
                         },
                       ),
@@ -645,6 +686,9 @@ class _StudentProfilePageState extends State<StudentProfilePage>
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
         title: const Text("Delete Student"),
         content: const Text("Are you sure you want to delete this student? This action cannot be undone."),
         actions: [
@@ -658,6 +702,7 @@ class _StudentProfilePageState extends State<StudentProfilePage>
               foregroundColor: Colors.white,
             ),
             onPressed: () async {
+              // Delete from students collection
               await FirebaseFirestore.instance
                   .collection('schools')
                   .doc(widget.schoolId)
@@ -669,7 +714,10 @@ class _StudentProfilePageState extends State<StudentProfilePage>
                 Navigator.pop(context);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Student deleted successfully")),
+                  const SnackBar(
+                    content: Text("Student deleted successfully"),
+                    backgroundColor: Colors.green,
+                  ),
                 );
               }
             },

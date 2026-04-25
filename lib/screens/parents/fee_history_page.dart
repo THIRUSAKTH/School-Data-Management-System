@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 import '../../app_config.dart';
 
 class FeeHistoryPage extends StatefulWidget {
-  const FeeHistoryPage({super.key});
+  final String? studentId;
+
+  const FeeHistoryPage({super.key, this.studentId});
 
   @override
   State<FeeHistoryPage> createState() => _FeeHistoryPageState();
@@ -15,6 +17,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String? _selectedStudentId;
+  String? _selectedStudentName;
   List<Map<String, dynamic>> _students = [];
   bool _isLoading = true;
 
@@ -55,10 +58,34 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
       }).toList();
 
       if (_students.isNotEmpty) {
-        _selectedStudentId = _students.first['id'];
+        if (widget.studentId != null) {
+          // Manual search to avoid firstWhere issues
+          Map<String, dynamic>? matchingStudent;
+          for (var student in _students) {
+            if (student['id'] == widget.studentId) {
+              matchingStudent = student;
+              break;
+            }
+          }
+          matchingStudent ??= _students.first;
+
+          _selectedStudentId = matchingStudent['id'];
+          _selectedStudentName = matchingStudent['name'];
+        } else {
+          _selectedStudentId = _students.first['id'];
+          _selectedStudentName = _students.first['name'];
+        }
       }
     } catch (e) {
       debugPrint('Error loading students: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading students: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
 
     setState(() => _isLoading = false);
@@ -69,9 +96,16 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
-        title: const Text(
-          "Fee History",
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Fee History",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            if (_selectedStudentName != null && _selectedStudentName!.isNotEmpty)
+              Text(_selectedStudentName!, style: const TextStyle(fontSize: 12)),
+          ],
         ),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
@@ -86,6 +120,13 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
             Tab(icon: Icon(Icons.summarize), text: "Summary"),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => _loadStudents(),
+            tooltip: "Refresh",
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -93,14 +134,11 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
           ? _buildEmptyState()
           : Column(
         children: [
-          _buildStudentSelector(),
+          if (_students.length > 1) _buildStudentSelector(),
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                _buildAllFeesTab(),
-                _buildSummaryTab(),
-              ],
+              children: [_buildAllFeesTab(), _buildSummaryTab()],
             ),
           ),
         ],
@@ -123,6 +161,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
           Text(
             "Please contact the school admin to link your children.",
             style: TextStyle(color: Colors.grey.shade500),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -131,8 +170,8 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
 
   Widget _buildStudentSelector() {
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -146,35 +185,43 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
       ),
       child: Row(
         children: [
-          const Icon(Icons.person, color: Colors.blue),
-          const SizedBox(width: 12),
+          const Icon(Icons.switch_account, color: Colors.blue, size: 20),
+          const SizedBox(width: 8),
           const Text(
-            "Select Child:",
-            style: TextStyle(fontWeight: FontWeight.w500),
+            "Child:",
+            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
-            child: DropdownButtonFormField<String>(
-              value: _selectedStudentId,
-              hint: const Text("Choose Student"),
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedStudentId,
+                hint: const Text("Choose Student"),
+                isExpanded: true,
+                icon: const Icon(Icons.arrow_drop_down, color: Colors.blue),
+                items: _students.map<DropdownMenuItem<String>>((student) {
+                  return DropdownMenuItem<String>(
+                    value: student['id'] as String,
+                    child: Text(
+                      "${student['name']} (${student['class']} - ${student['section']})",
+                      style: const TextStyle(fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _selectedStudentId = value;
+                    for (var student in _students) {
+                      if (student['id'] == value) {
+                        _selectedStudentName = student['name'];
+                        break;
+                      }
+                    }
+                  });
+                },
               ),
-              items: _students.map<DropdownMenuItem<String>>((student) {
-                return DropdownMenuItem<String>(
-                  value: student['id'] as String,
-                  child: Text(
-                    "${student['name']} (${student['class']} - ${student['section']})",
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedStudentId = value;
-                });
-              },
             ),
           ),
         ],
@@ -200,6 +247,21 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
           return const Center(child: CircularProgressIndicator());
         }
 
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                const SizedBox(height: 16),
+                Text("Error loading fees"),
+                const SizedBox(height: 8),
+                Text(snapshot.error.toString(), style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+          );
+        }
+
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
             child: Column(
@@ -207,10 +269,9 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
               children: [
                 Icon(Icons.receipt, size: 64, color: Colors.grey.shade400),
                 const SizedBox(height: 16),
-                Text(
-                  "No fee records found",
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
+                Text("No fee records found"),
+                const SizedBox(height: 8),
+                Text("Fee details will appear here once added", style: TextStyle(fontSize: 12, color: Colors.grey)),
               ],
             ),
           );
@@ -218,14 +279,17 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
 
         final fees = snapshot.data!.docs;
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: fees.length,
-          itemBuilder: (context, index) {
-            final doc = fees[index];
-            final data = doc.data() as Map<String, dynamic>;
-            return _buildFeeCard(data, doc.id);
-          },
+        return RefreshIndicator(
+          onRefresh: () async => setState(() {}),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: fees.length,
+            itemBuilder: (context, index) {
+              final doc = fees[index];
+              final data = doc.data() as Map<String, dynamic>;
+              return _buildFeeCard(data, doc.id);
+            },
+          ),
         );
       },
     );
@@ -243,37 +307,33 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
     final paymentDate = data['paymentDate'] != null
         ? (data['paymentDate'] as Timestamp).toDate()
         : null;
-    final transactionId = data['transactionId'] ?? '';
 
-    Color statusColor;
-    IconData statusIcon;
-    String statusText;
+    final isOverdue = dueDate != null && dueDate.isBefore(DateTime.now()) && status != 'paid';
 
-    switch (status) {
-      case 'paid':
-        statusColor = Colors.green;
-        statusIcon = Icons.check_circle;
-        statusText = 'Paid';
-        break;
-      case 'partial':
-        statusColor = Colors.orange;
-        statusIcon = Icons.pending;
-        statusText = 'Partial';
-        break;
-      default:
-        statusColor = Colors.red;
-        statusIcon = Icons.cancel;
-        statusText = 'Pending';
+    Color getStatusColor() {
+      if (status == 'paid') return Colors.green;
+      if (status == 'partial') return Colors.orange;
+      return Colors.red;
+    }
+
+    IconData getStatusIcon() {
+      if (status == 'paid') return Icons.check_circle;
+      if (status == 'partial') return Icons.pending;
+      return Icons.cancel;
+    }
+
+    String getStatusText() {
+      if (status == 'paid') return 'Paid';
+      if (status == 'partial') return 'Partial';
+      return 'Pending';
     }
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: status == 'pending'
-            ? BorderSide(color: Colors.red.shade100, width: 1)
-            : BorderSide.none,
+        side: isOverdue ? BorderSide(color: Colors.red.shade300, width: 1.5) : BorderSide.none,
       ),
       child: InkWell(
         onTap: () => _showFeeDetails(data, docId),
@@ -288,43 +348,41 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
+                      color: getStatusColor().withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(statusIcon, color: statusColor, size: 24),
+                    child: Icon(getStatusIcon(), color: getStatusColor(), size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(feeType, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                         Text(
-                          feeType,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                          dueDate != null
+                              ? "Due: ${DateFormat('dd MMM yyyy').format(dueDate)}"
+                              : "No due date",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isOverdue ? Colors.red : Colors.grey.shade600,
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Due: ${dueDate != null ? DateFormat('dd MMM yyyy').format(dueDate) : 'Not specified'}",
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
+                      color: getStatusColor().withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      statusText,
+                      getStatusText(),
                       style: TextStyle(
-                        color: statusColor,
+                        color: getStatusColor(),
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                        fontSize: 11,
                       ),
                     ),
                   ),
@@ -336,63 +394,70 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Total Amount",
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "₹${amount.toStringAsFixed(0)}",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (paidAmount > 0)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          "Paid Amount",
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "₹${paidAmount.toStringAsFixed(0)}",
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
-                        ),
+                        Text("Total", style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text("₹${amount.toStringAsFixed(0)}", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ],
                     ),
-                  if (remainingAmount > 0)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          "Remaining",
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "₹${remainingAmount.toStringAsFixed(0)}",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: status == 'partial' ? Colors.orange : Colors.red,
+                  ),
+                  if (paidAmount > 0)
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text("Paid", style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          Text(
+                            "₹${paidAmount.toStringAsFixed(0)}",
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                  if (remainingAmount > 0)
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text("Remaining", style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          Text(
+                            "₹${remainingAmount.toStringAsFixed(0)}",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: status == 'partial' ? Colors.orange : Colors.red,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                 ],
               ),
+              if (isOverdue)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning, size: 14, color: Colors.red.shade700),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            "Payment overdue! Please pay as soon as possible.",
+                            style: TextStyle(fontSize: 11, color: Colors.red.shade700),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               if (status == 'paid' && paymentDate != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -431,19 +496,22 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (snapshot.hasError) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.summarize, size: 64, color: Colors.grey.shade400),
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
                 const SizedBox(height: 16),
-                Text(
-                  "No fee records found",
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
+                Text("Error loading summary"),
               ],
             ),
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(
+            child: Text("No fee records found"),
           );
         }
 
@@ -451,16 +519,19 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
 
         double totalAmount = 0;
         double totalPaid = 0;
-        double totalPending = 0;
         int paidCount = 0;
         int pendingCount = 0;
         int partialCount = 0;
+        int overdueCount = 0;
 
         for (var doc in fees) {
           final data = doc.data() as Map<String, dynamic>;
           final amount = (data['amount'] ?? 0).toDouble();
           final paidAmount = (data['paidAmount'] ?? 0).toDouble();
           final status = data['status'] ?? 'pending';
+          final dueDate = data['dueDate'] != null
+              ? (data['dueDate'] as Timestamp).toDate()
+              : null;
 
           totalAmount += amount;
           totalPaid += paidAmount;
@@ -471,137 +542,81 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
             partialCount++;
           } else {
             pendingCount++;
+            if (dueDate != null && dueDate.isBefore(DateTime.now())) {
+              overdueCount++;
+            }
           }
         }
 
-        totalPending = totalAmount - totalPaid;
-        final collectionRate = totalAmount > 0 ? (totalPaid / totalAmount) * 100 : 0;
+        final totalPending = totalAmount - totalPaid;
+        final collectionRate = totalAmount > 0 ? (totalPaid / totalAmount) * 100 : 0.0;
 
-        // Get student name
-        final student = _students.firstWhere(
-              (s) => s['id'] == _selectedStudentId,
-          orElse: () => {'name': 'Student'},
-        );
+        // Manual search for student
+        Map<String, dynamic>? student;
+        for (var s in _students) {
+          if (s['id'] == _selectedStudentId) {
+            student = s;
+            break;
+          }
+        }
+        student ??= {'name': 'Student', 'class': '', 'section': '', 'rollNo': ''};
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // Student Info Card
-              _buildStudentInfoCard(student['name']),
-              const SizedBox(height: 16),
-
-              // Summary Cards
-              _buildSummaryCard(
-                title: "Total Amount",
-                value: "₹${totalAmount.toStringAsFixed(0)}",
-                color: Colors.blue,
-                icon: Icons.account_balance_wallet,
-              ),
-              const SizedBox(height: 12),
-
-              _buildSummaryCard(
-                title: "Total Paid",
-                value: "₹${totalPaid.toStringAsFixed(0)}",
-                color: Colors.green,
-                icon: Icons.check_circle,
-              ),
-              const SizedBox(height: 12),
-
-              _buildSummaryCard(
-                title: "Total Pending",
-                value: "₹${totalPending.toStringAsFixed(0)}",
-                color: Colors.red,
-                icon: Icons.pending,
-              ),
-              const SizedBox(height: 12),
-
-              // Collection Rate
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+        return RefreshIndicator(
+          onRefresh: () async => setState(() {}),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                _buildStudentInfoCard(
+                  student!['name'],
+                  student['class'],
+                  student['section'],
+                  student['rollNo'],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: 12),
+                Row(
                   children: [
-                    const Text(
-                      "Collection Rate",
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                    Expanded(
+                      child: _buildSummaryCard(
+                        "Total",
+                        "₹${totalAmount.toStringAsFixed(0)}",
+                        Colors.blue,
+                        Icons.account_balance_wallet,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: LinearProgressIndicator(
-                            value: collectionRate / 100,
-                            backgroundColor: Colors.grey.shade200,
-                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
-                            minHeight: 8,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          "${collectionRate.toStringAsFixed(1)}%",
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSummaryCard(
+                        "Paid",
+                        "₹${totalPaid.toStringAsFixed(0)}",
+                        Colors.green,
+                        Icons.check_circle,
+                      ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Fee Breakdown
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSummaryCard(
+                        "Pending",
+                        "₹${totalPending.toStringAsFixed(0)}",
+                        Colors.red,
+                        Icons.pending,
+                      ),
                     ),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Fee Breakdown",
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-                    _breakdownRow("Paid Fees", paidCount, Colors.green),
-                    _breakdownRow("Pending Fees", pendingCount, Colors.red),
-                    if (partialCount > 0)
-                      _breakdownRow("Partial Payments", partialCount, Colors.orange),
-                  ],
-                ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                _buildCollectionRateCard(collectionRate),
+                const SizedBox(height: 12),
+                _buildFeeBreakdownCard(paidCount, pendingCount, partialCount, overdueCount),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildStudentInfoCard(String studentName) {
+  Widget _buildStudentInfoCard(String name, String className, String section, String rollNo) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -624,18 +639,9 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "Fee Summary for",
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                Text(
-                  studentName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                const Text("Fee Summary for", style: TextStyle(color: Colors.white70, fontSize: 11)),
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                Text("Class $className-$section | Roll No: $rollNo", style: const TextStyle(color: Colors.white70, fontSize: 10)),
               ],
             ),
           ),
@@ -644,69 +650,96 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
     );
   }
 
-  Widget _buildSummaryCard({
-    required String title,
-    required String value,
-    required Color color,
-    required IconData icon,
-  }) {
+  Widget _buildSummaryCard(String title, String value, Color color, IconData icon) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 4),
+          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+          Text(title, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
         ],
       ),
-      child: Row(
+    );
+  }
+
+  Widget _buildCollectionRateCard(double collectionRate) {
+    Color getRateColor() {
+      if (collectionRate >= 90) return Colors.green;
+      if (collectionRate >= 70) return Colors.orange;
+      return Colors.red;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          const Text("Collection Rate", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: LinearProgressIndicator(
+                  value: (collectionRate / 100).toDouble(),
+                  backgroundColor: Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation<Color>(getRateColor()),
+                  minHeight: 8,
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                "${collectionRate.toStringAsFixed(1)}%",
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: getRateColor()),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _breakdownRow(String label, int count, Color color) {
+  Widget _buildFeeBreakdownCard(int paidCount, int pendingCount, int partialCount, int overdueCount) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Fee Breakdown", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          _breakdownRow("Paid Fees", paidCount, Colors.green),
+          _breakdownRow("Pending Fees", pendingCount, Colors.red),
+          if (overdueCount > 0)
+            _breakdownRow("Overdue Fees", overdueCount, Colors.red, isOverdue: true),
+          if (partialCount > 0)
+            _breakdownRow("Partial Payments", partialCount, Colors.orange),
+        ],
+      ),
+    );
+  }
+
+  Widget _breakdownRow(String label, int count, Color color, {bool isOverdue = false}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
           Container(
-            width: 12,
-            height: 12,
+            width: 10,
+            height: 10,
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(2),
@@ -716,14 +749,17 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13),
+              style: TextStyle(
+                fontSize: 12,
+                color: isOverdue ? Colors.red : Colors.grey.shade700,
+              ),
             ),
           ),
           Text(
-            "$count",
+            count.toString(),
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: 14,
+              fontSize: 13,
               color: color,
             ),
           ),
@@ -744,8 +780,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
     final paymentDate = data['paymentDate'] != null
         ? (data['paymentDate'] as Timestamp).toDate()
         : null;
-    final transactionId = data['transactionId'] ?? '';
-    final remarks = data['remarks'] ?? '';
+    final description = data['description'] ?? '';
 
     showModalBottomSheet(
       context: context,
@@ -758,108 +793,105 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
         minChildSize: 0.4,
         maxChildSize: 0.9,
         expand: false,
-        builder: (context, scrollController) {
-          return Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
+        builder: (context, scrollController) => Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2),
+                      color: status == 'paid'
+                          ? Colors.green.shade100
+                          : Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      status == 'paid' ? Icons.check : Icons.pending,
+                      color: status == 'paid' ? Colors.green : Colors.red,
+                      size: 30,
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: status == 'paid' ? Colors.green.shade100 : Colors.red.shade100,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        status == 'paid' ? Icons.check : Icons.pending,
-                        color: status == 'paid' ? Colors.green : Colors.red,
-                        size: 30,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            feeType,
-                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(feeType, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text(
+                          "Status: ${status.toUpperCase()}",
+                          style: TextStyle(
+                            color: status == 'paid' ? Colors.green : Colors.red,
+                            fontSize: 13,
                           ),
-                          Text(
-                            "Status: ${status.toUpperCase()}",
-                            style: TextStyle(
-                              color: status == 'paid' ? Colors.green : Colors.red,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Divider(),
-                _detailRow("Total Amount", "₹${amount.toStringAsFixed(0)}"),
-                if (paidAmount > 0) _detailRow("Paid Amount", "₹${paidAmount.toStringAsFixed(0)}"),
-                if (remainingAmount > 0) _detailRow("Remaining Amount", "₹${remainingAmount.toStringAsFixed(0)}"),
-                if (dueDate != null) _detailRow("Due Date", DateFormat('dd MMM yyyy').format(dueDate)),
-                if (paymentDate != null) _detailRow("Payment Date", DateFormat('dd MMM yyyy').format(paymentDate)),
-                if (transactionId.isNotEmpty) _detailRow("Transaction ID", transactionId),
-                if (remarks.isNotEmpty) _detailRow("Remarks", remarks),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text("Close"),
                   ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              _detailRow("Total Amount", "₹${amount.toStringAsFixed(0)}"),
+              if (paidAmount > 0)
+                _detailRow("Paid Amount", "₹${paidAmount.toStringAsFixed(0)}"),
+              if (remainingAmount > 0)
+                _detailRow("Remaining Amount", "₹${remainingAmount.toStringAsFixed(0)}"),
+              if (dueDate != null)
+                _detailRow("Due Date", DateFormat('dd MMM yyyy').format(dueDate)),
+              if (paymentDate != null)
+                _detailRow("Payment Date", DateFormat('dd MMM yyyy').format(paymentDate)),
+              if (description.isNotEmpty)
+                _detailRow("Description", description),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text("Close"),
                 ),
-              ],
-            ),
-          );
-        },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _detailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 110,
             child: Text(
               label,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
             ),
           ),
         ],

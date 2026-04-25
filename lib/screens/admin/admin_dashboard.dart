@@ -5,7 +5,9 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:schoolprojectjan/app_config.dart';
+import 'package:schoolprojectjan/screens/admin/admin_complaints_page.dart';
 import 'package:schoolprojectjan/screens/admin/exam_management_page.dart';
+import 'package:schoolprojectjan/screens/admin/notice_post_page.dart';
 import 'package:schoolprojectjan/screens/admin/school_settings_page.dart';
 import 'package:schoolprojectjan/screens/admin/select_class_for_attendance_page.dart';
 import 'package:schoolprojectjan/screens/common/profile_page.dart';
@@ -26,9 +28,7 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
-  String _selectedPeriod = "week"; // week, month, year
-
-  // Cache for chart data to prevent excessive rebuilds
+  String _selectedPeriod = "week";
   Map<String, dynamic> _cachedChartData = {};
   DateTime _lastFetchTime = DateTime.now();
 
@@ -41,35 +41,36 @@ class _AdminDashboardState extends State<AdminDashboard> {
   void _logout(BuildContext context) async {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Logout"),
-        content: const Text("Are you sure you want to logout?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text("Logout"),
+            content: const Text("Are you sure you want to logout?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () async {
+                  await FirebaseAuth.instance.signOut();
+                  if (mounted) {
+                    Navigator.pushReplacementNamed(context, '/login');
+                  }
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text("Logout"),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              if (mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                      (route) => false,
-                );
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Logout"),
-          ),
-        ],
-      ),
     );
   }
+
   Future<void> _fetchChartData() async {
-    // Only fetch if data is older than 5 minutes
-    if (DateTime.now().difference(_lastFetchTime).inMinutes < 5 && _cachedChartData.isNotEmpty) {
+    if (DateTime.now().difference(_lastFetchTime).inMinutes < 5 &&
+        _cachedChartData.isNotEmpty) {
       return;
     }
 
@@ -77,80 +78,75 @@ class _AdminDashboardState extends State<AdminDashboard> {
       _lastFetchTime = DateTime.now();
     });
 
-    // Fetch attendance data for chart
-    final attendanceSnapshot = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(AppConfig.schoolId)
-        .collection('attendance')
-        .get();
+    try {
+      final attendanceSnapshot =
+          await FirebaseFirestore.instance.collectionGroup('records').get();
 
-    // Fetch fee data for chart
-    final feeSnapshot = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(AppConfig.schoolId)
-        .collection('fees')
-        .get();
+      final feeSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('student_fees')
+              .get();
 
-    // Process attendance data
-    Map<String, int> dailyAttendance = {};
-    Map<String, int> classAttendance = {};
-    int totalPresent = 0;
-    int totalAbsent = 0;
+      Map<String, int> dailyAttendance = {};
+      int totalPresent = 0;
+      int totalAbsent = 0;
 
-    for (var doc in attendanceSnapshot.docs) {
-      final data = doc.data();
-      final date = data['date'] as String?;
-      final status = data['status'] as String?;
-      final className = data['className'] as String? ?? 'Unknown';
+      for (var doc in attendanceSnapshot.docs) {
+        final data = doc.data();
+        final parentDoc = doc.reference.parent.parent;
+        final date = parentDoc?.id ?? '';
+        final status = data['status'] as String?;
 
-      if (date != null && status != null) {
-        if (status == 'Present') {
-          totalPresent++;
-          dailyAttendance[date] = (dailyAttendance[date] ?? 0) + 1;
-        } else if (status == 'Absent') {
-          totalAbsent++;
-        }
-
-        classAttendance[className] = (classAttendance[className] ?? 0) + (status == 'Present' ? 1 : 0);
-      }
-    }
-
-    // Process fee data
-    double totalCollected = 0;
-    double totalPending = 0;
-    Map<String, double> monthlyFee = {};
-
-    for (var doc in feeSnapshot.docs) {
-      final data = doc.data();
-      final amount = (data['amount'] as num?)?.toDouble() ?? 0;
-      final status = data['status'] as String?;
-      final date = data['date'] as String?;
-
-      if (date != null) {
-        final month = date.substring(0, 7);
-        if (status == 'Paid') {
-          totalCollected += amount;
-          monthlyFee[month] = (monthlyFee[month] ?? 0) + amount;
-        } else {
-          totalPending += amount;
+        if (date.isNotEmpty && status != null) {
+          if (status == 'Present') {
+            totalPresent++;
+            dailyAttendance[date] = (dailyAttendance[date] ?? 0) + 1;
+          } else if (status == 'Absent') {
+            totalAbsent++;
+          }
         }
       }
-    }
 
-    setState(() {
-      _cachedChartData = {
-        'totalPresent': totalPresent,
-        'totalAbsent': totalAbsent,
-        'dailyAttendance': dailyAttendance,
-        'classAttendance': classAttendance,
-        'totalCollected': totalCollected,
-        'totalPending': totalPending,
-        'monthlyFee': monthlyFee,
-        'attendanceRate': totalPresent + totalAbsent > 0
-            ? (totalPresent / (totalPresent + totalAbsent)) * 100
-            : 0,
-      };
-    });
+      double totalCollected = 0;
+      double totalPending = 0;
+      Map<String, double> monthlyFee = {};
+
+      for (var doc in feeSnapshot.docs) {
+        final data = doc.data();
+        final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+        final status = data['status'] as String?;
+        final dueDate = data['dueDate'] as Timestamp?;
+
+        if (dueDate != null) {
+          final month = DateFormat('yyyy-MM').format(dueDate.toDate());
+          if (status == 'paid') {
+            totalCollected += amount;
+            monthlyFee[month] = (monthlyFee[month] ?? 0) + amount;
+          } else {
+            totalPending += amount;
+          }
+        }
+      }
+
+      setState(() {
+        _cachedChartData = {
+          'totalPresent': totalPresent,
+          'totalAbsent': totalAbsent,
+          'dailyAttendance': dailyAttendance,
+          'totalCollected': totalCollected,
+          'totalPending': totalPending,
+          'monthlyFee': monthlyFee,
+          'attendanceRate':
+              totalPresent + totalAbsent > 0
+                  ? (totalPresent / (totalPresent + totalAbsent)) * 100
+                  : 0,
+        };
+      });
+    } catch (e) {
+      debugPrint('Error fetching chart data: $e');
+    }
   }
 
   @override
@@ -160,38 +156,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
       drawer: _buildDrawer(context),
       appBar: _buildAppBar(),
       body: RefreshIndicator(
-        onRefresh: () async {
-          await _fetchChartData();
-        },
+        onRefresh: _fetchChartData,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Stats Cards
               _buildStatsGrid(),
-              const SizedBox(height: 24),
-
-              // Today's Overview
+              const SizedBox(height: 20),
               _buildTodayOverview(),
-              const SizedBox(height: 24),
-
-              // Period Selector & Charts
+              const SizedBox(height: 20),
               _buildPeriodSelector(),
               const SizedBox(height: 16),
-
-              // Attendance Chart
               _buildAttendanceChart(),
-              const SizedBox(height: 24),
-
-              // Fee Collection Chart
-              _buildFeeChart(),
-              const SizedBox(height: 24),
-
-              // Quick Actions
-              _buildQuickActions(),
               const SizedBox(height: 20),
+              _buildFeeChart(),
+              const SizedBox(height: 20),
+              _buildQuickActions(),
+              const SizedBox(height: 80),
             ],
           ),
         ),
@@ -205,46 +189,33 @@ class _AdminDashboardState extends State<AdminDashboard> {
       foregroundColor: Colors.white,
       elevation: 0,
       title: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('schools')
-            .doc(AppConfig.schoolId)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('schools')
+                .doc(AppConfig.schoolId)
+                .snapshots(),
         builder: (context, snapshot) {
-          String schoolName = "School";
-          String logoUrl = "";
-
+          String schoolName = "Smart School";
           if (snapshot.hasData && snapshot.data!.exists) {
-            final school = snapshot.data!;
-            schoolName = school['schoolName'] ?? "School";
-            logoUrl = school['logoUrl'] ?? "";
+            schoolName = snapshot.data!['schoolName'] ?? "Smart School";
           }
-
           return Row(
             children: [
-              if (logoUrl.isNotEmpty)
-                CircleAvatar(
-                  backgroundImage: NetworkImage(logoUrl),
-                  radius: 18,
-                ),
+              const CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.white,
+                child: Icon(Icons.school, size: 22, color: Colors.blue),
+              ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      schoolName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Text(
-                      "Admin Dashboard",
-                      style: TextStyle(fontSize: 12, color: Colors.white70),
-                    ),
-                  ],
+                child: Text(
+                  schoolName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -254,23 +225,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
       actions: [
         IconButton(
           icon: const Icon(Icons.refresh),
-          onPressed: () async {
-            await _fetchChartData();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Dashboard refreshed')),
-              );
-            }
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined),
-          onPressed: () {
-            // TODO: Navigate to notifications
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Notifications coming soon')),
-            );
-          },
+          onPressed: _fetchChartData,
+          tooltip: "Refresh",
         ),
         IconButton(
           icon: const Icon(Icons.logout),
@@ -288,7 +244,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
-      childAspectRatio: 1.2,
+      childAspectRatio: 1.1,
       children: [
         _buildLiveCard(
           "Students",
@@ -311,7 +267,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               .snapshots(),
         ),
         _buildLiveCard(
-          "Fees\nCollected",
+          "Fees Collected",
           Icons.currency_rupee,
           Colors.green,
           null,
@@ -319,7 +275,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           isCurrency: true,
         ),
         _buildLiveCard(
-          "Attendance\nRate",
+          "Attendance Rate",
           Icons.check_circle,
           Colors.orange,
           null,
@@ -331,14 +287,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildLiveCard(
-      String title,
-      IconData icon,
-      Color color,
-      Stream<QuerySnapshot>? stream, {
-        int? customValue,
-        bool isCurrency = false,
-        String suffix = '',
-      }) {
+    String title,
+    IconData icon,
+    Color color,
+    Stream<QuerySnapshot>? stream, {
+    int? customValue,
+    bool isCurrency = false,
+    String suffix = '',
+  }) {
     if (stream != null) {
       return StreamBuilder<QuerySnapshot>(
         stream: stream,
@@ -371,26 +327,35 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildTodayOverview() {
     return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('attendance')
-          .where('date', isEqualTo: DateFormat('yyyy-MM-dd').format(DateTime.now()))
-          .get(),
+      future:
+          FirebaseFirestore.instance
+              .collectionGroup('records')
+              .where(
+                'date',
+                isEqualTo: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+              )
+              .get(),
       builder: (context, snapshot) {
         int presentToday = 0;
         int absentToday = 0;
+        int lateToday = 0;
 
         if (snapshot.hasData) {
           for (var doc in snapshot.data!.docs) {
             final data = doc.data() as Map<String, dynamic>;
-            if (data['status'] == 'Present') {
+            final status = data['status'] ?? '';
+            if (status == 'Present') {
               presentToday++;
-            } else if (data['status'] == 'Absent') {
+            } else if (status == 'Late') {
+              lateToday++;
+            } else if (status == 'Absent') {
               absentToday++;
             }
           }
         }
+
+        final total = presentToday + absentToday + lateToday;
+        final rate = total > 0 ? (presentToday / total) * 100 : 0;
 
         return Container(
           padding: const EdgeInsets.all(16),
@@ -418,6 +383,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     color: Colors.green,
                     icon: Icons.check_circle,
                   ),
+                  if (lateToday > 0)
+                    _OverviewItem(
+                      title: "Late",
+                      value: lateToday.toString(),
+                      color: Colors.orange,
+                      icon: Icons.access_time,
+                    ),
                   _OverviewItem(
                     title: "Absent",
                     value: absentToday.toString(),
@@ -425,10 +397,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     icon: Icons.cancel,
                   ),
                   _OverviewItem(
-                    title: "Attendance Rate",
-                    value: presentToday + absentToday > 0
-                        ? "${((presentToday / (presentToday + absentToday)) * 100).toStringAsFixed(1)}%"
-                        : "0%",
+                    title: "Rate",
+                    value: "${rate.toStringAsFixed(1)}%",
                     color: Colors.orange,
                     icon: Icons.trending_up,
                   ),
@@ -443,7 +413,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildPeriodSelector() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.all(8),
       decoration: _cardDecoration(),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -452,31 +422,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
             label: "Week",
             value: "week",
             selected: _selectedPeriod == "week",
-            onTap: () {
-              setState(() {
-                _selectedPeriod = "week";
-              });
-            },
+            onTap: () => setState(() => _selectedPeriod = "week"),
           ),
           _PeriodChip(
             label: "Month",
             value: "month",
             selected: _selectedPeriod == "month",
-            onTap: () {
-              setState(() {
-                _selectedPeriod = "month";
-              });
-            },
+            onTap: () => setState(() => _selectedPeriod = "month"),
           ),
           _PeriodChip(
             label: "Year",
             value: "year",
             selected: _selectedPeriod == "year",
-            onTap: () {
-              setState(() {
-                _selectedPeriod = "year";
-              });
-            },
+            onTap: () => setState(() => _selectedPeriod = "year"),
           ),
         ],
       ),
@@ -486,23 +444,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Widget _buildAttendanceChart() {
     final dailyData = _cachedChartData['dailyAttendance'] ?? {};
     List<FlSpot> spots = [];
-
-    // Get last 7 days
     List<String> last7Days = [];
+
     for (int i = 6; i >= 0; i--) {
-      last7Days.add(DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(Duration(days: i))));
+      final date = DateFormat(
+        'yyyy-MM-dd',
+      ).format(DateTime.now().subtract(Duration(days: i)));
+      last7Days.add(date);
+      spots.add(FlSpot(i.toDouble(), (dailyData[date] ?? 0).toDouble()));
     }
-
-    int maxValue = 0;
-    for (int i = 0; i < last7Days.length; i++) {
-      int count = dailyData[last7Days[i]] ?? 0;
-      spots.add(FlSpot(i.toDouble(), count.toDouble()));
-      if (count > maxValue) maxValue = count;
-    }
-
-    // Calculate interval - ensure it's not zero
-    double interval = (maxValue / 5).ceilToDouble();
-    if (interval == 0) interval = 1;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -527,19 +477,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           const SizedBox(height: 20),
           SizedBox(
-            height: 250,
+            height: 200,
             child: LineChart(
               LineChartData(
-                gridData: FlGridData(show: true, drawVerticalLine: false),
+                gridData: const FlGridData(show: true),
                 titlesData: FlTitlesData(
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 40,
-                      interval: interval,
-                      getTitlesWidget: (value, meta) {
-                        return Text(value.toInt().toString(), style: const TextStyle(fontSize: 10));
-                      },
+                      getTitlesWidget:
+                          (value, meta) => Text(
+                            value.toInt().toString(),
+                            style: const TextStyle(fontSize: 10),
+                          ),
                     ),
                   ),
                   bottomTitles: AxisTitles(
@@ -548,21 +499,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       getTitlesWidget: (value, meta) {
                         int index = value.toInt();
                         if (index >= 0 && index < last7Days.length) {
-                          DateTime date = DateTime.parse(last7Days[index]);
-                          return Text(DateFormat('E').format(date), style: const TextStyle(fontSize: 10));
+                          return Text(
+                            DateFormat(
+                              'E',
+                            ).format(DateTime.parse(last7Days[index])),
+                            style: const TextStyle(fontSize: 10),
+                          );
                         }
                         return const Text('');
                       },
                     ),
                   ),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 borderData: FlBorderData(show: true),
-                minX: 0,
-                maxX: 6,
-                minY: 0,
-                maxY: (maxValue + 5).toDouble(),
                 lineBarsData: [
                   LineChartBarData(
                     spots: spots,
@@ -583,22 +538,27 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     );
   }
+
   Widget _buildFeeChart() {
     final monthlyFee = _cachedChartData['monthlyFee'] ?? {};
-    // FIXED: Properly convert keys to List<String>
+
+    // FIXED: Safely convert keys to List<String>
     List<String> months = [];
     for (var key in monthlyFee.keys) {
       months.add(key.toString());
     }
     months.sort();
-    // If no data, show last 6 months
+
     if (months.isEmpty) {
       for (int i = 5; i >= 0; i--) {
-        months.add(DateFormat('yyyy-MM').format(DateTime.now().subtract(Duration(days: 30 * i))));
+        months.add(
+          DateFormat(
+            'yyyy-MM',
+          ).format(DateTime.now().subtract(Duration(days: 30 * i))),
+        );
       }
     }
 
-    // Take last 6 months
     if (months.length > 6) {
       months = months.sublist(months.length - 6);
     }
@@ -609,7 +569,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     for (int i = 0; i < months.length; i++) {
       double amount = monthlyFee[months[i]] ?? 0;
       if (amount > maxY) maxY = amount;
-
       barGroups.add(
         BarChartGroupData(
           x: i,
@@ -652,7 +611,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           const SizedBox(height: 20),
           SizedBox(
-            height: 250,
+            height: 200,
             child: BarChart(
               BarChartData(
                 barGroups: barGroups,
@@ -667,9 +626,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       interval: interval,
                       getTitlesWidget: (value, meta) {
                         if (value >= 1000) {
-                          return Text('₹${(value / 1000).toInt()}k', style: const TextStyle(fontSize: 10));
+                          return Text(
+                            '₹${(value / 1000).toInt()}k',
+                            style: const TextStyle(fontSize: 10),
+                          );
                         }
-                        return Text('₹${value.toInt()}', style: const TextStyle(fontSize: 10));
+                        return Text(
+                          '₹${value.toInt()}',
+                          style: const TextStyle(fontSize: 10),
+                        );
                       },
                     ),
                   ),
@@ -681,14 +646,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         if (index >= 0 && index < months.length) {
                           String month = months[index];
                           DateTime date = DateTime.parse('$month-01');
-                          return Text(DateFormat('MMM').format(date), style: const TextStyle(fontSize: 10));
+                          return Text(
+                            DateFormat('MMM').format(date),
+                            style: const TextStyle(fontSize: 10),
+                          );
                         }
                         return const Text('');
                       },
                     ),
                   ),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 gridData: const FlGridData(show: true),
                 borderData: FlBorderData(show: true),
@@ -698,7 +670,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
                       return BarTooltipItem(
                         '₹${rod.toY.toInt()}',
-                        const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       );
                     },
                   ),
@@ -710,6 +685,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     );
   }
+
   Widget _buildQuickActions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -720,64 +696,70 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ),
         const SizedBox(height: 12),
         GridView.count(
-          crossAxisCount: 4,
+          crossAxisCount: 2,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 0.9,
+          childAspectRatio: 1.2,
           children: [
             _QuickActionCard(
               icon: Icons.person_add,
               label: "Add Student",
               color: Colors.blue,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => StudentManagementPage(schoolId: AppConfig.schoolId),
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) => StudentManagementPage(
+                            schoolId: AppConfig.schoolId,
+                          ),
+                    ),
                   ),
-                );
-              },
             ),
             _QuickActionCard(
               icon: Icons.school,
               label: "Add Teacher",
               color: Colors.purple,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TeacherManagementPage(schoolId: AppConfig.schoolId),
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) => TeacherManagementPage(
+                            schoolId: AppConfig.schoolId,
+                          ),
+                    ),
                   ),
-                );
-              },
-            ),
-            _QuickActionCard(
-              icon: Icons.analytics,
-              label: "Analytics",
-              color: Colors.orange,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AdminAnalyticsPage(schoolId: AppConfig.schoolId),
-                  ),
-                );
-              },
             ),
             _QuickActionCard(
               icon: Icons.currency_rupee,
               label: "Upload Fees",
               color: Colors.green,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AdminFeeUploadPage(schoolId: AppConfig.schoolId),
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) =>
+                              AdminFeeUploadPage(schoolId: AppConfig.schoolId),
+                    ),
                   ),
-                );
-              },
+            ),
+            _QuickActionCard(
+              icon: Icons.analytics,
+              label: "Analytics",
+              color: Colors.orange,
+              onTap:
+                  () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) =>
+                              AdminAnalyticsPage(schoolId: AppConfig.schoolId),
+                    ),
+                  ),
             ),
           ],
         ),
@@ -791,7 +773,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         padding: EdgeInsets.zero,
         children: [
           Container(
-            height: 120,
+            height: 140,
             decoration: const BoxDecoration(
               color: Colors.blue,
               borderRadius: BorderRadius.only(
@@ -804,56 +786,138 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircleAvatar(
-                    radius: 30,
+                    radius: 35,
                     backgroundColor: Colors.white,
-                    child: Icon(Icons.admin_panel_settings, size: 35, color: Colors.blue),
+                    child: Icon(
+                      Icons.admin_panel_settings,
+                      size: 40,
+                      color: Colors.blue,
+                    ),
                   ),
-                  SizedBox(height: 8),
+                  SizedBox(height: 10),
                   Text(
                     "Admin Panel",
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          _drawerItem(context, Icons.dashboard, "Dashboard", null, isDashboard: true),
+          _drawerItem(
+            context,
+            Icons.dashboard,
+            "Dashboard",
+            null,
+            isDashboard: true,
+          ),
           const Divider(),
-          _drawerItem(context, Icons.school, "Teachers",
-              TeacherManagementPage(schoolId: AppConfig.schoolId)),
-          _drawerItem(context, Icons.groups, "Students",
-              StudentManagementPage(schoolId: AppConfig.schoolId)),
-          _drawerItem(context, Icons.add_box, "Create Class",
-              CreateClassPage(schoolId: AppConfig.schoolId)),
-          _drawerItem(context, Icons.class_, "Manage Classes",
-              ClassManagementPage(schoolId: AppConfig.schoolId)),
+          _drawerItem(
+            context,
+            Icons.school,
+            "Teachers",
+            TeacherManagementPage(schoolId: AppConfig.schoolId),
+          ),
+          _drawerItem(
+            context,
+            Icons.people,
+            "Students",
+            StudentManagementPage(schoolId: AppConfig.schoolId),
+          ),
+          _drawerItem(
+            context,
+            Icons.add_box,
+            "Create Class",
+            CreateClassPage(schoolId: AppConfig.schoolId),
+          ),
+          _drawerItem(
+            context,
+            Icons.class_,
+            "Manage Classes",
+            ClassManagementPage(schoolId: AppConfig.schoolId),
+          ),
           const Divider(),
-          _drawerItem(context, Icons.fact_check, "Attendance Overview",
-              AdminAttendanceOverviewPage(schoolId: AppConfig.schoolId)),
-          _drawerItem(context, Icons.bar_chart, "Attendance Reports",
-              SelectClassForAttendancePage(schoolId: AppConfig.schoolId)),
+          _drawerItem(
+            context,
+            Icons.fact_check,
+            "Attendance Overview",
+            AdminAttendanceOverviewPage(schoolId: AppConfig.schoolId),
+          ),
+          _drawerItem(
+            context,
+            Icons.bar_chart,
+            "Attendance Reports",
+            SelectClassForAttendancePage(schoolId: AppConfig.schoolId),
+          ),
+          _drawerItem(
+            context,
+            Icons.announcement,
+            "Upload Notice",
+            const NoticePostPage(),
+          ),
+          _drawerItem(
+            context,
+            Icons.feedback,
+            "Complaints",
+            const AdminComplaintsPage(),
+          ),
           const Divider(),
-          _drawerItem(context, Icons.currency_rupee, "Upload Fees",
-              AdminFeeUploadPage(schoolId: AppConfig.schoolId)),
-          _drawerItem(context, FontAwesomeIcons.bookOpen, "Exam Management",
-              ExamManagementPage(schoolId: AppConfig.schoolId)),
-          _drawerItem(context, Icons.analytics, "Analytics",
-              AdminAnalyticsPage(schoolId: AppConfig.schoolId)),
+          _drawerItem(
+            context,
+            Icons.currency_rupee,
+            "Upload Fees",
+            AdminFeeUploadPage(schoolId: AppConfig.schoolId),
+          ),
+          _drawerItem(
+            context,
+            FontAwesomeIcons.bookOpen,
+            "Exam Management",
+            ExamManagementPage(schoolId: AppConfig.schoolId),
+          ),
+          _drawerItem(
+            context,
+            Icons.analytics,
+            "Analytics",
+            AdminAnalyticsPage(schoolId: AppConfig.schoolId),
+          ),
           const Divider(),
           _drawerItem(context, Icons.person, "Profile", const ProfilePage()),
-          _drawerItem(context, Icons.settings, "Settings", const SettingsPage()),
-          _drawerItem(context, Icons.business, "School Settings",
-              SchoolSettingsPage(schoolId: AppConfig.schoolId)),
+          _drawerItem(
+            context,
+            Icons.settings,
+            "Settings",
+            const SettingsPage(),
+          ),
+          _drawerItem(
+            context,
+            Icons.business,
+            "School Settings",
+            SchoolSettingsPage(schoolId: AppConfig.schoolId),
+          ),
         ],
       ),
     );
   }
 
-  Widget _drawerItem(BuildContext context, IconData icon, String title, Widget? page, {bool isDashboard = false}) {
+  Widget _drawerItem(
+    BuildContext context,
+    IconData icon,
+    String title,
+    Widget? page, {
+    bool isDashboard = false,
+  }) {
     return ListTile(
       leading: Icon(icon, color: isDashboard ? Colors.blue : Colors.blueGrey),
-      title: Text(title, style: TextStyle(fontWeight: isDashboard ? FontWeight.bold : FontWeight.normal)),
-      tileColor: isDashboard ? Colors.blue.shade50 : null,
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: isDashboard ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      tileColor: isDashboard ? Colors.blue.withValues(alpha: 0.1) : null,
       onTap: () {
         Navigator.pop(context);
         if (page != null && !isDashboard) {
@@ -878,8 +942,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 }
 
-// ================= HELPER WIDGETS =================
-
+// Helper Widgets (Keep all the same as before)
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
@@ -916,15 +979,16 @@ class _StatCard extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: color,
             ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 4),
           Text(
             title,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
             textAlign: TextAlign.center,
           ),
         ],
@@ -950,19 +1014,19 @@ class _OverviewItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, color: color, size: 28),
+        Icon(icon, color: color, size: 22),
         const SizedBox(height: 4),
         Text(
           value,
           style: TextStyle(
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             color: color,
           ),
         ),
         Text(
           title,
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+          style: const TextStyle(fontSize: 11, color: Colors.white70),
         ),
       ],
     );
@@ -987,7 +1051,7 @@ class _PeriodChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? Colors.blue : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
@@ -999,7 +1063,7 @@ class _PeriodChip extends StatelessWidget {
           label,
           style: TextStyle(
             color: selected ? Colors.white : Colors.grey.shade700,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            fontSize: 13,
           ),
         ),
       ),
@@ -1040,7 +1104,7 @@ class _QuickActionCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color, size: 32),
+            Icon(icon, color: color, size: 28),
             const SizedBox(height: 8),
             Text(
               label,

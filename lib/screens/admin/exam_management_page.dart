@@ -19,6 +19,11 @@ class _ExamManagementPageState extends State<ExamManagementPage>
   late TabController _tabController;
   bool _isLoading = false;
 
+  final List<String> _months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -56,7 +61,11 @@ class _ExamManagementPageState extends State<ExamManagementPage>
         actions: [
           IconButton(
             icon: const Icon(Icons.download),
-            onPressed: _exportResults,
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Export feature coming soon")),
+              );
+            },
             tooltip: "Export Results",
           ),
         ],
@@ -116,14 +125,17 @@ class _ExamManagementPageState extends State<ExamManagementPage>
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: snapshot.data!.docs.length,
-          itemBuilder: (context, index) {
-            final exam = snapshot.data!.docs[index];
-            final data = exam.data() as Map<String, dynamic>;
-            return _buildExamCard(exam.id, data);
-          },
+        return RefreshIndicator(
+          onRefresh: () async => setState(() {}),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: snapshot.data!.docs.length,
+            itemBuilder: (context, index) {
+              final exam = snapshot.data!.docs[index];
+              final data = exam.data() as Map<String, dynamic>;
+              return _buildExamCard(exam.id, data);
+            },
+          ),
         );
       },
     );
@@ -146,12 +158,9 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: _getExamTypeColor(data['examType']).withOpacity(0.1),
+                        color: _getExamTypeColor(data['examType']).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -200,10 +209,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                 const SizedBox(height: 12),
                 Text(
                   data['examName'] ?? 'Unnamed Exam',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -311,14 +317,17 @@ class _ExamManagementPageState extends State<ExamManagementPage>
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: exams.length,
-          itemBuilder: (context, index) {
-            final exam = exams[index];
-            final data = exam.data() as Map<String, dynamic>;
-            return _buildMarksEntryCard(exam.id, data);
-          },
+        return RefreshIndicator(
+          onRefresh: () async => setState(() {}),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: exams.length,
+            itemBuilder: (context, index) {
+              final exam = exams[index];
+              final data = exam.data() as Map<String, dynamic>;
+              return _buildMarksEntryCard(exam.id, data);
+            },
+          ),
         );
       },
     );
@@ -338,15 +347,12 @@ class _ExamManagementPageState extends State<ExamManagementPage>
           children: [
             Text(
               data['examName'] ?? 'Unnamed Exam',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
               "${data['className'] ?? 'Class'} - ${data['examType'] ?? 'Exam'}",
-              style: TextStyle(color: Colors.grey[600]),
+              style: TextStyle(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 16),
             const Divider(),
@@ -426,14 +432,17 @@ class _ExamManagementPageState extends State<ExamManagementPage>
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: exams.length,
-          itemBuilder: (context, index) {
-            final exam = exams[index];
-            final data = exam.data() as Map<String, dynamic>;
-            return _buildResultCard(exam.id, data);
-          },
+        return RefreshIndicator(
+          onRefresh: () async => setState(() {}),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: exams.length,
+            itemBuilder: (context, index) {
+              final exam = exams[index];
+              final data = exam.data() as Map<String, dynamic>;
+              return _buildResultCard(exam.id, data);
+            },
+          ),
         );
       },
     );
@@ -459,24 +468,18 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                     children: [
                       Text(
                         data['examName'] ?? 'Unnamed Exam',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         "${data['className'] ?? 'Class'} • ${data['examType'] ?? 'Exam'}",
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: isComplete ? Colors.green : Colors.orange,
                     borderRadius: BorderRadius.circular(20),
@@ -551,13 +554,17 @@ class _ExamManagementPageState extends State<ExamManagementPage>
     DateTime endDate = DateTime.now().add(const Duration(days: 7));
     List<String> subjects = [];
     List<int> maxMarks = [];
+    int selectedMonth = DateTime.now().month;
+    int selectedYear = DateTime.now().year;
 
-    // Load available classes
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
             title: const Text("Create New Exam"),
             content: SingleChildScrollView(
               child: Form(
@@ -570,18 +577,20 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                         labelText: "Exam Name",
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.quiz),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       ),
                       onSaved: (value) => examName = value!,
-                      validator: (value) =>
-                      value?.isEmpty == true ? "Required" : null,
+                      validator: (value) => value?.isEmpty == true ? "Required" : null,
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: examType,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: "Exam Type",
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.category),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       ),
                       items: const [
                         DropdownMenuItem(value: "Mid-term", child: Text("Mid-term")),
@@ -596,37 +605,49 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                       setState(() => className = value!);
                     }),
                     const SizedBox(height: 12),
-                    ListTile(
-                      title: const Text("Start Date"),
-                      subtitle: Text(DateFormat('MMM dd, yyyy').format(startDate)),
-                      leading: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: startDate,
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
-                        );
-                        if (picked != null) {
-                          setState(() => startDate = picked);
-                        }
-                      },
-                    ),
-                    ListTile(
-                      title: const Text("End Date"),
-                      subtitle: Text(DateFormat('MMM dd, yyyy').format(endDate)),
-                      leading: const Icon(Icons.calendar_today),
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: endDate,
-                          firstDate: startDate,
-                          lastDate: startDate.add(const Duration(days: 90)),
-                        );
-                        if (picked != null) {
-                          setState(() => endDate = picked);
-                        }
-                      },
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: selectedMonth,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: "Month",
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.calendar_month),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                            items: List.generate(12, (i) {
+                              return DropdownMenuItem<int>(
+                                value: i + 1,
+                                child: Text(_months[i]),
+                              );
+                            }),
+                            onChanged: (v) => setState(() => selectedMonth = v!),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: selectedYear,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: "Year",
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.calendar_today),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                            items: [
+                              for (int i = -2; i <= 3; i++)
+                                DropdownMenuItem<int>(
+                                  value: DateTime.now().year + i,
+                                  child: Text((DateTime.now().year + i).toString()),
+                                ),
+                            ],
+                            onChanged: (v) => setState(() => selectedYear = v!),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     ElevatedButton.icon(
@@ -644,7 +665,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
                           children: List.generate(subjects.length, (index) {
@@ -684,6 +705,11 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                       );
                       return;
                     }
+                    // Set startDate and endDate using selected month/year
+                    startDate = DateTime(selectedYear, selectedMonth, 1);
+                    final lastDay = DateTime(selectedYear, selectedMonth + 1, 0);
+                    endDate = DateTime(selectedYear, selectedMonth, lastDay.day);
+
                     await _saveExam(
                       examName,
                       examType,
@@ -693,7 +719,9 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                       subjects,
                       maxMarks,
                     );
-                    Navigator.pop(context);
+                    if (mounted) {
+                      Navigator.pop(context);
+                    }
                   }
                 },
                 child: const Text("Create"),
@@ -717,11 +745,13 @@ class _ExamManagementPageState extends State<ExamManagementPage>
           return DropdownButtonFormField<String>(
             items: [],
             onChanged: null,
-            hint: Text("Loading classes..."),
-            decoration: InputDecoration(
+            hint: const Text("Loading classes..."),
+            isExpanded: true,
+            decoration: const InputDecoration(
               labelText: "Class",
               border: OutlineInputBorder(),
               prefixIcon: Icon(Icons.class_),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
           );
         }
@@ -730,11 +760,13 @@ class _ExamManagementPageState extends State<ExamManagementPage>
           return DropdownButtonFormField<String>(
             items: [],
             onChanged: null,
-            hint: Text("No classes available"),
-            decoration: InputDecoration(
+            hint: const Text("No classes available"),
+            isExpanded: true,
+            decoration: const InputDecoration(
               labelText: "Class",
               border: OutlineInputBorder(),
               prefixIcon: Icon(Icons.class_),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
           );
         }
@@ -744,16 +776,15 @@ class _ExamManagementPageState extends State<ExamManagementPage>
 
         return DropdownButtonFormField<String>(
           value: value.isEmpty ? null : value,
+          isExpanded: true,
           decoration: const InputDecoration(
             labelText: "Class",
             border: OutlineInputBorder(),
             prefixIcon: Icon(Icons.class_),
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           ),
           items: [
-            const DropdownMenuItem<String>(
-              value: null,
-              child: Text("Select Class"),
-            ),
+            const DropdownMenuItem<String>(value: null, child: Text("Select Class")),
             ...classNames.map((className) {
               return DropdownMenuItem<String>(
                 value: className,
@@ -775,6 +806,9 @@ class _ExamManagementPageState extends State<ExamManagementPage>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
         title: const Text("Add Subject"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -784,6 +818,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
               decoration: const InputDecoration(
                 labelText: "Subject Name",
                 border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
             ),
             const SizedBox(height: 12),
@@ -792,6 +827,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
               decoration: const InputDecoration(
                 labelText: "Max Marks",
                 border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
               keyboardType: TextInputType.number,
             ),
@@ -810,6 +846,13 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                   maxMarks.add(int.parse(marksController.text));
                 });
                 Navigator.pop(context);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Please enter both subject name and max marks"),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
               }
             },
             child: const Text("Add"),
@@ -853,41 +896,56 @@ class _ExamManagementPageState extends State<ExamManagementPage>
         .add(examData);
 
     setState(() => _isLoading = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Exam created successfully")),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Exam created successfully"), backgroundColor: Colors.green),
+      );
+    }
   }
 
   Future<void> _deleteExam(String examId) async {
-    showDialog(
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text("Delete Exam"),
-        content: const Text("Are you sure you want to delete this exam?"),
+        content: const Text("Are you sure you want to delete this exam? This action cannot be undone."),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text("Cancel"),
           ),
           TextButton(
-            onPressed: () async {
-              await FirebaseFirestore.instance
-                  .collection('schools')
-                  .doc(widget.schoolId)
-                  .collection('exams')
-                  .doc(examId)
-                  .delete();
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Exam deleted")),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text("Delete"),
           ),
         ],
       ),
     );
+
+    if (confirm == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(widget.schoolId)
+            .collection('exams')
+            .doc(examId)
+            .delete();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Exam deleted successfully"), backgroundColor: Colors.green),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error deleting exam: $e"), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   void _enterMarks(String examId, Map<String, dynamic> examData, String subject, int maxMarks, int subjectIndex) {
@@ -938,6 +996,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(data['examName'] ?? 'Exam Details'),
         content: SizedBox(
           width: double.maxFinite,
@@ -983,24 +1042,12 @@ class _ExamManagementPageState extends State<ExamManagementPage>
     );
   }
 
-  void _exportResults() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Export feature coming soon")),
-    );
-  }
-
   Widget _infoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
+          SizedBox(width: 80, child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold))),
           Text(": $value"),
         ],
       ),
@@ -1057,47 +1104,56 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
     _loadData();
   }
 
+  @override
+  void dispose() {
+    for (var controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
   Future<void> _loadData() async {
-    // Load students
-    final studentsSnapshot = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(widget.schoolId)
-        .collection('students')
-        .where('class', isEqualTo: widget.examData['className'])
-        .get();
+    try {
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('students')
+          .where('class', isEqualTo: widget.examData['className'])
+          .get();
 
-    // Load existing marks
-    final marksSnapshot = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(widget.schoolId)
-        .collection('exams')
-        .doc(widget.examId)
-        .collection('marks')
-        .get();
+      final marksSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('exams')
+          .doc(widget.examId)
+          .collection('marks')
+          .where('subject', isEqualTo: widget.subject)
+          .get();
 
-    for (var student in studentsSnapshot.docs) {
-      final studentData = student.data();
-      final studentId = student.id;
+      for (var student in studentsSnapshot.docs) {
+        final studentId = student.id;
+        _controllers[studentId] = TextEditingController();
 
-      _controllers[studentId] = TextEditingController();
+        QueryDocumentSnapshot? existingMark;
+        for (var doc in marksSnapshot.docs) {
+          if (doc.id == studentId) {
+            existingMark = doc;
+            break;
+          }
+        }
 
-      // Check if marks already exist - FIXED: Use manual search instead of firstWhere
-      QueryDocumentSnapshot? existingMark;
-      for (var doc in marksSnapshot.docs) {
-        if (doc.id == studentId && doc.get('subject') == widget.subject) {
-          existingMark = doc;
-          break;
+        if (existingMark != null) {
+          final markData = existingMark.data() as Map<String, dynamic>;
+          _controllers[studentId]?.text = markData['marks']?.toString() ?? '';
+          _remarks[studentId] = markData['remark'] ?? '';
         }
       }
 
-      if (existingMark != null) {
-        final markData = existingMark.data() as Map<String, dynamic>;
-        _controllers[studentId]?.text = markData['marks'].toString();
-        _remarks[studentId] = markData['remark'] ?? '';
-      }
+      setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint('Error loading data: $e');
+      setState(() => _isLoading = false);
     }
-
-    setState(() => _isLoading = false);
   }
 
   @override
@@ -1132,90 +1188,95 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
 
           final students = snapshot.data!.docs;
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: students.length,
-            itemBuilder: (context, index) {
-              final student = students[index];
-              final data = student.data() as Map<String, dynamic>;
-              final studentId = student.id;
+          return RefreshIndicator(
+            onRefresh: _loadData,
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: students.length,
+              itemBuilder: (context, index) {
+                final student = students[index];
+                final data = student.data() as Map<String, dynamic>;
+                final studentId = student.id;
 
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: Colors.blue.shade100,
-                            child: Text(
-                              data['rollNo']?.toString() ?? '?',
-                              style: TextStyle(color: Colors.blue.shade700),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  data['name'] ?? 'Unknown',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  "Roll No: ${data['rollNo'] ?? 'N/A'}",
-                                  style: TextStyle(color: Colors.grey.shade600),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _controllers[studentId],
-                              decoration: InputDecoration(
-                                labelText: "Marks Obtained",
-                                suffixText: "/${widget.maxMarks}",
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              keyboardType: TextInputType.number,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              onChanged: (value) => _remarks[studentId] = value,
-                              decoration: InputDecoration(
-                                labelText: "Remarks (Optional)",
-                                hintText: "e.g., Excellent, Needs Improvement",
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                ),
-              );
-            },
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: Colors.blue.shade100,
+                              child: Text(
+                                data['rollNo']?.toString() ?? '?',
+                                style: TextStyle(color: Colors.blue.shade700),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    data['name'] ?? 'Unknown',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    "Roll No: ${data['rollNo'] ?? 'N/A'}",
+                                    style: TextStyle(color: Colors.grey.shade600),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _controllers[studentId],
+                                decoration: InputDecoration(
+                                  labelText: "Marks Obtained",
+                                  suffixText: "/${widget.maxMarks}",
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                ),
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                onChanged: (value) => _remarks[studentId] = value,
+                                decoration: InputDecoration(
+                                  labelText: "Remarks (Optional)",
+                                  hintText: "e.g., Excellent, Needs Improvement",
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
           );
         },
       ),
@@ -1268,11 +1329,18 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
 
       for (var entry in _controllers.entries) {
         final studentId = entry.key;
-        final marksText = entry.value.text;
+        final marksText = entry.value.text.trim();
 
         if (marksText.isEmpty) continue;
 
-        final marks = int.tryParse(marksText) ?? 0;
+        final marks = int.tryParse(marksText);
+        if (marks == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Invalid marks for student"), backgroundColor: Colors.orange),
+          );
+          continue;
+        }
+
         final percentage = (marks / widget.maxMarks) * 100;
         final grade = _calculateGrade(percentage);
 
@@ -1297,7 +1365,6 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
 
       await batch.commit();
 
-      // Update exam's completed subjects
       final examRef = FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
@@ -1319,7 +1386,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Marks saved successfully"), backgroundColor: Colors.green),
         );
-        Navigator.pop(context);
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
@@ -1339,7 +1406,8 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
     if (percentage >= 60) return 'C';
     if (percentage >= 50) return 'D';
     return 'F';
-  }}
+  }
+}
 
 // ================= EXAM RESULT DETAILS PAGE =================
 class ExamResultDetailsPage extends StatefulWidget {
@@ -1368,96 +1436,99 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
     _loadResults();
   }
 
-
   Future<void> _loadResults() async {
-    // Get all students in the class
-    final studentsSnapshot = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(widget.schoolId)
-        .collection('students')
-        .where('class', isEqualTo: widget.examData['className'])
-        .get();
+    try {
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('students')
+          .where('class', isEqualTo: widget.examData['className'])
+          .get();
 
-    // Get all marks for this exam
-    final marksSnapshot = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(widget.schoolId)
-        .collection('exams')
-        .doc(widget.examId)
-        .collection('marks')
-        .get();
+      final marksSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('exams')
+          .doc(widget.examId)
+          .collection('marks')
+          .get();
 
-    final subjects = List<String>.from(widget.examData['subjects']);
-    final maxMarks = List<int>.from(widget.examData['maxMarks']);
+      final subjects = List<String>.from(widget.examData['subjects'] ?? []);
+      final maxMarks = List<int>.from(widget.examData['maxMarks'] ?? []);
 
-    List<Map<String, dynamic>> results = [];
+      List<Map<String, dynamic>> results = [];
 
-    for (var student in studentsSnapshot.docs) {
-      final studentData = student.data();
-      final studentId = student.id;
+      for (var student in studentsSnapshot.docs) {
+        final studentData = student.data();
+        final studentId = student.id;
 
-      Map<String, dynamic> subjectMarks = {};
-      int totalObtained = 0;
-      int totalMax = 0;
+        Map<String, dynamic> subjectMarks = {};
+        int totalObtained = 0;
+        int totalMax = 0;
 
-      for (int i = 0; i < subjects.length; i++) {
-        final subject = subjects[i];
-        final maxMark = maxMarks[i];
+        for (int i = 0; i < subjects.length; i++) {
+          final subject = subjects[i];
+          final maxMark = maxMarks[i];
 
-        // Find mark for this student and subject
-        QueryDocumentSnapshot? markDoc;
-        for (var doc in marksSnapshot.docs) {
-          if (doc.id == studentId && doc.get('subject') == subject) {
-            markDoc = doc;
-            break;
+          Map<String, dynamic>? markData;
+          for (var doc in marksSnapshot.docs) {
+            final docData = doc.data() as Map<String, dynamic>;
+            if (doc.id == studentId && docData['subject'] == subject) {
+              markData = docData;
+              break;
+            }
           }
+
+          int obtained = 0;
+          String grade = 'N/A';
+
+          if (markData != null) {
+            obtained = (markData['marks'] ?? 0) as int;
+            grade = markData['grade'] ?? 'N/A';
+            totalObtained += obtained;
+            totalMax += maxMark;
+          }
+
+          final double percentage = maxMark > 0 ? (obtained / maxMark) * 100 : 0.0;
+
+          subjectMarks[subject] = {
+            'obtained': obtained,
+            'max': maxMark,
+            'percentage': percentage,
+            'grade': grade,
+          };
         }
 
-        int obtained = 0;
-        String grade = 'N/A';
+        final double overallPercentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0.0;
+        final String overallGrade = _calculateGrade(overallPercentage);
 
-        if (markDoc != null) {
-          final markData = markDoc.data() as Map<String, dynamic>;
-          obtained = markData['marks'] ?? 0;
-          grade = markData['grade'] ?? 'N/A';
-          totalObtained += obtained;
-          totalMax += maxMark;
-        }
-
-        // FIXED: Convert percentage to double explicitly
-        double percentage = maxMark > 0 ? (obtained / maxMark) * 100 : 0.0;
-
-        subjectMarks[subject] = {
-          'obtained': obtained,
-          'max': maxMark,
-          'percentage': percentage,
-          'grade': grade,
-        };
+        results.add({
+          'studentId': studentId,
+          'name': studentData['name'] ?? 'Unknown',
+          'rollNo': studentData['rollNo'] ?? '',
+          'subjectMarks': subjectMarks,
+          'totalObtained': totalObtained,
+          'totalMax': totalMax,
+          'overallPercentage': overallPercentage,
+          'overallGrade': overallGrade,
+        });
       }
 
-      // FIXED: Convert overallPercentage to double explicitly
-      final double overallPercentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0.0;
-      final String overallGrade = _calculateGrade(overallPercentage);
+      results.sort((a, b) => (b['overallPercentage'] as double).compareTo(a['overallPercentage'] as double));
 
-      results.add({
-        'studentId': studentId,
-        'name': studentData['name'] ?? 'Unknown',
-        'rollNo': studentData['rollNo'] ?? '',
-        'subjectMarks': subjectMarks,
-        'totalObtained': totalObtained,
-        'totalMax': totalMax,
-        'overallPercentage': overallPercentage,
-        'overallGrade': overallGrade,
+      setState(() {
+        _results = results;
+        _isLoading = false;
       });
+    } catch (e) {
+      debugPrint('Error loading results: $e');
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error loading results: $e"), backgroundColor: Colors.red),
+        );
+      }
     }
-
-    // Sort by percentage (highest first)
-    results.sort((a, b) => (b['overallPercentage'] as double).compareTo(a['overallPercentage'] as double));
-
-    setState(() {
-      _results = results;
-      _isLoading = false;
-    });
   }
 
   String _calculateGrade(double percentage) {
@@ -1501,30 +1572,12 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
             children: [
               pw.TableRow(
                 children: [
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text('Rank', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  ),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text('Roll No', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  ),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text('Student Name', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  ),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text('Total', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  ),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text('Percentage', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  ),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
-                    child: pw.Text('Grade', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  ),
+                  _pdfHeaderCell('Rank'),
+                  _pdfHeaderCell('Roll No'),
+                  _pdfHeaderCell('Student Name'),
+                  _pdfHeaderCell('Total'),
+                  _pdfHeaderCell('Percentage'),
+                  _pdfHeaderCell('Grade'),
                 ],
               ),
               ..._results.asMap().entries.map((entry) {
@@ -1532,30 +1585,12 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
                 final result = entry.value;
                 return pw.TableRow(
                   children: [
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text('${index + 1}'),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(result['rollNo'].toString()),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(result['name']),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text('${result['totalObtained']}/${result['totalMax']}'),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text('${(result['overallPercentage'] as double).toStringAsFixed(1)}%'),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(result['overallGrade']),
-                    ),
+                    _pdfCell('${index + 1}'),
+                    _pdfCell(result['rollNo'].toString()),
+                    _pdfCell(result['name']),
+                    _pdfCell('${result['totalObtained']}/${result['totalMax']}'),
+                    _pdfCell('${(result['overallPercentage'] as double).toStringAsFixed(1)}%'),
+                    _pdfCell(result['overallGrade']),
                   ],
                 );
               }).toList(),
@@ -1567,6 +1602,20 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
 
     await Printing.layoutPdf(
       onLayout: (format) async => pdf.save(),
+    );
+  }
+
+  pw.Widget _pdfHeaderCell(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(text, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+    );
+  }
+
+  pw.Widget _pdfCell(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(text),
     );
   }
 
@@ -1602,131 +1651,134 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
           ],
         ),
       )
-          : ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _results.length,
-        itemBuilder: (context, index) {
-          final result = _results[index];
-          final rank = index + 1;
-          final percentage = result['overallPercentage'] as double;
+          : RefreshIndicator(
+        onRefresh: _loadResults,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: _results.length,
+          itemBuilder: (context, index) {
+            final result = _results[index];
+            final rank = index + 1;
+            final percentage = result['overallPercentage'] as double;
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ExpansionTile(
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: rank <= 3 ? Colors.amber.shade100 : Colors.blue.shade100,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Center(
-                  child: Text(
-                    rank.toString(),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: rank <= 3 ? Colors.amber.shade800 : Colors.blue,
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ExpansionTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: rank <= 3 ? Colors.amber.shade100 : Colors.blue.shade100,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Center(
+                    child: Text(
+                      rank.toString(),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: rank <= 3 ? Colors.amber.shade800 : Colors.blue,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              title: Text(
-                result['name'],
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: Text("Roll No: ${result['rollNo']}"),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: percentage >= 60 ? Colors.green : Colors.red,
-                  borderRadius: BorderRadius.circular(20),
+                title: Text(
+                  result['name'],
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                child: Text(
-                  result['overallGrade'],
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+                subtitle: Text("Roll No: ${result['rollNo']}"),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: percentage >= 60 ? Colors.green : Colors.red,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    result['overallGrade'],
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(12),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _statItem("Total", "${result['totalObtained']}/${result['totalMax']}"),
+                              _statItem("Percentage", "${percentage.toStringAsFixed(1)}%"),
+                              _statItem("Grade", result['overallGrade']),
+                            ],
+                          ),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _statItem("Total", "${result['totalObtained']}/${result['totalMax']}"),
-                            _statItem("Percentage", "${percentage.toStringAsFixed(1)}%"),
-                            _statItem("Grade", result['overallGrade']),
-                          ],
+                        const SizedBox(height: 16),
+                        const Text(
+                          "Subject-wise Marks",
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        "Subject-wise Marks",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      ...List.generate(
-                        (result['subjectMarks'] as Map).keys.length,
-                            (index) {
-                          final subject = (result['subjectMarks'] as Map).keys.elementAt(index);
-                          final marks = result['subjectMarks'][subject];
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    subject,
-                                    style: const TextStyle(fontWeight: FontWeight.w500),
-                                  ),
-                                ),
-                                Text("${marks['obtained']}/${marks['max']}"),
-                                const SizedBox(width: 16),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: marks['percentage'] >= 60 ? Colors.green.shade100 : Colors.red.shade100,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    marks['grade'],
-                                    style: TextStyle(
-                                      color: marks['percentage'] >= 60 ? Colors.green : Colors.red,
-                                      fontWeight: FontWeight.bold,
+                        const SizedBox(height: 8),
+                        ...List.generate(
+                          (result['subjectMarks'] as Map).keys.length,
+                              (subIndex) {
+                            final subject = (result['subjectMarks'] as Map).keys.elementAt(subIndex);
+                            final marks = result['subjectMarks'][subject];
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      subject,
+                                      style: const TextStyle(fontWeight: FontWeight.w500),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                                  Text("${marks['obtained']}/${marks['max']}"),
+                                  const SizedBox(width: 16),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: marks['percentage'] >= 60 ? Colors.green.shade100 : Colors.red.shade100,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      marks['grade'],
+                                      style: TextStyle(
+                                        color: marks['percentage'] >= 60 ? Colors.green : Colors.red,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

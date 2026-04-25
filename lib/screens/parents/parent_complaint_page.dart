@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
 
 class ParentComplaintPage extends StatefulWidget {
-  final String? studentId; // Optional: pre-select a student
+  final String? studentId;
 
   const ParentComplaintPage({super.key, this.studentId});
 
@@ -17,12 +17,16 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String? _selectedStudentId;
-  String? _studentName;
+  String? _selectedStudentName;
+  String? _selectedClass;
+  String? _selectedSection;
+  List<Map<String, dynamic>> _students = [];
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   String _selectedCategory = "Academic";
-  bool _isLoading = false;
+  bool _isLoading = true;
+  bool _isSubmitting = false;
 
   final List<String> _categories = [
     "Academic",
@@ -38,7 +42,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadStudentData();
+    _loadStudents();
   }
 
   @override
@@ -49,39 +53,51 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
     super.dispose();
   }
 
-  Future<void> _loadStudentData() async {
+  Future<void> _loadStudents() async {
     setState(() => _isLoading = true);
 
     try {
       final parentUid = FirebaseAuth.instance.currentUser!.uid;
-      final studentsSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('students')
-              .where('parentUid', isEqualTo: parentUid)
-              .get();
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('students')
+          .where('parentUid', isEqualTo: parentUid)
+          .get();
 
-      if (studentsSnapshot.docs.isNotEmpty) {
-        // If a specific studentId is provided, use it
+      _students = studentsSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['name'] ?? 'Student',
+          'class': data['class'] ?? '',
+          'section': data['section'] ?? '',
+          'rollNo': data['rollNo'] ?? '',
+        };
+      }).toList();
+
+      if (_students.isNotEmpty) {
         if (widget.studentId != null) {
-          final studentDoc = studentsSnapshot.docs.firstWhere(
-            (doc) => doc.id == widget.studentId,
-            orElse: () => studentsSnapshot.docs.first,
+          final matchingStudent = _students.firstWhere(
+                (s) => s['id'] == widget.studentId,
+            orElse: () => _students.first,
           );
-          _selectedStudentId = studentDoc.id;
-          _studentName = studentDoc.data()['name'] ?? 'Student';
+          _selectedStudentId = matchingStudent['id'];
+          _selectedStudentName = matchingStudent['name'];
+          _selectedClass = matchingStudent['class'];
+          _selectedSection = matchingStudent['section'];
         } else {
-          final firstStudent = studentsSnapshot.docs.first;
-          _selectedStudentId = firstStudent.id;
-          _studentName = firstStudent.data()['name'] ?? 'Student';
+          _selectedStudentId = _students.first['id'];
+          _selectedStudentName = _students.first['name'];
+          _selectedClass = _students.first['class'];
+          _selectedSection = _students.first['section'];
         }
       }
     } catch (e) {
-      debugPrint('Error loading student data: $e');
-    } finally {
-      setState(() => _isLoading = false);
+      debugPrint('Error loading students: $e');
     }
+
+    setState(() => _isLoading = false);
   }
 
   @override
@@ -89,9 +105,19 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
-        title: const Text(
-          "Complaints",
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Complaints",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            if (_selectedStudentName != null)
+              Text(
+                _selectedStudentName!,
+                style: const TextStyle(fontSize: 12),
+              ),
+          ],
         ),
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
@@ -105,29 +131,57 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
             Tab(icon: Icon(Icons.history), text: "My Complaints"),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => _loadStudents(),
+            tooltip: "Refresh",
+          ),
+        ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : TabBarView(
-                controller: _tabController,
-                children: [_buildNewComplaintTab(), _buildMyComplaintsTab()],
-              ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _students.isEmpty
+          ? _buildEmptyState()
+          : TabBarView(
+        controller: _tabController,
+        children: [
+          _buildNewComplaintTab(),
+          _buildMyComplaintsTab(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.people_outline, size: 80, color: Colors.grey.shade400),
+          const SizedBox(height: 16),
+          Text(
+            "No Children Linked",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Please contact the school admin to link your children.",
+            style: TextStyle(color: Colors.grey.shade500),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildNewComplaintTab() {
-    if (_selectedStudentId == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Form(
         key: _formKey,
         child: Column(
           children: [
-            _buildStudentSelector(),
+            if (_students.length > 1) _buildStudentSelector(),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(16),
@@ -141,13 +195,12 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.category),
                     ),
-                    items:
-                        _categories.map<DropdownMenuItem<String>>((category) {
-                          return DropdownMenuItem<String>(
-                            value: category,
-                            child: Text(category),
-                          );
-                        }).toList(),
+                    items: _categories.map<DropdownMenuItem<String>>((category) {
+                      return DropdownMenuItem<String>(
+                        value: category,
+                        child: Text(category),
+                      );
+                    }).toList(),
                     onChanged: (value) {
                       setState(() => _selectedCategory = value!);
                     },
@@ -161,9 +214,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.title),
                     ),
-                    validator:
-                        (v) =>
-                            v?.isEmpty == true ? "Please enter a title" : null,
+                    validator: (v) => v?.isEmpty == true ? "Please enter a title" : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -171,22 +222,17 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                     maxLines: 6,
                     decoration: const InputDecoration(
                       labelText: "Description",
-                      hintText:
-                          "Please provide detailed information about your complaint...",
+                      hintText: "Please provide detailed information about your complaint...",
                       border: OutlineInputBorder(),
                       alignLabelWithHint: true,
                     ),
-                    validator:
-                        (v) =>
-                            v?.isEmpty == true
-                                ? "Please enter description"
-                                : null,
+                    validator: (v) => v?.isEmpty == true ? "Please enter description" : null,
                   ),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _submitComplaint,
+                      onPressed: _isSubmitting ? null : _submitComplaint,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
@@ -195,7 +241,16 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
+                      child: _isSubmitting
+                          ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                          : const Text(
                         "Submit Complaint",
                         style: TextStyle(
                           fontSize: 16,
@@ -231,124 +286,65 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
   }
 
   Widget _buildStudentSelector() {
-    return StreamBuilder<QuerySnapshot>(
-      stream:
-          FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('students')
-              .where(
-                'parentUid',
-                isEqualTo: FirebaseAuth.instance.currentUser!.uid,
-              )
-              .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const SizedBox();
-        }
-
-        final students = snapshot.data!.docs;
-
-        // If only one student, don't show dropdown
-        if (students.length == 1) {
-          return Container(
-            padding: const EdgeInsets.all(12),
-            decoration: _cardDecoration(),
-            child: Row(
-              children: [
-                const Icon(Icons.person, color: Colors.orange),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _studentName ?? 'Student',
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                      const Text(
-                        "Selected Child",
-                        style: TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: _cardDecoration(),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedStudentId,
-              hint: const Text("Select Child"),
-              isExpanded: true,
-              icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
-              items:
-                  students.map<DropdownMenuItem<String>>((student) {
-                    final data = student.data() as Map<String, dynamic>;
-                    return DropdownMenuItem<String>(
-                      value: student.id,
-                      child: Row(
-                        children: [
-                          const Icon(Icons.person, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  data['name'] ?? 'Student',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                Text(
-                                  "Class ${data['class'] ?? 'N/A'} - ${data['section'] ?? ''}",
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-              onChanged: (value) {
-                final selected = students.firstWhere((s) => s.id == value);
-                final data = selected.data() as Map<String, dynamic>;
-                setState(() {
-                  _selectedStudentId = value;
-                  _studentName = data['name'] ?? 'Student';
-                });
-              },
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: _cardDecoration(),
+      child: Row(
+        children: [
+          const Icon(Icons.switch_account, color: Colors.orange, size: 20),
+          const SizedBox(width: 8),
+          const Text(
+            "Child:",
+            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedStudentId,
+                hint: const Text("Select Child"),
+                isExpanded: true,
+                icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
+                items: _students.map<DropdownMenuItem<String>>((student) {
+                  return DropdownMenuItem<String>(
+                    value: student['id'] as String,
+                    child: Text(
+                      "${student['name']} (${student['class']} - ${student['section']})",
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  final selected = _students.firstWhere((s) => s['id'] == value);
+                  setState(() {
+                    _selectedStudentId = value;
+                    _selectedStudentName = selected['name'];
+                    _selectedClass = selected['class'];
+                    _selectedSection = selected['section'];
+                  });
+                },
+              ),
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
   Widget _buildMyComplaintsTab() {
     if (_selectedStudentId == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: Text("Select a child to view complaints"));
     }
 
     return StreamBuilder<QuerySnapshot>(
-      stream:
-          FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('complaints')
-              .where('studentId', isEqualTo: _selectedStudentId)
-              .orderBy('createdAt', descending: true)
-              .snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('complaints')
+          .where('studentId', isEqualTo: _selectedStudentId)
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -375,19 +371,11 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.feedback_outlined,
-                  size: 80,
-                  color: Colors.grey.shade400,
-                ),
+                Icon(Icons.feedback_outlined, size: 80, color: Colors.grey.shade400),
                 const SizedBox(height: 16),
                 Text(
                   'No Complaints Filed',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -399,14 +387,17 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: snapshot.data!.docs.length,
-          itemBuilder: (context, index) {
-            final complaint = snapshot.data!.docs[index];
-            final data = complaint.data() as Map<String, dynamic>;
-            return _buildComplaintCard(complaint.id, data);
-          },
+        return RefreshIndicator(
+          onRefresh: () async => setState(() {}),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: snapshot.data!.docs.length,
+            itemBuilder: (context, index) {
+              final complaint = snapshot.data!.docs[index];
+              final data = complaint.data() as Map<String, dynamic>;
+              return _buildComplaintCard(complaint.id, data);
+            },
+          ),
         );
       },
     );
@@ -416,28 +407,29 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
     final status = data['status'] ?? 'pending';
     final createdAt = data['createdAt'] as Timestamp?;
     final respondedAt = data['respondedAt'] as Timestamp?;
-
     final statusConfig = _getStatusConfig(status);
 
-    return Dismissible(
-      key: Key(complaintId),
-      direction: DismissDirection.none, // Disable swipe to delete
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: _cardDecoration(),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: status == 'pending'
+            ? BorderSide(color: Colors.orange.shade300, width: 1)
+            : BorderSide.none,
+      ),
+      child: InkWell(
+        onTap: () => _showComplaintDetail(data),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with status and date
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: statusConfig['color'].withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
@@ -445,17 +437,13 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          statusConfig['icon'],
-                          size: 14,
-                          color: statusConfig['color'],
-                        ),
+                        Icon(statusConfig['icon'], size: 12, color: statusConfig['color']),
                         const SizedBox(width: 4),
                         Text(
                           statusConfig['label'],
                           style: TextStyle(
                             color: statusConfig['color'],
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -465,17 +453,13 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                   const Spacer(),
                   Text(
                     createdAt != null
-                        ? DateFormat(
-                          'dd MMM yyyy, hh:mm a',
-                        ).format(createdAt.toDate())
-                        : 'Unknown date',
+                        ? DateFormat('dd MMM yyyy').format(createdAt.toDate())
+                        : 'Unknown',
                     style: const TextStyle(fontSize: 11, color: Colors.grey),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-
-              // Category
+              const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -488,73 +472,37 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                 ),
               ),
               const SizedBox(height: 8),
-
-              // Title
               Text(
                 data['title'] ?? 'Complaint',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 8),
-
-              // Description
+              const SizedBox(height: 6),
               Text(
                 data['description'] ?? 'No description',
-                maxLines: 3,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 13, color: Colors.grey),
               ),
-
-              // Response from school
-              if (data['response'] != null &&
-                  data['response'].toString().isNotEmpty) ...[
-                const SizedBox(height: 16),
+              if (data['response'] != null && data['response'].toString().isNotEmpty) ...[
+                const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.green.shade50,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green.shade200),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.school,
-                            size: 16,
-                            color: Colors.green.shade700,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            "School Response",
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green.shade700,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        data['response'],
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                      if (respondedAt != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            "Responded on: ${DateFormat('dd MMM yyyy, hh:mm a').format(respondedAt.toDate())}",
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey,
-                            ),
-                          ),
+                      Icon(Icons.message, size: 14, color: Colors.green.shade700),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          data['response'],
+                          style: TextStyle(fontSize: 12, color: Colors.green.shade700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
+                      ),
                     ],
                   ),
                 ),
@@ -566,28 +514,160 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
     );
   }
 
+  void _showComplaintDetail(Map<String, dynamic> data) {
+    final status = data['status'] ?? 'pending';
+    final createdAt = data['createdAt'] as Timestamp?;
+    final respondedAt = data['respondedAt'] as Timestamp?;
+    final statusConfig = _getStatusConfig(status);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: statusConfig['color'].withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(statusConfig['icon'], color: statusConfig['color'], size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            data['title'] ?? 'Complaint',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            statusConfig['label'],
+                            style: TextStyle(
+                              color: statusConfig['color'],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Divider(),
+                _detailRow("Category", data['category'] ?? 'General'),
+                _detailRow("Submitted On", createdAt != null
+                    ? DateFormat('dd MMM yyyy, hh:mm a').format(createdAt.toDate())
+                    : 'Unknown'),
+                _detailRow("Description", data['description'] ?? 'No description'),
+                if (data['response'] != null && data['response'].toString().isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "School Response",
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(data['response'], style: const TextStyle(fontSize: 13)),
+                        if (respondedAt != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              "Responded: ${DateFormat('dd MMM yyyy, hh:mm a').format(respondedAt.toDate())}",
+                              style: const TextStyle(fontSize: 10, color: Colors.grey),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text("Close"),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Map<String, dynamic> _getStatusConfig(String status) {
     switch (status) {
       case 'resolved':
-        return {
-          'label': 'RESOLVED',
-          'color': Colors.green,
-          'icon': Icons.check_circle,
-        };
+        return {'label': 'RESOLVED', 'color': Colors.green, 'icon': Icons.check_circle};
       case 'in_progress':
-        return {
-          'label': 'IN PROGRESS',
-          'color': Colors.blue,
-          'icon': Icons.hourglass_empty,
-        };
+        return {'label': 'IN PROGRESS', 'color': Colors.blue, 'icon': Icons.hourglass_empty};
       case 'rejected':
         return {'label': 'REJECTED', 'color': Colors.red, 'icon': Icons.cancel};
       default:
-        return {
-          'label': 'PENDING',
-          'color': Colors.orange,
-          'icon': Icons.pending,
-        };
+        return {'label': 'PENDING', 'color': Colors.orange, 'icon': Icons.pending};
     }
   }
 
@@ -604,7 +684,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() => _isSubmitting = true);
 
     try {
       await FirebaseFirestore.instance
@@ -612,18 +692,21 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
           .doc(AppConfig.schoolId)
           .collection('complaints')
           .add({
-            'studentId': _selectedStudentId,
-            'studentName': _studentName,
-            'title': _titleController.text.trim(),
-            'description': _descriptionController.text.trim(),
-            'category': _selectedCategory,
-            'status': 'pending',
-            'response': null,
-            'createdAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+        'studentId': _selectedStudentId,
+        'studentName': _selectedStudentName,
+        'studentClass': _selectedClass,
+        'studentSection': _selectedSection,
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'category': _selectedCategory,
+        'status': 'pending',
+        'response': null,
+        'respondedBy': null,
+        'respondedAt': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
-      // Clear form
       _titleController.clear();
       _descriptionController.clear();
       setState(() => _selectedCategory = "Academic");
@@ -636,8 +719,6 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
             duration: Duration(seconds: 3),
           ),
         );
-
-        // Switch to My Complaints tab
         _tabController.animateTo(1);
       }
     } catch (e) {
@@ -650,7 +731,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
         );
       }
     } finally {
-      setState(() => _isLoading = false);
+      setState(() => _isSubmitting = false);
     }
   }
 

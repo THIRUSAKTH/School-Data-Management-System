@@ -84,24 +84,34 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
       _totalStudents = studentData.length;
       _totalDays = snapshot.docs.length;
 
-      // Process attendance records
-      for (var doc in snapshot.docs) {
-        final records = doc.data() as Map<String, dynamic>;
+      // Process attendance records using records subcollection
+      for (var dateDoc in snapshot.docs) {
+        final recordsSnapshot = await dateDoc.reference
+            .collection('records')
+            .get();
 
-        for (var studentId in studentData.keys) {
-          if (records.containsKey(studentId)) {
-            final studentRecord = records[studentId] as Map<String, dynamic>;
-            final status = studentRecord['status'] ?? 'Absent';
+        // Track which students have records for this day
+        Set<String> studentsWithRecords = {};
+
+        for (var recordDoc in recordsSnapshot.docs) {
+          final recordData = recordDoc.data();
+          final studentId = recordData['studentId'];
+          final status = recordData['status'] ?? 'Absent';
+
+          if (studentId != null && studentData.containsKey(studentId)) {
+            studentsWithRecords.add(studentId);
 
             if (status == 'Present') {
               studentData[studentId]!['present'] = (studentData[studentId]!['present'] as int) + 1;
             } else if (status == 'Late') {
               studentData[studentId]!['late'] = (studentData[studentId]!['late'] as int) + 1;
-            } else {
-              studentData[studentId]!['absent'] = (studentData[studentId]!['absent'] as int) + 1;
             }
-          } else {
-            // Student absent on this day
+          }
+        }
+
+        // For students without records on this date, mark as absent
+        for (var studentId in studentData.keys) {
+          if (!studentsWithRecords.contains(studentId)) {
             studentData[studentId]!['absent'] = (studentData[studentId]!['absent'] as int) + 1;
           }
         }
@@ -179,19 +189,10 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
           ? _buildEmptyState()
           : Column(
         children: [
-          // Month Header
           _buildMonthHeader(),
-
-          // Summary Cards
           _buildSummaryCards(),
-
-          // Chart
           _buildAttendanceChart(),
-
-          // Student List Header
           _buildListHeader(),
-
-          // Student List
           Expanded(
             child: _buildStudentList(),
           ),
@@ -215,6 +216,7 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
           Text(
             "No attendance records found for ${DateFormat('MMMM yyyy').format(DateTime(widget.year, widget.month))}",
             style: TextStyle(color: Colors.grey.shade500),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -232,6 +234,13 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -305,7 +314,6 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
   }
 
   Widget _buildAttendanceChart() {
-    // Get top 10 students for chart
     var topStudents = _attendanceData.take(10).toList();
 
     List<BarChartGroupData> barGroups = [];
@@ -347,6 +355,11 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
             'Top 10 Students Performance',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Attendance percentage by roll number',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
           const SizedBox(height: 16),
           SizedBox(
             height: 250,
@@ -384,8 +397,8 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
                       },
                     ),
                   ),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
                 gridData: const FlGridData(show: true),
                 borderData: FlBorderData(show: true),
@@ -501,6 +514,11 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
   }
 
   void _showStudentDetails(Map<String, dynamic> student) {
+    final percentage = student['percentage'] as double;
+    final present = student['present'] as int;
+    final absent = student['absent'] as int;
+    final late = student['late'] as int;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -570,7 +588,7 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
                     Expanded(
                       child: _DetailCard(
                         label: 'Present',
-                        value: '${student['present']}',
+                        value: present.toString(),
                         color: Colors.green,
                       ),
                     ),
@@ -578,7 +596,7 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
                     Expanded(
                       child: _DetailCard(
                         label: 'Absent',
-                        value: '${student['absent']}',
+                        value: absent.toString(),
                         color: Colors.red,
                       ),
                     ),
@@ -586,12 +604,26 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
                     Expanded(
                       child: _DetailCard(
                         label: 'Rate',
-                        value: '${(student['percentage'] as double).toStringAsFixed(1)}%',
+                        value: '${percentage.toStringAsFixed(1)}%',
                         color: Colors.indigo,
                       ),
                     ),
                   ],
                 ),
+                if (late > 0) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DetailCard(
+                          label: 'Late',
+                          value: late.toString(),
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 20),
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -619,6 +651,21 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
                         ),
                       ),
                     ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.indigo,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text("Close"),
                   ),
                 ),
               ],
@@ -695,43 +742,20 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
               children: [
                 pw.TableRow(
                   children: [
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text('Roll No', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text('Student Name', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text('Present', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text('Percentage', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    ),
+                    _pdfHeaderCell('Roll No'),
+                    _pdfHeaderCell('Student Name'),
+                    _pdfHeaderCell('Present'),
+                    _pdfHeaderCell('Percentage'),
                   ],
                 ),
                 ..._attendanceData.map((student) {
+                  final percentage = student['percentage'] as double;
                   return pw.TableRow(
                     children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(8),
-                        child: pw.Text(student['rollNo'] ?? ''),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(8),
-                        child: pw.Text(student['name']),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(8),
-                        child: pw.Text('${student['present']}/$_totalDays'),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(8),
-                        child: pw.Text('${(student['percentage'] as double).toStringAsFixed(1)}%'),
-                      ),
+                      _pdfCell(student['rollNo'] ?? ''),
+                      _pdfCell(student['name']),
+                      _pdfCell('${student['present']}/$_totalDays'),
+                      _pdfCell('${percentage.toStringAsFixed(1)}%'),
                     ],
                   );
                 }).toList(),
@@ -744,6 +768,20 @@ class _AdminMonthlyAttendancePageState extends State<AdminMonthlyAttendancePage>
 
     await Printing.layoutPdf(
       onLayout: (format) async => pdf.save(),
+    );
+  }
+
+  pw.Widget _pdfHeaderCell(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(text, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+    );
+  }
+
+  pw.Widget _pdfCell(String text) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(text),
     );
   }
 }

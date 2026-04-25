@@ -4,6 +4,7 @@ import 'package:schoolprojectjan/firebase_options.dart';
 import 'package:schoolprojectjan/screens/get_started.dart';
 import 'package:schoolprojectjan/screens/parents/parent_home_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_login_page.dart';
+import 'package:schoolprojectjan/screens/parents/select_child_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,7 @@ class MyApp extends StatelessWidget {
       title: "School Management System",
       home: GetStarted(),
       routes: {
+        '/select_child': (context) => const SelectChildPage(),
         '/parentLogin': (_) => const ParentLoginPage(),
         '/parent_home': (context) => const ParentHomePage(),
       },

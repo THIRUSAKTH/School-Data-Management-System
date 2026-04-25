@@ -6,13 +6,16 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
 import 'package:schoolprojectjan/screens/parents/attendance_view_page.dart';
 import 'package:schoolprojectjan/screens/parents/homework_view_page.dart';
-import 'package:schoolprojectjan/screens/parents/notices_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_notices_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_attendance_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_complaint_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_notifications_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_profile_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_settings_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_view_results.dart';
+import 'package:schoolprojectjan/screens/parents/fee_status_page.dart';
+import 'package:schoolprojectjan/screens/parents/fee_history_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_exam_schedule.dart';
 
 class ParentHomePage extends StatefulWidget {
   const ParentHomePage({super.key});
@@ -242,7 +245,12 @@ class _ParentHomePageState extends State<ParentHomePage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const ParentAttendancePage(),
+                      builder: (_) => AttendanceViewPage(
+                        studentId: _selectedStudentId!,
+                        studentName: _selectedStudentName!,
+                        className: _selectedClassName!,
+                        section: _selectedSection!,
+                      ),
                     ),
                   );
                 } else {
@@ -260,7 +268,11 @@ class _ParentHomePageState extends State<ParentHomePage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const HomeworkViewPage(),
+                      builder: (_) => HomeworkViewPage(
+                        studentId: _selectedStudentId!,
+                        className: _selectedClassName!,
+                        section: _selectedSection!,
+                      ),
                     ),
                   );
                 } else {
@@ -278,7 +290,71 @@ class _ParentHomePageState extends State<ParentHomePage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const ParentViewResultsPage(),
+                      builder: (_) => ParentViewResultsPage(
+                        studentId: _selectedStudentId!,
+                        studentName: _selectedStudentName!,
+                      ),
+                    ),
+                  );
+                } else {
+                  _showSelectChildSnackbar();
+                }
+              },
+            ),
+            _quickActionItem(
+              icon: Icons.calendar_month,
+              title: "Exam Schedule",
+              color: Colors.teal,
+              onTap: () {
+                Navigator.pop(context);
+                if (_selectedStudentId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ParentExamSchedulePage(
+                        className: _selectedClassName,
+                        section: _selectedSection,
+                      ),
+                    ),
+                  );
+                } else {
+                  _showSelectChildSnackbar();
+                }
+              },
+            ),
+            _quickActionItem(
+              icon: Icons.receipt,
+              title: "Fee Status",
+              color: Colors.deepPurple,
+              onTap: () {
+                Navigator.pop(context);
+                if (_selectedStudentId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FeeStatusPage(
+                        studentId: _selectedStudentId!,
+                      ),
+                    ),
+                  );
+                } else {
+                  _showSelectChildSnackbar();
+                }
+              },
+            ),
+            _quickActionItem(
+              icon: Icons.receipt_long,
+              title: "Fee History",
+              color: Colors.blue,
+              onTap: () {
+                Navigator.pop(context);
+                if (_selectedStudentId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FeeHistoryPage(
+                        studentId: _selectedStudentId!,
+                      ),
                     ),
                   );
                 } else {
@@ -296,7 +372,10 @@ class _ParentHomePageState extends State<ParentHomePage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const ParentNoticesPage(),
+                      builder: (_) => ParentNoticesPage(
+                        className: _selectedClassName,
+                        section: _selectedSection,
+                      ),
                     ),
                   );
                 } else {
@@ -314,7 +393,9 @@ class _ParentHomePageState extends State<ParentHomePage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const ParentComplaintPage(),
+                      builder: (_) => ParentComplaintPage(
+                        studentId: _selectedStudentId!,
+                      ),
                     ),
                   ).then((_) => _loadUnreadCounts());
                 } else {
@@ -332,7 +413,9 @@ class _ParentHomePageState extends State<ParentHomePage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ParentNotificationsPage(),
+                      builder: (_) => ParentNotificationsPage(
+                        studentId: _selectedStudentId!,
+                      ),
                     ),
                   ).then((_) => _loadUnreadCounts());
                 } else {
@@ -356,7 +439,7 @@ class _ParentHomePageState extends State<ParentHomePage>
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(icon, color: color),
@@ -375,9 +458,19 @@ class _ParentHomePageState extends State<ParentHomePage>
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
-        title: const Text(
-          "Parent Dashboard",
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Parent Dashboard",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            if (_selectedStudentName != null)
+              Text(
+                _selectedStudentName!,
+                style: const TextStyle(fontSize: 12),
+              ),
+          ],
         ),
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
@@ -403,7 +496,9 @@ class _ParentHomePageState extends State<ParentHomePage>
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ParentNotificationsPage(),
+                        builder: (_) => ParentNotificationsPage(
+                          studentId: _selectedStudentId!,
+                        ),
                       ),
                     ).then((_) => _loadUnreadCounts());
                   } else {
@@ -592,7 +687,11 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const HomeworkViewPage(),
+                          builder: (_) => HomeworkViewPage(
+                            studentId: _selectedStudentId!,
+                            className: _selectedClassName!,
+                            section: _selectedSection!,
+                          ),
                         ),
                       );
                     } else {
@@ -609,7 +708,68 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const ParentViewResultsPage(),
+                          builder: (_) => ParentViewResultsPage(
+                            studentId: _selectedStudentId!,
+                            studentName: _selectedStudentName!,
+                          ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.calendar_month,
+                  title: "Exam Schedule",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ParentExamSchedulePage(
+                            className: _selectedClassName,
+                            section: _selectedSection,
+                          ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.receipt,
+                  title: "Fee Status",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => FeeStatusPage(
+                            studentId: _selectedStudentId!,
+                          ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.history,
+                  title: "Fee History",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => FeeHistoryPage(
+                            studentId: _selectedStudentId!,
+                          ),
                         ),
                       );
                     } else {
@@ -627,7 +787,10 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const ParentNoticesPage(),
+                          builder: (_) => ParentNoticesPage(
+                            className: _selectedClassName,
+                            section: _selectedSection,
+                          ),
                         ),
                       );
                     } else {
@@ -647,7 +810,9 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const ParentComplaintPage(),
+                          builder: (_) => ParentComplaintPage(
+                            studentId: _selectedStudentId!,
+                          ),
                         ),
                       ).then((_) => _loadUnreadCounts());
                     } else {
@@ -667,7 +832,9 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentNotificationsPage(),
+                          builder: (_) => ParentNotificationsPage(
+                            studentId: _selectedStudentId!,
+                          ),
                         ),
                       ).then((_) => _loadUnreadCounts());
                     } else {
@@ -1122,7 +1289,7 @@ class _ParentHomePageState extends State<ParentHomePage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withOpacity(0.3),
+            color: Colors.orange.withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -1165,14 +1332,13 @@ class _ParentHomePageState extends State<ParentHomePage>
   Widget _buildStatsRow(String studentId) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(_schoolId)
-          .collection('attendance')
+          .collectionGroup('records')
           .where('studentId', isEqualTo: studentId)
           .snapshots(),
       builder: (context, attendanceSnapshot) {
         int present = 0;
         int total = 0;
+        int late = 0;
 
         if (attendanceSnapshot.hasData) {
           for (var doc in attendanceSnapshot.data!.docs) {
@@ -1180,6 +1346,8 @@ class _ParentHomePageState extends State<ParentHomePage>
             total++;
             if (data['status'] == 'Present') {
               present++;
+            } else if (data['status'] == 'Late') {
+              late++;
             }
           }
         }
@@ -1250,9 +1418,7 @@ class _ParentHomePageState extends State<ParentHomePage>
   Widget _buildAttendanceSummary(String studentId) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(_schoolId)
-          .collection('attendance')
+          .collectionGroup('records')
           .where('studentId', isEqualTo: studentId)
           .orderBy('date', descending: true)
           .limit(10)
@@ -1346,7 +1512,11 @@ class _ParentHomePageState extends State<ParentHomePage>
                   itemBuilder: (context, index) {
                     final doc = records[index];
                     final data = doc.data() as Map<String, dynamic>;
-                    final dateStr = data['date'] ?? '';
+
+                    // Get date from parent document
+                    final parentDoc = doc.reference.parent.parent;
+                    final dateStr = parentDoc?.id ?? '';
+
                     DateTime date;
                     try {
                       date = DateTime.parse(dateStr);
@@ -1370,7 +1540,7 @@ class _ParentHomePageState extends State<ParentHomePage>
 
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: statusColor.withOpacity(0.1),
+                        backgroundColor: statusColor.withValues(alpha: 0.1),
                         child: Icon(statusIcon, color: statusColor, size: 20),
                       ),
                       title: Text(
@@ -1382,7 +1552,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.1),
+                          color: statusColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -1616,7 +1786,7 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -1659,7 +1829,7 @@ class _MiniStat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(

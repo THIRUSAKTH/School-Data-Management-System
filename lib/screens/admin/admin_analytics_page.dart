@@ -51,37 +51,38 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   Future<void> _loadStudentsAndSubjects() async {
     try {
       // Load students
-      final studentsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('students')
-          .get();
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('students')
+              .get();
 
-      _studentsList = studentsSnapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? 'Unknown',
-          'className': data['class'] ?? data['className'] ?? 'Unknown',
-          'rollNo': data['rollNo'] ?? '',
-        };
-      }).toList();
+      _studentsList =
+          studentsSnapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'id': doc.id,
+              'name': data['name'] ?? 'Unknown',
+              'className': data['class'] ?? data['className'] ?? 'Unknown',
+              'rollNo': data['rollNo'] ?? '',
+            };
+          }).toList();
 
       // Load subjects
-      final subjectsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('subjects')
-          .get();
+      final subjectsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('subjects')
+              .get();
 
       if (subjectsSnapshot.docs.isNotEmpty) {
-        _subjectsList = subjectsSnapshot.docs.map((doc) {
-          final data = doc.data();
-          return {
-            'id': doc.id,
-            'name': data['name'] ?? 'Unknown',
-          };
-        }).toList();
+        _subjectsList =
+            subjectsSnapshot.docs.map((doc) {
+              final data = doc.data();
+              return {'id': doc.id, 'name': data['name'] ?? 'Unknown'};
+            }).toList();
       } else {
         // Default subjects if none exist
         _subjectsList = [
@@ -114,6 +115,16 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     }
   }
 
+  // Helper method to sum map values
+  int _sumMapValues(Map<String, int>? map) {
+    if (map == null || map.isEmpty) return 0;
+    int sum = 0;
+    for (var value in map.values) {
+      sum += value;
+    }
+    return sum;
+  }
+
   Future<void> _loadAttendanceAnalytics() async {
     try {
       final attendanceRef = FirebaseFirestore.instance
@@ -125,7 +136,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
       Map<String, int> dailyPresent = {};
       Map<String, int> dailyAbsent = {};
-      Map<String, double> monthlyAverage = {};
       Map<String, double> classWiseAttendance = {};
       Map<String, int> classTotalStudents = {};
       Map<String, Map<int, int>> heatmapData = {};
@@ -160,7 +170,8 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
             // Class-wise unique students
             if (studentId.isNotEmpty && className != 'Unknown') {
-              classTotalStudents[className] = (classTotalStudents[className] ?? 0) + 1;
+              classTotalStudents[className] =
+                  (classTotalStudents[className] ?? 0) + 1;
             }
 
             // Class-wise attendance
@@ -168,25 +179,21 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               classWiseAttendance[className] = 0.0;
             }
             if (status == 'Present') {
-              classWiseAttendance[className] = (classWiseAttendance[className] ?? 0) + 1;
+              classWiseAttendance[className] =
+                  (classWiseAttendance[className] ?? 0) + 1;
             }
-
-            // Monthly average
-            final month = date.substring(0, 7);
-            if (!monthlyAverage.containsKey(month)) {
-              monthlyAverage[month] = 0.0;
-            }
-            monthlyAverage[month] = (monthlyAverage[month] ?? 0) + (status == 'Present' ? 1 : 0);
 
             // Heatmap data
             try {
               final dateObj = DateTime.parse(date);
               final dayOfMonth = dateObj.day;
+              final month = date.substring(0, 7);
               if (!heatmapData.containsKey(month)) {
                 heatmapData[month] = {};
               }
               if (status == 'Present') {
-                heatmapData[month]![dayOfMonth] = (heatmapData[month]![dayOfMonth] ?? 0) + 1;
+                heatmapData[month]![dayOfMonth] =
+                    (heatmapData[month]![dayOfMonth] ?? 0) + 1;
               }
             } catch (e) {
               // Invalid date format
@@ -209,7 +216,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       setState(() {
         _attendanceData['dailyPresent'] = dailyPresent;
         _attendanceData['dailyAbsent'] = dailyAbsent;
-        _attendanceData['monthlyAverage'] = monthlyAverage;
         _attendanceData['classWise'] = classWisePercentage;
         _attendanceData['classWiseCount'] = classWiseAttendance;
         _attendanceData['heatmap'] = currentMonthHeatmap;
@@ -260,9 +266,10 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         }
       }
 
-      double collectionRate = totalCollected + totalPending > 0
-          ? (totalCollected / (totalCollected + totalPending)) * 100
-          : 0;
+      double collectionRate =
+          totalCollected + totalPending > 0
+              ? (totalCollected / (totalCollected + totalPending)) * 100
+              : 0;
 
       setState(() {
         _feeData['monthlyCollected'] = monthlyCollected;
@@ -293,7 +300,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       for (var doc in snapshot.docs) {
         final data = doc.data();
         final subject = data['subject'] ?? 'Unknown';
-        final score = (data['score'] as num?)?.toDouble() ?? 0;
+        final score = (data['marksObtained'] as num?)?.toDouble() ?? 0;
         final studentId = data['studentId'] ?? '';
 
         if (score > 0) {
@@ -315,7 +322,8 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       Map<String, double> subjectAverages = {};
       subjectScores.forEach((subject, scores) {
         if (scores.isNotEmpty) {
-          subjectAverages[subject] = scores.reduce((a, b) => a + b) / scores.length;
+          subjectAverages[subject] =
+              scores.reduce((a, b) => a + b) / scores.length;
         }
       });
 
@@ -324,10 +332,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       studentScores.forEach((studentId, scores) {
         if (scores.isNotEmpty) {
           double avg = scores.reduce((a, b) => a + b) / scores.length;
-          studentAverages.add({
-            'studentId': studentId,
-            'average': avg,
-          });
+          studentAverages.add({'studentId': studentId, 'average': avg});
         }
       });
 
@@ -346,24 +351,38 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
       for (var student in studentAverages) {
         double avg = student['average'];
-        if (avg >= 90) gradeDistribution['A+'] = (gradeDistribution['A+'] ?? 0) + 1;
-        else if (avg >= 80) gradeDistribution['A'] = (gradeDistribution['A'] ?? 0) + 1;
-        else if (avg >= 70) gradeDistribution['B'] = (gradeDistribution['B'] ?? 0) + 1;
-        else if (avg >= 60) gradeDistribution['C'] = (gradeDistribution['C'] ?? 0) + 1;
-        else gradeDistribution['D'] = (gradeDistribution['D'] ?? 0) + 1;
+        if (avg >= 90)
+          gradeDistribution['A+'] = (gradeDistribution['A+'] ?? 0) + 1;
+        else if (avg >= 80)
+          gradeDistribution['A'] = (gradeDistribution['A'] ?? 0) + 1;
+        else if (avg >= 70)
+          gradeDistribution['B'] = (gradeDistribution['B'] ?? 0) + 1;
+        else if (avg >= 60)
+          gradeDistribution['C'] = (gradeDistribution['C'] ?? 0) + 1;
+        else
+          gradeDistribution['D'] = (gradeDistribution['D'] ?? 0) + 1;
       }
 
       // Calculate class average
-      double classAverage = studentAverages.isNotEmpty
-          ? studentAverages.map((s) => s['average'] as double).reduce((a, b) => a + b) / studentAverages.length
-          : 0;
+      double classAverage =
+          studentAverages.isNotEmpty
+              ? studentAverages
+                      .map((s) => s['average'] as double)
+                      .reduce((a, b) => a + b) /
+                  studentAverages.length
+              : 0;
 
       // Calculate pass rate
-      int passedCount = studentAverages.where((s) => (s['average'] as double) >= 60).length;
-      double passRate = studentAverages.isNotEmpty
-          ? (passedCount / studentAverages.length) * 100
-          : 0;
-      double topScore = studentAverages.isNotEmpty ? studentAverages.first['average'] as double : 0;
+      int passedCount =
+          studentAverages.where((s) => (s['average'] as double) >= 60).length;
+      double passRate =
+          studentAverages.isNotEmpty
+              ? (passedCount / studentAverages.length) * 100
+              : 0;
+      double topScore =
+          studentAverages.isNotEmpty
+              ? studentAverages.first['average'] as double
+              : 0;
 
       setState(() {
         _performanceData['subjectAverages'] = subjectAverages;
@@ -376,16 +395,37 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       });
     } catch (e) {
       debugPrint('Error loading performance analytics: $e');
-      // Set default empty data
       setState(() {
         _performanceData['subjectAverages'] = {};
         _performanceData['topStudents'] = [];
-        _performanceData['gradeDistribution'] = {'A+': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0};
+        _performanceData['gradeDistribution'] = {
+          'A+': 0,
+          'A': 0,
+          'B': 0,
+          'C': 0,
+          'D': 0,
+        };
         _performanceData['classAverage'] = 0;
         _performanceData['passRate'] = 0;
         _performanceData['topScore'] = 0;
       });
     }
+  }
+
+  // Helper method to calculate daily attendance
+  Map<String, double> _getDailyAttendanceRates() {
+    Map<String, int> presentMap = _attendanceData['dailyPresent'] ?? {};
+    Map<String, int> absentMap = _attendanceData['dailyAbsent'] ?? {};
+    Map<String, double> rates = {};
+
+    Set<String> allDates = {...presentMap.keys, ...absentMap.keys};
+    for (var date in allDates) {
+      int present = presentMap[date] ?? 0;
+      int absent = absentMap[date] ?? 0;
+      int total = present + absent;
+      rates[date] = total > 0 ? (present / total) * 100 : 0;
+    }
+    return rates;
   }
 
   @override
@@ -397,9 +437,10 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         children: [
           _buildTopSummary(),
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildBody(),
+            child:
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildBody(),
           ),
         ],
       ),
@@ -441,22 +482,16 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   }
 
   Widget _buildTopSummary() {
-    double totalStudents = 0;
-    if (_attendanceData['classWiseCount'] != null) {
-      final classCountMap = _attendanceData['classWiseCount'] as Map;
-      totalStudents = classCountMap.values.fold(0.0, (sum, value) => sum + (value as num).toDouble());
-    }
-
+    double totalStudents = _studentsList.length.toDouble();
     double totalCollected = _feeData['totalCollected'] ?? 0;
 
     // Calculate real attendance rate
-    Map<String, int> presentMap = _attendanceData['dailyPresent'] ?? {};
-    Map<String, int> absentMap = _attendanceData['dailyAbsent'] ?? {};
-    int totalPresent = presentMap.values.fold(0, (a, b) => a + b);
-    int totalAbsent = absentMap.values.fold(0, (a, b) => a + b);
-    double attendanceRate = totalPresent + totalAbsent > 0
-        ? (totalPresent / (totalPresent + totalAbsent)) * 100
-        : 0;
+    int totalPresent = _sumMapValues(_attendanceData['dailyPresent'] ?? {});
+    int totalAbsent = _sumMapValues(_attendanceData['dailyAbsent'] ?? {});
+    double attendanceRate =
+        totalPresent + totalAbsent > 0
+            ? (totalPresent / (totalPresent + totalAbsent)) * 100
+            : 0;
 
     return Padding(
       padding: const EdgeInsets.all(12),
@@ -464,8 +499,16 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _miniCard("Students", totalStudents.toInt().toString(), Icons.people),
-          _miniCard("Attendance", "${attendanceRate.toStringAsFixed(0)}%", Icons.check_circle),
-          _miniCard("Revenue", "₹${totalCollected.toInt()}", Icons.currency_rupee),
+          _miniCard(
+            "Attendance",
+            "${attendanceRate.toStringAsFixed(0)}%",
+            Icons.check_circle,
+          ),
+          _miniCard(
+            "Revenue",
+            "₹${totalCollected.toInt()}",
+            Icons.currency_rupee,
+          ),
         ],
       ),
     );
@@ -508,13 +551,9 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildPeriodFilter(),
-          const SizedBox(height: 16),
           _buildAttendanceSummaryCards(),
           const SizedBox(height: 24),
-          _buildAttendanceTrendChart(),
-          const SizedBox(height: 24),
-          _buildEnhancedClassWiseAttendance(),
+          _buildClassWiseAttendance(),
           const SizedBox(height: 24),
           _buildAttendanceHeatmap(),
         ],
@@ -522,23 +561,9 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     );
   }
 
-  int _sumMapValues(Map<String, int>? map) {
-    if (map == null || map.isEmpty) return 0;
-    int sum = 0;
-    for (var value in map.values) {
-      sum += value;
-    }
-    return sum;
-  }
-
   Widget _buildAttendanceSummaryCards() {
-    Map<String, int> presentMap = _attendanceData['dailyPresent'] ?? {};
-    Map<String, int> absentMap = _attendanceData['dailyAbsent'] ?? {};
-    int totalPresent = _sumMapValues(presentMap);
-    int totalAbsent = _sumMapValues(absentMap);
-    double attendanceRate = totalPresent + totalAbsent > 0
-        ? (totalPresent / (totalPresent + totalAbsent)) * 100
-        : 0;
+    int totalPresent = _sumMapValues(_attendanceData['dailyPresent'] ?? {});
+    int totalAbsent = _sumMapValues(_attendanceData['dailyAbsent'] ?? {});
 
     return GridView.count(
       crossAxisCount: 2,
@@ -550,10 +575,10 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       children: [
         _buildSummaryCard(
           "Attendance Rate",
-          "${attendanceRate.toStringAsFixed(1)}%",
+          _getAttendanceRateString(),
           Icons.trending_up,
           Colors.green,
-          _getAttendanceTrend(),
+          "Overall attendance",
         ),
         _buildSummaryCard(
           "Present",
@@ -571,7 +596,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         ),
         _buildSummaryCard(
           "Best Day",
-          _getBestAttendanceDay(presentMap),
+          _getBestAttendanceDay(),
           Icons.emoji_events,
           Colors.orange,
           "Highest attendance",
@@ -580,129 +605,52 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     );
   }
 
-  Widget _buildAttendanceTrendChart() {
-    Map<String, int> presentMap = _attendanceData['dailyPresent'] ?? {};
-
-    // Get last 7 days data
-    List<String> days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    List<double> attendanceRates = List.filled(7, 0.0);
-
-    // Calculate daily attendance rates
-    DateTime now = DateTime.now();
-    for (int i = 0; i < 7; i++) {
-      DateTime date = now.subtract(Duration(days: 6 - i));
-      String dateStr = DateFormat('yyyy-MM-dd').format(date);
-      int present = presentMap[dateStr] ?? 0;
-      int absent = _attendanceData['dailyAbsent']?[dateStr] ?? 0;
-      int total = present + absent;
-      attendanceRates[i] = total > 0 ? (present / total) * 100 : 0;
-    }
-
-    List<FlSpot> spots = [];
-    for (int i = 0; i < days.length; i++) {
-      spots.add(FlSpot(i.toDouble(), attendanceRates[i]));
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Attendance Trend",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                "Last 7 Days",
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 250,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: true,
-                  horizontalInterval: 20,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(color: Colors.grey.shade300, strokeWidth: 1);
-                  },
-                ),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 20,
-                      reservedSize: 40,
-                      getTitlesWidget: (value, meta) {
-                        return Text('${value.toInt()}%', style: const TextStyle(fontSize: 10));
-                      },
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 1,
-                      getTitlesWidget: (value, meta) {
-                        int index = value.toInt();
-                        if (index >= 0 && index < days.length) {
-                          return Text(days[index], style: const TextStyle(fontSize: 10));
-                        }
-                        return const Text('');
-                      },
-                    ),
-                  ),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                borderData: FlBorderData(
-                  show: true,
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                minX: 0,
-                maxX: 6,
-                minY: 0,
-                maxY: 100,
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: spots,
-                    isCurved: true,
-                    color: Colors.blue,
-                    barWidth: 3,
-                    isStrokeCapRound: true,
-                    dotData: const FlDotData(show: true),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: Colors.blue.withValues(alpha: 0.1),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildChartLegend(),
-        ],
-      ),
-    );
+  String _getAttendanceRateString() {
+    int totalPresent = _sumMapValues(_attendanceData['dailyPresent'] ?? {});
+    int totalAbsent = _sumMapValues(_attendanceData['dailyAbsent'] ?? {});
+    double rate =
+        totalPresent + totalAbsent > 0
+            ? (totalPresent / (totalPresent + totalAbsent)) * 100
+            : 0;
+    return "${rate.toStringAsFixed(1)}%";
   }
 
-  Widget _buildEnhancedClassWiseAttendance() {
-    Map<String, double> classData = _attendanceData['classWise'] != null
-        ? Map<String, double>.from(_attendanceData['classWise'])
-        : {};
+  String _getBestAttendanceDay() {
+    Map<String, int> presentMap = _attendanceData['dailyPresent'] ?? {};
+    if (presentMap.isEmpty) return "No data";
+
+    String bestDay = "";
+    int maxPresent = 0;
+
+    presentMap.forEach((date, present) {
+      if (present > maxPresent) {
+        maxPresent = present;
+        bestDay = date;
+      }
+    });
+
+    if (bestDay.isNotEmpty) {
+      try {
+        DateTime date = DateTime.parse(bestDay);
+        return DateFormat('EEEE').format(date);
+      } catch (e) {
+        return "Best Day";
+      }
+    }
+    return "No data";
+  }
+
+  Widget _buildClassWiseAttendance() {
+    Map<String, double> classData =
+        _attendanceData['classWise'] != null
+            ? Map<String, double>.from(_attendanceData['classWise'])
+            : {};
 
     List<String> classes = classData.isNotEmpty ? classData.keys.toList() : [];
-    List<double> attendanceRates = classData.isNotEmpty
-        ? classData.values.map((v) => v.toDouble()).toList()
-        : [];
+    List<double> attendanceRates =
+        classData.isNotEmpty
+            ? classData.values.map((v) => v.toDouble()).toList()
+            : [];
 
     if (classes.isEmpty) {
       return Container(
@@ -717,7 +665,8 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     List<BarChartGroupData> barGroups = [];
     for (int i = 0; i < classes.length; i++) {
       final rate = attendanceRates[i];
-      final color = rate >= targetRate ? Colors.green.shade600 : Colors.orange.shade600;
+      final color =
+          rate >= targetRate ? Colors.green.shade600 : Colors.orange.shade600;
 
       barGroups.add(
         BarChartGroupData(
@@ -746,23 +695,9 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Class-wise Attendance",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                "Current Month",
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
           const Text(
-            "Attendance percentage by class with target line",
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+            "Class-wise Attendance",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -780,7 +715,13 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
                       reservedSize: 45,
                       interval: 20,
                       getTitlesWidget: (value, meta) {
-                        return Text('${value.toInt()}%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500));
+                        return Text(
+                          '${value.toInt()}%',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        );
                       },
                     ),
                   ),
@@ -794,7 +735,10 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
                               classes[index],
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
                               textAlign: TextAlign.center,
                             ),
                           );
@@ -803,15 +747,23 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
                       },
                     ),
                   ),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
                   horizontalInterval: 20,
                   getDrawingHorizontalLine: (value) {
-                    return FlLine(color: Colors.grey.shade300, strokeWidth: 1, dashArray: [5, 5]);
+                    return FlLine(
+                      color: Colors.grey.shade300,
+                      strokeWidth: 1,
+                      dashArray: [5, 5],
+                    );
                   },
                 ),
                 borderData: FlBorderData(
@@ -824,7 +776,11 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
                       return BarTooltipItem(
                         '${attendanceRates[groupIndex].toStringAsFixed(1)}%',
-                        const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       );
                     },
                   ),
@@ -832,25 +788,35 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          _buildAttendanceLegend(),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 20,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.green.shade600,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text("Above 90%", style: TextStyle(fontSize: 11)),
+              const SizedBox(width: 20),
+              Container(
+                width: 20,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade600,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text("Below 90%", style: TextStyle(fontSize: 11)),
+            ],
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildAttendanceLegend() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(width: 20, height: 12, decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(4))),
-        const SizedBox(width: 6),
-        const Text("Above 90%", style: TextStyle(fontSize: 11)),
-        const SizedBox(width: 20),
-        Container(width: 20, height: 12, decoration: BoxDecoration(color: Colors.orange.shade600, borderRadius: BorderRadius.circular(4))),
-        const SizedBox(width: 6),
-        const Text("Below 90%", style: TextStyle(fontSize: 11)),
-      ],
     );
   }
 
@@ -858,6 +824,9 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     Map<int, int> heatmapData = _attendanceData['heatmap'] ?? {};
     DateTime now = DateTime.now();
     int daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    int totalStudents = _studentsList.length;
+
+    if (totalStudents == 0) totalStudents = 1;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -889,10 +858,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               int day = index + 1;
               int? presentCount = heatmapData[day];
 
-              double attendanceRate = 0;
-              if (presentCount != null && _studentsList.isNotEmpty) {
-                attendanceRate = (presentCount / _studentsList.length) * 100;
-              }
+              double attendanceRate = (presentCount ?? 0) / totalStudents * 100;
 
               Color getColor() {
                 if (attendanceRate >= 90) return Colors.green.shade700;
@@ -932,8 +898,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         children: [
           _buildFeeSummaryCards(),
           const SizedBox(height: 24),
-          _buildEnhancedFeeCollectionChart(),
-          const SizedBox(height: 24),
           _buildOutstandingFees(),
         ],
       ),
@@ -944,7 +908,10 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     double collected = _feeData['totalCollected'] ?? 0;
     double pending = _feeData['totalPending'] ?? 0;
     double rate = _feeData['collectionRate'] ?? 0;
-    double perStudentAvg = _studentsList.isNotEmpty ? (collected + pending) / _studentsList.length : 0;
+    double perStudentAvg =
+        _studentsList.isNotEmpty
+            ? (collected + pending) / _studentsList.length
+            : 0;
 
     return GridView.count(
       crossAxisCount: 2,
@@ -953,173 +920,42 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
       children: [
-        _buildSummaryCard("Total Collected", "₹${collected.toStringAsFixed(0)}", Icons.account_balance_wallet, Colors.green, "Overall collection"),
-        _buildSummaryCard("Pending Amount", "₹${pending.toStringAsFixed(0)}", Icons.pending_actions, Colors.orange, "Due payments"),
-        _buildSummaryCard("Collection Rate", "${rate.toStringAsFixed(1)}%", Icons.trending_up, Colors.blue, "Success rate"),
-        _buildSummaryCard("Average per Student", "₹${perStudentAvg.toStringAsFixed(0)}", Icons.people, Colors.purple, "Per student total"),
-      ],
-    );
-  }
-
-  Widget _buildEnhancedFeeCollectionChart() {
-    Map<String, double> monthlyCollected = _feeData['monthlyCollected'] != null
-        ? Map<String, double>.from(_feeData['monthlyCollected'])
-        : {};
-    Map<String, double> monthlyPending = _feeData['monthlyPending'] != null
-        ? Map<String, double>.from(_feeData['monthlyPending'])
-        : {};
-
-    List<String> months = monthlyCollected.isNotEmpty ? monthlyCollected.keys.toList() : [];
-    List<double> collected = monthlyCollected.isNotEmpty ? monthlyCollected.values.map((v) => v).toList() : [];
-    List<double> pending = monthlyPending.isNotEmpty ? monthlyPending.values.map((v) => v).toList() : [];
-
-    if (months.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: _cardDecoration(),
-        child: const Center(child: Text("No fee collection data available")),
-      );
-    }
-
-    List<BarChartGroupData> barGroups = [];
-    for (int i = 0; i < months.length; i++) {
-      barGroups.add(
-        BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: collected[i],
-              color: Colors.green.shade600,
-              width: 20,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-            ),
-            BarChartRodData(
-              toY: pending[i],
-              color: Colors.orange.shade600,
-              width: 20,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-            ),
-          ],
-          barsSpace: 4,
+        _buildSummaryCard(
+          "Total Collected",
+          "₹${collected.toStringAsFixed(0)}",
+          Icons.account_balance_wallet,
+          Colors.green,
+          "Overall collection",
         ),
-      );
-    }
-
-    double maxY = 0;
-    for (int i = 0; i < collected.length; i++) {
-      double total = collected[i] + pending[i];
-      if (total > maxY) maxY = total;
-    }
-    maxY = maxY > 0 ? maxY * 1.1 : 100000;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text("Fee Collection Overview", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              Text("Monthly Trend", style: TextStyle(color: Colors.grey, fontSize: 12)),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 340,
-            child: BarChart(
-              BarChartData(
-                barGroups: barGroups,
-                alignment: BarChartAlignment.spaceAround,
-                maxY: maxY,
-                minY: 0,
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 55,
-                      interval: maxY / 5,
-                      getTitlesWidget: (value, meta) {
-                        if (value >= 1000) {
-                          return Text('₹${(value / 1000).toInt()}k', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500));
-                        }
-                        return Text('₹${value.toInt()}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500));
-                      },
-                    ),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        int index = value.toInt();
-                        if (index >= 0 && index < months.length) {
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(months[index], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                          );
-                        }
-                        return const Text('');
-                      },
-                    ),
-                  ),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: maxY / 5,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(color: Colors.grey.shade300, strokeWidth: 1, dashArray: [5, 5]);
-                  },
-                ),
-                borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.shade300, width: 1)),
-                barTouchData: BarTouchData(
-                  enabled: true,
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      final month = months[groupIndex];
-                      final collectedAmount = collected[groupIndex];
-                      final pendingAmount = pending[groupIndex];
-                      final totalAmount = collectedAmount + pendingAmount;
-                      return BarTooltipItem(
-                        '$month\nCollected: ₹${collectedAmount.toStringAsFixed(0)}\nPending: ₹${pendingAmount.toStringAsFixed(0)}\nTotal: ₹${totalAmount.toStringAsFixed(0)}',
-                        const TextStyle(color: Colors.white, fontSize: 11),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildFeeLegend(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeeLegend() {
-    double totalCollected = _feeData['totalCollected'] ?? 0;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(width: 20, height: 12, decoration: BoxDecoration(color: Colors.green.shade600, borderRadius: BorderRadius.circular(4))),
-        const SizedBox(width: 6),
-        const Text("Collected", style: TextStyle(fontSize: 11)),
-        const SizedBox(width: 20),
-        Container(width: 20, height: 12, decoration: BoxDecoration(color: Colors.orange.shade600, borderRadius: BorderRadius.circular(4))),
-        const SizedBox(width: 6),
-        const Text("Pending", style: TextStyle(fontSize: 11)),
-        const SizedBox(width: 20),
-        Text("Total collected: ₹${totalCollected.toStringAsFixed(0)}", style: const TextStyle(fontSize: 11)),
+        _buildSummaryCard(
+          "Pending Amount",
+          "₹${pending.toStringAsFixed(0)}",
+          Icons.pending_actions,
+          Colors.orange,
+          "Due payments",
+        ),
+        _buildSummaryCard(
+          "Collection Rate",
+          "${rate.toStringAsFixed(1)}%",
+          Icons.trending_up,
+          Colors.blue,
+          "Success rate",
+        ),
+        _buildSummaryCard(
+          "Avg per Student",
+          "₹${perStudentAvg.toStringAsFixed(0)}",
+          Icons.people,
+          Colors.purple,
+          "Per student total",
+        ),
       ],
     );
   }
 
   Widget _buildOutstandingFees() {
-    List<Map<String, dynamic>> outstandingList = List.from(_feeData['outstandingList'] ?? []);
+    List<Map<String, dynamic>> outstandingList = List.from(
+      _feeData['outstandingList'] ?? [],
+    );
 
     if (outstandingList.isEmpty) {
       return Container(
@@ -1130,8 +966,14 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
             children: [
               Icon(Icons.check_circle, color: Colors.green, size: 48),
               SizedBox(height: 12),
-              Text("No outstanding payments!", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              Text("All fees are up to date", style: TextStyle(color: Colors.grey)),
+              Text(
+                "No outstanding payments!",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                "All fees are up to date",
+                style: TextStyle(color: Colors.grey),
+              ),
             ],
           ),
         ),
@@ -1144,27 +986,43 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Outstanding Payments", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            "Outstanding Payments",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: outstandingList.length > 10 ? 10 : outstandingList.length,
+            itemCount:
+                outstandingList.length > 10 ? 10 : outstandingList.length,
             separatorBuilder: (_, __) => const Divider(),
             itemBuilder: (context, index) {
               final item = outstandingList[index];
               return ListTile(
-                leading: CircleAvatar(backgroundColor: Colors.red.shade50, child: Text("${index + 1}")),
+                leading: CircleAvatar(
+                  backgroundColor: Colors.red.shade50,
+                  child: Text("${index + 1}"),
+                ),
                 title: Text(item['studentName'] ?? 'Unknown'),
                 subtitle: Text("Due since ${item['dueDate'] ?? 'Unknown'}"),
-                trailing: Text("₹${(item['amount'] ?? 0).toStringAsFixed(0)}", style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                trailing: Text(
+                  "₹${(item['amount'] ?? 0).toStringAsFixed(0)}",
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               );
             },
           ),
           if (outstandingList.length > 10)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Text("+ ${outstandingList.length - 10} more students", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              child: Text(
+                "+ ${outstandingList.length - 10} more students",
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
             ),
         ],
       ),
@@ -1178,8 +1036,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildPerformanceFilters(),
-          const SizedBox(height: 16),
           _buildPerformanceSummary(),
           const SizedBox(height: 24),
           _buildSubjectWisePerformance(),
@@ -1187,75 +1043,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
           _buildTopPerformers(),
           const SizedBox(height: 24),
           _buildGradeDistribution(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPerformanceFilters() {
-    final List<String> periodValues = ['month', 'quarter', 'year'];
-    final Map<String, String> periodLabels = {
-      'month': 'This Month',
-      'quarter': 'This Quarter',
-      'year': 'This Year'
-    };
-
-    // Get unique class names from students list
-    Set<String> uniqueClasses = _studentsList
-        .map((student) => student['className'] as String)
-        .toSet();
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: _cardDecoration(),
-      child: Row(
-        children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              value: _selectedClass,
-              decoration: const InputDecoration(
-                labelText: "Select Class",
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              items: [
-                const DropdownMenuItem<String>(value: 'All Classes', child: Text('All Classes')),
-                ...uniqueClasses.map((className) {
-                  return DropdownMenuItem<String>(
-                    value: className,
-                    child: Text(className),
-                  );
-                }).toList(),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _selectedClass = value!;
-                });
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              value: _selectedPerformancePeriod,
-              decoration: const InputDecoration(
-                labelText: "Select Period",
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              items: periodValues.map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(periodLabels[value]!),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  _selectedPerformancePeriod = value!;
-                });
-              },
-            ),
-          ),
         ],
       ),
     );
@@ -1274,24 +1061,51 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       mainAxisSpacing: 12,
       childAspectRatio: 1.1,
       children: [
-        _buildSummaryCard("Class Average", "${classAverage.toStringAsFixed(1)}%", Icons.show_chart, Colors.blue, "Overall performance"),
-        _buildSummaryCard("Top Score", "${topScore.toStringAsFixed(1)}%", Icons.emoji_events, Colors.orange, "Highest in class"),
-        _buildSummaryCard("Pass Rate", "${passRate.toStringAsFixed(1)}%", Icons.check_circle, Colors.green, "Students passed"),
+        _buildSummaryCard(
+          "Class Average",
+          "${classAverage.toStringAsFixed(1)}%",
+          Icons.show_chart,
+          Colors.blue,
+          "Overall performance",
+        ),
+        _buildSummaryCard(
+          "Top Score",
+          "${topScore.toStringAsFixed(1)}%",
+          Icons.emoji_events,
+          Colors.orange,
+          "Highest in class",
+        ),
+        _buildSummaryCard(
+          "Pass Rate",
+          "${passRate.toStringAsFixed(1)}%",
+          Icons.check_circle,
+          Colors.green,
+          "Students passed",
+        ),
       ],
     );
   }
 
   Widget _buildSubjectWisePerformance() {
-    Map<String, double> subjectAverages = _performanceData['subjectAverages'] ?? {};
+    Map<String, double> subjectAverages =
+        _performanceData['subjectAverages'] ?? {};
 
-    List<String> subjects = subjectAverages.isNotEmpty ? subjectAverages.keys.toList() : ['No Data'];
-    List<double> scores = subjectAverages.isNotEmpty ? subjectAverages.values.map((v) => v).toList() : [0];
+    List<String> subjects =
+        subjectAverages.isNotEmpty
+            ? subjectAverages.keys.toList()
+            : ['No Data'];
+    List<double> scores =
+        subjectAverages.isNotEmpty
+            ? subjectAverages.values.map((v) => v).toList()
+            : [0];
 
     if (subjects.length == 1 && subjects[0] == 'No Data') {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: _cardDecoration(),
-        child: const Center(child: Text("No subject performance data available")),
+        child: const Center(
+          child: Text("No subject performance data available"),
+        ),
       );
     }
 
@@ -1300,7 +1114,14 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       barGroups.add(
         BarChartGroupData(
           x: i,
-          barRods: [BarChartRodData(toY: scores[i], color: Colors.blue, width: 25, borderRadius: BorderRadius.circular(4))],
+          barRods: [
+            BarChartRodData(
+              toY: scores[i],
+              color: Colors.blue,
+              width: 25,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ],
         ),
       );
     }
@@ -1311,7 +1132,10 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Subject-wise Performance", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            "Subject-wise Performance",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 20),
           SizedBox(
             height: 250,
@@ -1319,14 +1143,36 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               BarChartData(
                 barGroups: barGroups,
                 titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (value, meta) => Text('${value.toInt()}%', style: const TextStyle(fontSize: 10)))),
-                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (value, meta) {
-                    int index = value.toInt();
-                    if (index >= 0 && index < subjects.length) return Text(subjects[index], style: const TextStyle(fontSize: 10));
-                    return const Text('');
-                  })),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget:
+                          (value, meta) => Text(
+                            '${value.toInt()}%',
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        int index = value.toInt();
+                        if (index >= 0 && index < subjects.length)
+                          return Text(
+                            subjects[index],
+                            style: const TextStyle(fontSize: 10),
+                          );
+                        return const Text('');
+                      },
+                    ),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 gridData: const FlGridData(show: true),
                 borderData: FlBorderData(show: true),
@@ -1339,7 +1185,9 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   }
 
   Widget _buildTopPerformers() {
-    List<Map<String, dynamic>> topStudents = List.from(_performanceData['topStudents'] ?? []);
+    List<Map<String, dynamic>> topStudents = List.from(
+      _performanceData['topStudents'] ?? [],
+    );
 
     if (topStudents.isEmpty) {
       return Container(
@@ -1355,7 +1203,10 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Top Performers", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            "Top Performers",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           ListView.separated(
             shrinkWrap: true,
@@ -1365,17 +1216,35 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
             itemBuilder: (context, index) {
               final student = topStudents[index];
               final studentInfo = _studentsList.firstWhere(
-                    (s) => s['id'] == student['studentId'],
+                (s) => s['id'] == student['studentId'],
                 orElse: () => {'name': 'Unknown', 'className': 'Unknown'},
               );
               return ListTile(
-                leading: CircleAvatar(backgroundColor: Colors.blue.shade50, child: Text("${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold))),
+                leading: CircleAvatar(
+                  backgroundColor: Colors.blue.shade50,
+                  child: Text(
+                    "${index + 1}",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
                 title: Text(studentInfo['name'] ?? 'Unknown'),
                 subtitle: Text(studentInfo['className'] ?? 'Unknown'),
                 trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12)),
-                  child: Text("${(student['average'] as double).toStringAsFixed(1)}%", style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "${(student['average'] as double).toStringAsFixed(1)}%",
+                    style: TextStyle(
+                      color: Colors.green.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               );
             },
@@ -1386,14 +1255,18 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   }
 
   Widget _buildGradeDistribution() {
-    Map<String, int> gradeDist = _performanceData['gradeDistribution'] ?? {'A+': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0};
+    Map<String, int> gradeDist =
+        _performanceData['gradeDistribution'] ??
+        {'A+': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0};
     int total = gradeDist.values.fold(0, (a, b) => a + b);
 
     if (total == 0) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: _cardDecoration(),
-        child: const Center(child: Text("No grade distribution data available")),
+        child: const Center(
+          child: Text("No grade distribution data available"),
+        ),
       );
     }
 
@@ -1403,7 +1276,10 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Grade Distribution", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            "Grade Distribution",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           _buildGradeBar("A+ (90-100)", gradeDist['A+'] ?? 0, total),
           const SizedBox(height: 8),
@@ -1421,57 +1297,44 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
   Widget _buildGradeBar(String grade, int count, int total) {
     double percentage = total > 0 ? (count / total) * 100 : 0;
-    Color color = grade.contains('A+') || grade.contains('A') ? Colors.green : (grade.contains('B') ? Colors.orange : Colors.red);
+    Color color =
+        grade.contains('A+') || grade.contains('A')
+            ? Colors.green
+            : (grade.contains('B') ? Colors.orange : Colors.red);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(grade, style: const TextStyle(fontSize: 12)), Text("$count students (${percentage.toStringAsFixed(1)}%)", style: const TextStyle(fontSize: 12))]),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(grade, style: const TextStyle(fontSize: 12)),
+            Text(
+              "$count students (${percentage.toStringAsFixed(1)}%)",
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
         const SizedBox(height: 4),
-        LinearProgressIndicator(value: percentage / 100, backgroundColor: Colors.grey.shade200, valueColor: AlwaysStoppedAnimation<Color>(color), minHeight: 8, borderRadius: BorderRadius.circular(4)),
+        LinearProgressIndicator(
+          value: (percentage / 100).toDouble(),
+          backgroundColor: Colors.grey.shade200,
+          valueColor: AlwaysStoppedAnimation<Color>(color),
+          minHeight: 8,
+          borderRadius: BorderRadius.circular(4),
+        ),
       ],
     );
   }
 
   // ================= HELPER WIDGETS =================
-  Widget _buildPeriodFilter() {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: _cardDecoration(),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _periodChip("Today", "today"),
-            const SizedBox(width: 8),
-            _periodChip("This Week", "week"),
-            const SizedBox(width: 8),
-            _periodChip("This Month", "month"),
-            const SizedBox(width: 8),
-            _periodChip("This Year", "year"),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _periodChip(String label, String value) {
-    final isSelected = _selectedAttendancePeriod == value;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedAttendancePeriod = value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.blue : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? Colors.blue : Colors.grey.shade300),
-        ),
-        child: Text(label, style: TextStyle(color: isSelected ? Colors.white : Colors.grey.shade700, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard(String title, String value, IconData icon, Color color, String subtitle) {
+  Widget _buildSummaryCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+    String subtitle,
+  ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: _cardDecoration(),
@@ -1479,81 +1342,42 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(children: [Expanded(child: Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey), overflow: TextOverflow.ellipsis)), Icon(icon, color: color, size: 18)]),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(icon, color: color, size: 18),
+            ],
+          ),
           const SizedBox(height: 6),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(fontSize: 9, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(
+            subtitle,
+            style: const TextStyle(fontSize: 9, color: Colors.grey),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildChartLegend() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(width: 20, height: 3, color: Colors.blue),
-        const SizedBox(width: 8),
-        const Text("Attendance Rate", style: TextStyle(fontSize: 12)),
-      ],
-    );
-  }
-
-  String _getAttendanceTrend() {
-    Map<String, int> presentMap = _attendanceData['dailyPresent'] ?? {};
-    if (presentMap.isEmpty) return "No data yet";
-
-    List<int> values = presentMap.values.toList();
-    if (values.length < 2) return "Insufficient data";
-
-    int lastWeekCount = 0;
-    int previousCount = 0;
-
-    int weekDays = values.length > 7 ? 7 : values.length;
-    for (int i = 0; i < weekDays; i++) {
-      lastWeekCount += values[values.length - 1 - i];
-    }
-
-    int prevDays = values.length > 7 ? values.length - 7 : values.length;
-    for (int i = 0; i < prevDays; i++) {
-      previousCount += values[i];
-    }
-
-    int lastWeekAvg = lastWeekCount ~/ weekDays;
-    int previousAvg = previousCount ~/ prevDays;
-
-    if (previousAvg == 0) return "New data available";
-    double change = ((lastWeekAvg - previousAvg) / previousAvg) * 100;
-    return change >= 0 ? "+${change.toStringAsFixed(1)}% vs last month" : "${change.toStringAsFixed(1)}% vs last month";
-  }
-  String _getBestAttendanceDay(Map<String, int> presentMap) {
-    if (presentMap.isEmpty) return "No data";
-
-    String bestDay = "";
-    int maxPresent = 0;
-
-    presentMap.forEach((date, present) {
-      if (present > maxPresent) {
-        maxPresent = present;
-        bestDay = date;
-      }
-    });
-
-    if (bestDay.isNotEmpty) {
-      try {
-        DateTime date = DateTime.parse(bestDay);
-        return DateFormat('EEEE').format(date);
-      } catch (e) {
-        return "Best Day";
-      }
-    }
-    return "No data";
-  }
-
   Future<void> _exportAnalytics() async {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Export feature coming soon")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Export feature coming soon")),
+      );
     }
   }
 
@@ -1561,7 +1385,13 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     return BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
-      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.05),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
     );
   }
 }

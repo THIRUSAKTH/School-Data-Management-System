@@ -15,20 +15,20 @@ class AttendanceReportSelectorPage extends StatefulWidget {
 
 class _AttendanceReportSelectorPageState
     extends State<AttendanceReportSelectorPage> {
+  String _searchText = "";
+  int _selectedMonth = DateTime.now().month;
+  int _selectedYear = DateTime.now().year;
+  String? _selectedClassFilter;
+  String? _selectedSectionFilter;
 
-  String searchText = "";
-  int selectedMonth = DateTime.now().month;
-  int selectedYear = DateTime.now().year;
-  String? selectedClassFilter;
-  String? selectedSectionFilter;
-
-  final List<String> months = const [
+  final List<String> _months = const [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
   ];
 
   List<String> _availableClasses = [];
   List<String> _availableSections = [];
+  bool _isLoadingFilters = true;
 
   @override
   void initState() {
@@ -37,6 +37,8 @@ class _AttendanceReportSelectorPageState
   }
 
   Future<void> _loadFilters() async {
+    setState(() => _isLoadingFilters = true);
+
     try {
       final studentsSnapshot = await FirebaseFirestore.instance
           .collection('schools')
@@ -63,9 +65,19 @@ class _AttendanceReportSelectorPageState
       setState(() {
         _availableClasses = classesSet.toList()..sort();
         _availableSections = sectionsSet.toList()..sort();
+        _isLoadingFilters = false;
       });
     } catch (e) {
       debugPrint('Error loading filters: $e');
+      setState(() => _isLoadingFilters = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading filters: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -91,22 +103,11 @@ class _AttendanceReportSelectorPageState
       ),
       body: Column(
         children: [
-          // Header Card
           _buildHeaderCard(),
-
-          // Search Bar
           _buildSearchBar(),
-
-          // Filters Row
           _buildFiltersRow(),
-
-          // Month/Year Selector
           _buildDateSelector(),
-
-          // Classes List Header
           _buildListHeader(),
-
-          // Classes List
           Expanded(
             child: _buildClassList(),
           ),
@@ -126,6 +127,13 @@ class _AttendanceReportSelectorPageState
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,12 +166,12 @@ class _AttendanceReportSelectorPageState
         decoration: InputDecoration(
           hintText: "Search by class name...",
           prefixIcon: const Icon(Icons.search, color: Colors.indigo),
-          suffixIcon: searchText.isNotEmpty
+          suffixIcon: _searchText.isNotEmpty
               ? IconButton(
             icon: const Icon(Icons.clear),
             onPressed: () {
               setState(() {
-                searchText = "";
+                _searchText = "";
               });
             },
           )
@@ -182,21 +190,35 @@ class _AttendanceReportSelectorPageState
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.indigo, width: 1),
           ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
-        onChanged: (v) => setState(() => searchText = v.toLowerCase()),
+        onChanged: (v) => setState(() => _searchText = v.toLowerCase()),
       ),
     );
   }
 
   Widget _buildFiltersRow() {
+    if (_isLoadingFilters) {
+      return Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.all(16),
       child: Row(
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: selectedClassFilter,
+              value: _selectedClassFilter,
               hint: const Text("All Classes"),
+              isExpanded: true,
               decoration: InputDecoration(
                 labelText: "Filter by Class",
                 filled: true,
@@ -206,11 +228,15 @@ class _AttendanceReportSelectorPageState
                   borderSide: BorderSide.none,
                 ),
                 prefixIcon: const Icon(Icons.filter_list, size: 20),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
               items: [
-                const DropdownMenuItem(value: null, child: Text("All Classes")),
+                const DropdownMenuItem<String>(
+                  value: null,
+                  child: Text("All Classes"),
+                ),
                 ..._availableClasses.map((className) {
-                  return DropdownMenuItem(
+                  return DropdownMenuItem<String>(
                     value: className,
                     child: Text(className),
                   );
@@ -218,7 +244,7 @@ class _AttendanceReportSelectorPageState
               ],
               onChanged: (value) {
                 setState(() {
-                  selectedClassFilter = value;
+                  _selectedClassFilter = value;
                 });
               },
             ),
@@ -226,8 +252,9 @@ class _AttendanceReportSelectorPageState
           const SizedBox(width: 12),
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: selectedSectionFilter,
+              value: _selectedSectionFilter,
               hint: const Text("All Sections"),
+              isExpanded: true,
               decoration: InputDecoration(
                 labelText: "Filter by Section",
                 filled: true,
@@ -237,11 +264,15 @@ class _AttendanceReportSelectorPageState
                   borderSide: BorderSide.none,
                 ),
                 prefixIcon: const Icon(Icons.group, size: 20),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
               items: [
-                const DropdownMenuItem(value: null, child: Text("All Sections")),
+                const DropdownMenuItem<String>(
+                  value: null,
+                  child: Text("All Sections"),
+                ),
                 ..._availableSections.map((section) {
-                  return DropdownMenuItem(
+                  return DropdownMenuItem<String>(
                     value: section,
                     child: Text(section),
                   );
@@ -249,7 +280,7 @@ class _AttendanceReportSelectorPageState
               ],
               onChanged: (value) {
                 setState(() {
-                  selectedSectionFilter = value;
+                  _selectedSectionFilter = value;
                 });
               },
             ),
@@ -260,6 +291,8 @@ class _AttendanceReportSelectorPageState
   }
 
   Widget _buildDateSelector() {
+    final currentYear = DateTime.now().year;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(12),
@@ -279,42 +312,44 @@ class _AttendanceReportSelectorPageState
         children: [
           Expanded(
             child: DropdownButtonFormField<int>(
-              value: selectedMonth,
+              value: _selectedMonth,
               decoration: InputDecoration(
                 labelText: "Month",
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
                 prefixIcon: const Icon(Icons.calendar_month, size: 20),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
               items: List.generate(12, (i) {
-                return DropdownMenuItem(
+                return DropdownMenuItem<int>(
                   value: i + 1,
-                  child: Text(months[i]),
+                  child: Text(_months[i]),
                 );
               }),
-              onChanged: (v) => setState(() => selectedMonth = v!),
+              onChanged: (v) => setState(() => _selectedMonth = v!),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: DropdownButtonFormField<int>(
-              value: selectedYear,
+              value: _selectedYear,
               decoration: InputDecoration(
                 labelText: "Year",
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
                 prefixIcon: const Icon(Icons.calendar_today, size: 20),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
-              items: List.generate(6, (i) {
-                final year = 2024 + i;
-                return DropdownMenuItem(
-                  value: year,
-                  child: Text(year.toString()),
-                );
-              }),
-              onChanged: (v) => setState(() => selectedYear = v!),
+              items: [
+                for (int i = -2; i <= 3; i++)
+                  DropdownMenuItem<int>(
+                    value: currentYear + i,
+                    child: Text((currentYear + i).toString()),
+                  ),
+              ],
+              onChanged: (v) => setState(() => _selectedYear = v!),
             ),
           ),
         ],
@@ -349,6 +384,22 @@ class _AttendanceReportSelectorPageState
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  "Error loading classes",
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          );
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -397,24 +448,24 @@ class _AttendanceReportSelectorPageState
         List<Map<String, dynamic>> classList = classMap.values.toList();
 
         // Apply search filter
-        if (searchText.isNotEmpty) {
+        if (_searchText.isNotEmpty) {
           classList = classList.where((classInfo) {
             final fullName = "${classInfo['className']} ${classInfo['section']}".toLowerCase();
-            return fullName.contains(searchText);
+            return fullName.contains(_searchText);
           }).toList();
         }
 
         // Apply class filter
-        if (selectedClassFilter != null && selectedClassFilter!.isNotEmpty) {
+        if (_selectedClassFilter != null && _selectedClassFilter!.isNotEmpty) {
           classList = classList.where((classInfo) {
-            return classInfo['className'] == selectedClassFilter;
+            return classInfo['className'] == _selectedClassFilter;
           }).toList();
         }
 
         // Apply section filter
-        if (selectedSectionFilter != null && selectedSectionFilter!.isNotEmpty) {
+        if (_selectedSectionFilter != null && _selectedSectionFilter!.isNotEmpty) {
           classList = classList.where((classInfo) {
-            return classInfo['section'] == selectedSectionFilter;
+            return classInfo['section'] == _selectedSectionFilter;
           }).toList();
         }
 
@@ -442,115 +493,120 @@ class _AttendanceReportSelectorPageState
         // Sort by class name
         classList.sort((a, b) => a['className'].compareTo(b['className']));
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: classList.length,
-          itemBuilder: (context, index) {
-            final classInfo = classList[index];
-            final className = classInfo['className'];
-            final section = classInfo['section'];
-            final studentCount = classInfo['studentCount'];
+        return RefreshIndicator(
+          onRefresh: _loadFilters,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: classList.length,
+            itemBuilder: (context, index) {
+              final classInfo = classList[index];
+              final className = classInfo['className'];
+              final section = classInfo['section'];
+              final studentCount = classInfo['studentCount'];
+              final displaySection = section.isEmpty ? "A" : section;
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AdminMonthlyAttendancePage(
-                        schoolId: widget.schoolId,
-                        className: className,
-                        section: section.isEmpty ? "A" : section,
-                        month: selectedMonth,
-                        year: selectedYear,
-                      ),
-                    ),
-                  );
-                },
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Colors.indigo.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.class_,
-                          color: Colors.indigo.shade700,
-                          size: 28,
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AdminMonthlyAttendancePage(
+                          schoolId: widget.schoolId,
+                          className: className,
+                          section: displaySection,
+                          month: _selectedMonth,
+                          year: _selectedYear,
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              className,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: Colors.indigo.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.class_,
+                            color: Colors.indigo.shade700,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                className,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade200,
-                                    borderRadius: BorderRadius.circular(12),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade200,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      "Section: $displaySection",
+                                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                    ),
                                   ),
-                                  child: Text(
-                                    "Section: ${section.isEmpty ? 'A' : section}",
-                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue.shade100,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      "$studentCount Student${studentCount != 1 ? 's' : ''}",
+                                      style: TextStyle(fontSize: 12, color: Colors.blue.shade700),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.shade100,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    "$studentCount Students",
-                                    style: TextStyle(fontSize: 12, color: Colors.blue.shade700),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.indigo.shade50,
-                          borderRadius: BorderRadius.circular(10),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.indigo.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.arrow_forward_ios,
+                            size: 16,
+                            color: Colors.indigo.shade700,
+                          ),
                         ),
-                        child: Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: Colors.indigo.shade700,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );

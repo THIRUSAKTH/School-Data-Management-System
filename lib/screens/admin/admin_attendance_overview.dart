@@ -16,7 +16,7 @@ class AdminAttendanceOverviewPage extends StatefulWidget {
 }
 
 class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPage> {
-  DateTime selectedDate = DateTime.now();
+  DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
 
   // Statistics
@@ -28,8 +28,8 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
 
   Map<String, Map<String, dynamic>> _classStats = {};
 
-  String get formattedDate => DateFormat('yyyy-MM-dd').format(selectedDate);
-  String get displayDate => DateFormat('EEEE, dd MMMM yyyy').format(selectedDate);
+  String get _formattedDate => DateFormat('yyyy-MM-dd').format(_selectedDate);
+  String get _displayDate => DateFormat('EEEE, dd MMMM yyyy').format(_selectedDate);
 
   @override
   void initState() {
@@ -75,12 +75,33 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
                   .collection('schools')
                   .doc(widget.schoolId)
                   .collection('attendance')
-                  .doc(formattedDate)
+                  .doc(_formattedDate)
                   .collection('records')
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                        const SizedBox(height: 16),
+                        Text(
+                          "Error loading attendance",
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => setState(() {}),
+                          child: const Text("Retry"),
+                        ),
+                      ],
+                    ),
+                  );
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -89,41 +110,45 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
 
                 _processRecords(snapshot.data!.docs);
 
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Summary Card
-                      _buildSummaryCard(),
-                      const SizedBox(height: 20),
+                return RefreshIndicator(
+                  onRefresh: () async => setState(() {}),
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Summary Card
+                        _buildSummaryCard(),
+                        const SizedBox(height: 20),
 
-                      // Attendance Chart
-                      _buildAttendanceChart(),
-                      const SizedBox(height: 20),
+                        // Attendance Chart
+                        _buildAttendanceChart(),
+                        const SizedBox(height: 20),
 
-                      // Class-wise Breakdown Header
-                      const Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Class-wise Breakdown",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                        // Class-wise Breakdown Header
+                        const Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Class-wise Breakdown",
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          Text(
-                            "Tap to view details",
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
+                            Text(
+                              "Tap to view details",
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
 
-                      // Class-wise List
-                      ..._buildClassWiseList(),
-                    ],
+                        // Class-wise List
+                        ..._buildClassWiseList(),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -157,7 +182,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
               color: Colors.blue.shade50,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.calendar_today, color: Colors.blue),
+            child: Icon(Icons.calendar_today, color: Colors.blue, size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -169,7 +194,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 Text(
-                  displayDate,
+                  _displayDate,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -178,7 +203,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
               ],
             ),
           ),
-          if (selectedDate != DateTime.now())
+          if (_selectedDate != DateTime.now())
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -197,29 +222,23 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
 
   void _processRecords(List<QueryDocumentSnapshot> records) {
     _totalStudents = records.length;
-    _totalPresent = records.where((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      return data['status'] == 'Present';
-    }).length;
-    _totalAbsent = records.where((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      return data['status'] == 'Absent';
-    }).length;
-    _totalLate = records.where((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      return data['status'] == 'Late';
-    }).length;
-    _attendanceRate = _totalStudents > 0 ? (_totalPresent / _totalStudents) * 100 : 0;
-
-    // Process class-wise statistics
+    _totalPresent = 0;
+    _totalAbsent = 0;
+    _totalLate = 0;
     _classStats.clear();
 
     for (var doc in records) {
       final data = doc.data() as Map<String, dynamic>;
+      final status = data['status'] ?? 'Absent';
+
+      if (status == 'Present') _totalPresent++;
+      else if (status == 'Late') _totalLate++;
+      else _totalAbsent++;
+
+      // Process class-wise statistics
       final className = data['className'] ?? 'Unknown';
       final section = data['section'] ?? '';
       final classKey = '$className - $section';
-      final status = data['status'] ?? 'Absent';
 
       if (!_classStats.containsKey(classKey)) {
         _classStats[classKey] = {
@@ -251,6 +270,8 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
         'checkOutTime': data['checkOutTime'],
       });
     }
+
+    _attendanceRate = _totalStudents > 0 ? (_totalPresent / _totalStudents) * 100 : 0;
   }
 
   Widget _buildEmptyState() {
@@ -266,15 +287,16 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
           ),
           const SizedBox(height: 8),
           Text(
-            "No attendance marked for ${DateFormat('dd MMM yyyy').format(selectedDate)}",
+            "No attendance marked for ${DateFormat('dd MMM yyyy').format(_selectedDate)}",
             style: TextStyle(color: Colors.grey.shade500),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 20),
-          if (selectedDate != DateTime.now())
+          if (_selectedDate != DateTime.now())
             ElevatedButton.icon(
               onPressed: () {
                 setState(() {
-                  selectedDate = DateTime.now();
+                  _selectedDate = DateTime.now();
                 });
               },
               icon: const Icon(Icons.today),
@@ -312,7 +334,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _topItem("Total", _totalStudents, Icons.groups),
+              _topItem("Total", _totalStudents, Icons.people),
               _topItem("Present", _totalPresent, Icons.check_circle),
               _topItem("Absent", _totalAbsent, Icons.cancel),
               if (_totalLate > 0) _topItem("Late", _totalLate, Icons.access_time),
@@ -323,7 +345,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
             children: [
               Expanded(
                 child: LinearProgressIndicator(
-                  value: _attendanceRate / 100,
+                  value: (_attendanceRate / 100).toDouble(),
                   backgroundColor: Colors.white.withValues(alpha: 0.3),
                   valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                   minHeight: 8,
@@ -352,69 +374,58 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
   }
 
   Widget _buildAttendanceChart() {
-    // Prepare data for pie chart
     final sections = <PieChartSectionData>[];
+    final total = _totalStudents;
 
-    if (_totalPresent > 0) {
+    if (total == 0) {
       sections.add(
         PieChartSectionData(
-          value: _totalPresent.toDouble(),
-          title: '${((_totalPresent / _totalStudents) * 100).toStringAsFixed(0)}%',
-          color: Colors.green,
-          radius: 80,
-          titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      );
-    }
-
-    if (_totalAbsent > 0) {
-      sections.add(
-        PieChartSectionData(
-          value: _totalAbsent.toDouble(),
-          title: '${((_totalAbsent / _totalStudents) * 100).toStringAsFixed(0)}%',
-          color: Colors.red,
-          radius: 80,
-          titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      );
-    }
-
-    if (_totalLate > 0) {
-      sections.add(
-        PieChartSectionData(
-          value: _totalLate.toDouble(),
-          title: '${((_totalLate / _totalStudents) * 100).toStringAsFixed(0)}%',
-          color: Colors.orange,
-          radius: 80,
-          titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      );
-    }
-
-    if (sections.isEmpty) {
-      sections.add(
-         PieChartSectionData(
           value: 1,
           title: 'No Data',
           color: Colors.grey,
           radius: 80,
+          titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
       );
+    } else {
+      if (_totalPresent > 0) {
+        sections.add(
+          PieChartSectionData(
+            value: _totalPresent.toDouble(),
+            title: '${((_totalPresent / total) * 100).toStringAsFixed(0)}%',
+            color: Colors.green,
+            radius: 80,
+            titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        );
+      }
+      if (_totalAbsent > 0) {
+        sections.add(
+          PieChartSectionData(
+            value: _totalAbsent.toDouble(),
+            title: '${((_totalAbsent / total) * 100).toStringAsFixed(0)}%',
+            color: Colors.red,
+            radius: 80,
+            titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        );
+      }
+      if (_totalLate > 0) {
+        sections.add(
+          PieChartSectionData(
+            value: _totalLate.toDouble(),
+            title: '${((_totalLate / total) * 100).toStringAsFixed(0)}%',
+            color: Colors.orange,
+            radius: 80,
+            titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        );
+      }
     }
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: _cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -457,8 +468,12 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
     // Sort classes by attendance rate
     var sortedClasses = _classStats.entries.toList();
     sortedClasses.sort((a, b) {
-      double rateA = (a.value['present'] as int) / (a.value['total'] as int);
-      double rateB = (b.value['present'] as int) / (b.value['total'] as int);
+      int presentA = a.value['present'] as int;
+      int totalA = a.value['total'] as int;
+      int presentB = b.value['present'] as int;
+      int totalB = b.value['total'] as int;
+      double rateA = totalA > 0 ? presentA / totalA : 0;
+      double rateB = totalB > 0 ? presentB / totalB : 0;
       return rateB.compareTo(rateA);
     });
 
@@ -498,7 +513,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
                           color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(Icons.class_, color: color),
+                        child: Icon(Icons.class_, color: color, size: 24),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -562,6 +577,18 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
       );
     }
 
+    if (widgets.isEmpty) {
+      widgets.add(
+        Container(
+          padding: const EdgeInsets.all(32),
+          decoration: _cardDecoration(),
+          child: const Center(
+            child: Text("No class data available"),
+          ),
+        ),
+      );
+    }
+
     return widgets;
   }
 
@@ -571,7 +598,6 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
     final present = classData['present'] as int;
     final absent = classData['absent'] as int;
     final late = classData['late'] as int;
-    final percent = total > 0 ? (present / total) * 100 : 0;
 
     showModalBottomSheet(
       context: context,
@@ -624,7 +650,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
                             ),
                           ),
                           Text(
-                            displayDate,
+                            _displayDate,
                             style: TextStyle(color: Colors.grey.shade600),
                           ),
                         ],
@@ -682,7 +708,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
                           ),
                           title: Text(student['name']),
                           subtitle: student['checkInTime'] != null
-                              ? Text('In: ${student['checkInTime']}')
+                              ? Text('Check In: ${student['checkInTime']}')
                               : null,
                           trailing: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -704,6 +730,18 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
                     },
                   ),
                 ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text("Close"),
+                  ),
+                ),
               ],
             ),
           );
@@ -715,7 +753,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
   Widget _topItem(String title, int value, IconData icon) {
     return Column(
       children: [
-        Icon(icon, color: Colors.white, size: 24),
+        Icon(icon, color: Colors.white, size: 22),
         const SizedBox(height: 6),
         Text(
           value.toString(),
@@ -725,7 +763,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
             fontWeight: FontWeight.bold,
           ),
         ),
-        Text(title, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        Text(title, style: const TextStyle(color: Colors.white70, fontSize: 11)),
       ],
     );
   }
@@ -735,7 +773,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
       children: [
         Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12)),
+        Text(label, style: const TextStyle(fontSize: 11)),
       ],
     );
   }
@@ -769,15 +807,15 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: selectedDate,
+      initialDate: _selectedDate,
       firstDate: DateTime(2024),
       lastDate: DateTime.now(),
       helpText: 'Select Date',
     );
 
-    if (picked != null && picked != selectedDate) {
+    if (picked != null && picked != _selectedDate) {
       setState(() {
-        selectedDate = picked;
+        _selectedDate = picked;
       });
     }
   }
@@ -828,6 +866,20 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
           ],
         ),
       ),
+    );
+  }
+
+  BoxDecoration _cardDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.05),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
     );
   }
 }

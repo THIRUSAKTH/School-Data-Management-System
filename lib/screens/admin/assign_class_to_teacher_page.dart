@@ -19,18 +19,22 @@ class AssignClassToTeacherPage extends StatefulWidget {
 }
 
 class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
-  final classController = TextEditingController();
-  final sectionController = TextEditingController();
-  final subjectController = TextEditingController();
-  List<Map<String, dynamic>> assigned = [];
+  final TextEditingController _classController = TextEditingController();
+  final TextEditingController _sectionController = TextEditingController();
+  final TextEditingController _subjectController = TextEditingController();
+
+  List<Map<String, dynamic>> _assigned = [];
   List<String> _availableClasses = [];
-  List<String> _availableSections = ['A', 'B', 'C', 'D',"E","F","G","H"];
+  List<String> _availableSections = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   List<String> _availableSubjects = [];
+
   bool _isLoading = true;
   bool _isSaving = false;
+
   String? _selectedClass;
   String? _selectedSection;
   String? _selectedSubject;
+
   @override
   void initState() {
     super.initState();
@@ -39,9 +43,9 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
 
   @override
   void dispose() {
-    classController.dispose();
-    sectionController.dispose();
-    subjectController.dispose();
+    _classController.dispose();
+    _sectionController.dispose();
+    _subjectController.dispose();
     super.dispose();
   }
 
@@ -49,7 +53,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Load available classes - FIXED: handle null and cast properly
+      // Load available classes
       final classesSnapshot = await FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
@@ -83,7 +87,8 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
         // Default subjects
         _availableSubjects = [
           'Mathematics', 'Physics', 'Chemistry', 'Biology',
-          'English', 'History', 'Geography', 'Computer Science'
+          'English', 'History', 'Geography', 'Computer Science',
+          'Tamil', 'Hindi', 'Physical Education', 'Art',
         ];
       }
 
@@ -100,7 +105,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
         final existingAssignments = data?['assignedClasses'] as List<dynamic>? ?? [];
 
         setState(() {
-          assigned = existingAssignments.map((item) {
+          _assigned = existingAssignments.map((item) {
             final itemMap = item as Map<String, dynamic>;
             return {
               'class': itemMap['className'] ?? itemMap['class'] ?? '',
@@ -114,7 +119,10 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
       debugPrint('Error loading data: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading data: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error loading data: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -131,6 +139,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
           widget.teacherName.isNotEmpty
               ? 'Assign Classes - ${widget.teacherName}'
               : 'Assign Classes to Teacher',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
@@ -139,6 +148,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadData,
+            tooltip: "Refresh",
           ),
         ],
       ),
@@ -169,6 +179,13 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.deepPurple.withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -195,7 +212,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
                   ),
                 ),
                 Text(
-                  '${assigned.length} Classes Assigned',
+                  '${_assigned.length} Class${_assigned.length != 1 ? 'es' : ''} Assigned',
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
@@ -240,14 +257,15 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
             height: 45,
             child: ElevatedButton.icon(
               onPressed: _addAssignment,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Class'),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add Class', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
+                elevation: 2,
               ),
             ),
           ),
@@ -259,11 +277,13 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
   Widget _buildClassDropdown() {
     if (_availableClasses.isEmpty) {
       return TextFormField(
-        controller: classController,
+        controller: _classController,
         decoration: const InputDecoration(
-          labelText: 'Class (e.g., Grade 10)',
+          labelText: 'Class (e.g., Grade 10, Class 5)',
           border: OutlineInputBorder(),
           prefixIcon: Icon(Icons.class_),
+          hintText: 'Enter class name',
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         ),
       );
     }
@@ -271,14 +291,19 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
     return DropdownButtonFormField<String>(
       value: _selectedClass,
       hint: const Text('Select Class'),
+      isExpanded: true,
       decoration: const InputDecoration(
         border: OutlineInputBorder(),
         prefixIcon: Icon(Icons.class_),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       ),
       items: [
-        const DropdownMenuItem(value: null, child: Text('Select Class')),
+        const DropdownMenuItem<String>(
+          value: null,
+          child: Text('Select Class'),
+        ),
         ..._availableClasses.map((className) {
-          return DropdownMenuItem(
+          return DropdownMenuItem<String>(
             value: className,
             child: Text(className),
           );
@@ -287,7 +312,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
       onChanged: (value) {
         setState(() {
           _selectedClass = value;
-          classController.text = value ?? '';
+          _classController.text = value ?? '';
         });
       },
     );
@@ -297,14 +322,19 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
     return DropdownButtonFormField<String>(
       value: _selectedSection,
       hint: const Text('Select Section'),
+      isExpanded: true,
       decoration: const InputDecoration(
         border: OutlineInputBorder(),
         prefixIcon: Icon(Icons.group),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       ),
       items: [
-        const DropdownMenuItem(value: null, child: Text('Select Section')),
+        const DropdownMenuItem<String>(
+          value: null,
+          child: Text('Select Section'),
+        ),
         ..._availableSections.map((section) {
-          return DropdownMenuItem(
+          return DropdownMenuItem<String>(
             value: section,
             child: Text(section),
           );
@@ -313,7 +343,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
       onChanged: (value) {
         setState(() {
           _selectedSection = value;
-          sectionController.text = value ?? '';
+          _sectionController.text = value ?? '';
         });
       },
     );
@@ -322,11 +352,13 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
   Widget _buildSubjectDropdown() {
     if (_availableSubjects.isEmpty) {
       return TextFormField(
-        controller: subjectController,
+        controller: _subjectController,
         decoration: const InputDecoration(
           labelText: 'Subject',
           border: OutlineInputBorder(),
           prefixIcon: Icon(Icons.book),
+          hintText: 'Enter subject name',
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         ),
       );
     }
@@ -334,14 +366,19 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
     return DropdownButtonFormField<String>(
       value: _selectedSubject,
       hint: const Text('Select Subject'),
+      isExpanded: true,
       decoration: const InputDecoration(
         border: OutlineInputBorder(),
         prefixIcon: Icon(Icons.book),
+        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       ),
       items: [
-        const DropdownMenuItem(value: null, child: Text('Select Subject')),
+        const DropdownMenuItem<String>(
+          value: null,
+          child: Text('Select Subject'),
+        ),
         ..._availableSubjects.map((subject) {
-          return DropdownMenuItem(
+          return DropdownMenuItem<String>(
             value: subject,
             child: Text(subject),
           );
@@ -350,28 +387,28 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
       onChanged: (value) {
         setState(() {
           _selectedSubject = value;
-          subjectController.text = value ?? '';
+          _subjectController.text = value ?? '';
         });
       },
     );
   }
 
   Widget _buildAssignedList() {
-    if (assigned.isEmpty) {
-      return Center(
+    if (_assigned.isEmpty) {
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.class_, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
+            Icon(Icons.class_, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
             Text(
               'No classes assigned yet',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+              style: TextStyle(color: Colors.grey, fontSize: 16),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'Use the form above to add classes',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+              style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ],
         ),
@@ -380,33 +417,63 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: assigned.length,
+      itemCount: _assigned.length,
       itemBuilder: (context, index) {
-        final item = assigned[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+        final item = _assigned[index];
+        return Dismissible(
+          key: Key('${item['class']}_${item['section']}_$index'),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            decoration: BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.delete, color: Colors.white),
           ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.deepPurple.shade100,
-              child: Text(
-                '${index + 1}',
-                style: TextStyle(color: Colors.deepPurple.shade700),
+          confirmDismiss: (direction) async {
+            return await _showDeleteConfirmation(index);
+          },
+          child: Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.deepPurple.shade100,
+                child: Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    color: Colors.deepPurple.shade700,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-            ),
-            title: Text(
-              '${item['class']} - ${item['section']}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text(item['subject'] ?? 'No subject'),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              onPressed: () {
-                _showDeleteConfirmation(index);
-              },
+              title: Text(
+                '${item['class']} - ${item['section']}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(item['subject'] ?? 'No subject'),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: () async {
+                  final confirm = await _showDeleteConfirmation(index);
+                  if (confirm == true) {
+                    setState(() {
+                      _assigned.removeAt(index);
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Class removed'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  }
+                },
+              ),
             ),
           ),
         );
@@ -438,6 +505,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
+            elevation: 2,
           ),
           child: _isSaving
               ? const SizedBox(
@@ -458,9 +526,9 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
   }
 
   void _addAssignment() {
-    final className = classController.text.trim();
-    final section = sectionController.text.trim();
-    final subject = subjectController.text.trim();
+    final className = _classController.text.trim();
+    final section = _sectionController.text.trim();
+    final subject = _subjectController.text.trim();
 
     if (className.isEmpty || section.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -472,8 +540,10 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
       return;
     }
 
-    final isDuplicate = assigned.any((item) =>
-    item['class'] == className && item['section'] == section);
+    // Check for duplicate
+    final isDuplicate = _assigned.any(
+          (item) => item['class'] == className && item['section'] == section,
+    );
 
     if (isDuplicate) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -486,16 +556,17 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
     }
 
     setState(() {
-      assigned.add({
+      _assigned.add({
         'class': className,
         'section': section,
         'subject': subject.isEmpty ? 'General' : subject,
       });
     });
 
-    classController.clear();
-    sectionController.clear();
-    subjectController.clear();
+    // Clear form
+    _classController.clear();
+    _sectionController.clear();
+    _subjectController.clear();
     setState(() {
       _selectedClass = null;
       _selectedSection = null;
@@ -511,32 +582,24 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
     );
   }
 
-  void _showDeleteConfirmation(int index) {
-    showDialog(
+  Future<bool?> _showDeleteConfirmation(int index) async {
+    return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
         title: const Text('Remove Assignment'),
         content: Text(
-          'Remove ${assigned[index]['class']} - ${assigned[index]['section']} from this teacher?',
+          'Remove ${_assigned[index]['class']} - ${_assigned[index]['section']} from this teacher?',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() {
-                assigned.removeAt(index);
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Class removed'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Remove'),
           ),
@@ -546,7 +609,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
   }
 
   Future<void> _saveAssignments() async {
-    if (assigned.isEmpty) {
+    if (_assigned.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please add at least one class assignment'),
@@ -559,7 +622,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
     setState(() => _isSaving = true);
 
     try {
-      final formattedAssignments = assigned.map((item) {
+      final formattedAssignments = _assigned.map((item) {
         return {
           'className': item['class'],
           'section': item['section'],
@@ -585,7 +648,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context);
+        Navigator.pop(context, true);
       }
     } catch (e) {
       debugPrint('Error saving assignments: $e');

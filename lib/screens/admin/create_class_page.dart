@@ -12,12 +12,12 @@ class CreateClassPage extends StatefulWidget {
 }
 
 class _CreateClassPageState extends State<CreateClassPage> {
-  final classController = TextEditingController();
-  final sectionController = TextEditingController();
-  final roomNoController = TextEditingController();
+  final TextEditingController _classController = TextEditingController();
+  final TextEditingController _sectionController = TextEditingController();
+  final TextEditingController _roomNoController = TextEditingController();
 
-  String? selectedClassTeacher;
-  bool loading = false;
+  String? _selectedClassTeacher;
+  bool _isLoading = false;
   bool _isDuplicate = false;
 
   List<String> _existingClasses = [];
@@ -30,9 +30,9 @@ class _CreateClassPageState extends State<CreateClassPage> {
 
   @override
   void dispose() {
-    classController.dispose();
-    sectionController.dispose();
-    roomNoController.dispose();
+    _classController.dispose();
+    _sectionController.dispose();
+    _roomNoController.dispose();
     super.dispose();
   }
 
@@ -51,8 +51,8 @@ class _CreateClassPageState extends State<CreateClassPage> {
   }
 
   void _checkDuplicate() {
-    final className = classController.text.trim();
-    final section = sectionController.text.trim().toUpperCase();
+    final className = _classController.text.trim();
+    final section = _sectionController.text.trim().toUpperCase();
 
     if (className.isNotEmpty && section.isNotEmpty) {
       final classId = "${className}_$section";
@@ -66,10 +66,10 @@ class _CreateClassPageState extends State<CreateClassPage> {
     }
   }
 
-  Future<void> createClass() async {
-    final className = classController.text.trim();
-    final section = sectionController.text.trim().toUpperCase();
-    final roomNo = roomNoController.text.trim();
+  Future<void> _createClass() async {
+    final className = _classController.text.trim();
+    final section = _sectionController.text.trim().toUpperCase();
+    final roomNo = _roomNoController.text.trim();
 
     // Validation
     if (className.isEmpty) {
@@ -90,7 +90,7 @@ class _CreateClassPageState extends State<CreateClassPage> {
       return;
     }
 
-    setState(() => loading = true);
+    setState(() => _isLoading = true);
 
     try {
       final schoolRef = FirebaseFirestore.instance
@@ -105,7 +105,7 @@ class _CreateClassPageState extends State<CreateClassPage> {
         "class": className,
         "section": section,
         "roomNo": roomNo.isEmpty ? null : roomNo,
-        "classTeacherId": selectedClassTeacher,
+        "classTeacherId": _selectedClassTeacher,
         "subjectTeachers": {},
         "createdAt": FieldValue.serverTimestamp(),
         "updatedAt": FieldValue.serverTimestamp(),
@@ -113,10 +113,10 @@ class _CreateClassPageState extends State<CreateClassPage> {
       });
 
       // Update teacher's assigned classes if a class teacher is selected
-      if (selectedClassTeacher != null && selectedClassTeacher!.isNotEmpty) {
+      if (_selectedClassTeacher != null && _selectedClassTeacher!.isNotEmpty) {
         final teacherRef = schoolRef
             .collection('teachers')
-            .doc(selectedClassTeacher);
+            .doc(_selectedClassTeacher);
 
         final teacherDoc = await teacherRef.get();
         if (teacherDoc.exists) {
@@ -133,11 +133,11 @@ class _CreateClassPageState extends State<CreateClassPage> {
       }
 
       // Clear form
-      classController.clear();
-      sectionController.clear();
-      roomNoController.clear();
+      _classController.clear();
+      _sectionController.clear();
+      _roomNoController.clear();
       setState(() {
-        selectedClassTeacher = null;
+        _selectedClassTeacher = null;
         _isDuplicate = false;
       });
 
@@ -156,7 +156,7 @@ class _CreateClassPageState extends State<CreateClassPage> {
     } catch (e) {
       _showError("Error creating class: $e");
     } finally {
-      setState(() => loading = false);
+      setState(() => _isLoading = false);
     }
   }
 
@@ -171,6 +171,10 @@ class _CreateClassPageState extends State<CreateClassPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isValid = _classController.text.isNotEmpty &&
+        _sectionController.text.isNotEmpty &&
+        !_isDuplicate;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
@@ -181,26 +185,26 @@ class _CreateClassPageState extends State<CreateClassPage> {
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadExistingClasses,
+            tooltip: "Refresh",
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Card
             _buildHeaderCard(),
             const SizedBox(height: 20),
-
-            // Form Card
             _buildFormCard(),
             const SizedBox(height: 20),
-
-            // Info Card
             _buildInfoCard(),
             const SizedBox(height: 24),
-
-            // Create Button
-            _buildCreateButton(),
+            _buildCreateButton(isValid),
           ],
         ),
       ),
@@ -218,6 +222,13 @@ class _CreateClassPageState extends State<CreateClassPage> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.deepPurple.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -290,7 +301,7 @@ class _CreateClassPageState extends State<CreateClassPage> {
 
           // Class Name Field
           TextField(
-            controller: classController,
+            controller: _classController,
             onChanged: (_) => _checkDuplicate(),
             decoration: InputDecoration(
               labelText: "Class Name *",
@@ -299,14 +310,23 @@ class _CreateClassPageState extends State<CreateClassPage> {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+              ),
               errorText: _isDuplicate ? "Class already exists" : null,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
           ),
           const SizedBox(height: 16),
 
           // Section Field
           TextField(
-            controller: sectionController,
+            controller: _sectionController,
             onChanged: (_) => _checkDuplicate(),
             decoration: InputDecoration(
               labelText: "Section *",
@@ -315,13 +335,22 @@ class _CreateClassPageState extends State<CreateClassPage> {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
           ),
           const SizedBox(height: 16),
 
           // Room Number Field
           TextField(
-            controller: roomNoController,
+            controller: _roomNoController,
             decoration: InputDecoration(
               labelText: "Room Number (Optional)",
               hintText: "e.g., 101, Ground Floor",
@@ -329,13 +358,22 @@ class _CreateClassPageState extends State<CreateClassPage> {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
           // Class Teacher Dropdown
           const Text(
-            "Assign Class Teacher",
+            "Assign Class Teacher (Optional)",
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -345,13 +383,14 @@ class _CreateClassPageState extends State<CreateClassPage> {
           _buildTeacherDropdown(),
 
           // Preview Section
-          if (classController.text.isNotEmpty && sectionController.text.isNotEmpty && !_isDuplicate)
+          if (_classController.text.isNotEmpty && _sectionController.text.isNotEmpty && !_isDuplicate)
             Container(
               margin: const EdgeInsets.only(top: 16),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.deepPurple.shade50,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.deepPurple.shade200),
               ),
               child: Row(
                 children: [
@@ -366,7 +405,7 @@ class _CreateClassPageState extends State<CreateClassPage> {
                           style: TextStyle(fontSize: 11, color: Colors.grey),
                         ),
                         Text(
-                          "${classController.text}_${sectionController.text.toUpperCase()}",
+                          "${_classController.text}_${_sectionController.text.toUpperCase()}",
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -396,11 +435,33 @@ class _CreateClassPageState extends State<CreateClassPage> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        if (snapshot.hasError) {
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Error loading teachers",
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: Colors.orange.shade50,
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Row(
@@ -421,22 +482,32 @@ class _CreateClassPageState extends State<CreateClassPage> {
         final teachers = snapshot.data!.docs;
 
         return DropdownButtonFormField<String>(
-          value: selectedClassTeacher,
+          value: _selectedClassTeacher,
           hint: const Text("Select Class Teacher (Optional)"),
+          isExpanded: true,
           decoration: InputDecoration(
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+            ),
             prefixIcon: const Icon(Icons.person, color: Colors.deepPurple),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
           items: [
-            const DropdownMenuItem(
+            const DropdownMenuItem<String>(
               value: null,
               child: Text("None"),
             ),
             ...teachers.map((doc) {
               final teacherData = doc.data() as Map<String, dynamic>;
-              return DropdownMenuItem(
+              return DropdownMenuItem<String>(
                 value: doc.id,
                 child: Text(teacherData['name'] ?? 'Unknown'),
               );
@@ -444,7 +515,7 @@ class _CreateClassPageState extends State<CreateClassPage> {
           ],
           onChanged: (value) {
             setState(() {
-              selectedClassTeacher = value;
+              _selectedClassTeacher = value;
             });
           },
         );
@@ -462,7 +533,14 @@ class _CreateClassPageState extends State<CreateClassPage> {
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline, color: Colors.blue.shade700),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -470,7 +548,7 @@ class _CreateClassPageState extends State<CreateClassPage> {
               children: [
                 const Text(
                   "Important Note",
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -485,16 +563,12 @@ class _CreateClassPageState extends State<CreateClassPage> {
     );
   }
 
-  Widget _buildCreateButton() {
-    final isValid = classController.text.isNotEmpty &&
-        sectionController.text.isNotEmpty &&
-        !_isDuplicate;
-
+  Widget _buildCreateButton(bool isValid) {
     return SizedBox(
       width: double.infinity,
       height: 52,
       child: ElevatedButton(
-        onPressed: loading || !isValid ? null : createClass,
+        onPressed: _isLoading || !isValid ? null : _createClass,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.deepPurple,
           foregroundColor: Colors.white,
@@ -503,7 +577,7 @@ class _CreateClassPageState extends State<CreateClassPage> {
           ),
           elevation: 2,
         ),
-        child: loading
+        child: _isLoading
             ? const SizedBox(
           height: 20,
           width: 20,

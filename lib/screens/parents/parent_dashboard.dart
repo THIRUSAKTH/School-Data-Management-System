@@ -5,9 +5,9 @@ import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
 import 'package:schoolprojectjan/screens/parents/attendance_view_page.dart';
+import 'package:schoolprojectjan/screens/parents/fee_status_page.dart';
 import 'package:schoolprojectjan/screens/parents/homework_view_page.dart';
-import 'package:schoolprojectjan/screens/parents/notices_page.dart';
-import 'package:schoolprojectjan/screens/parents/parent_attendance_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_notices_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_complaint_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_notifications_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_profile_page.dart';
@@ -15,9 +15,17 @@ import 'package:schoolprojectjan/screens/parents/parent_settings_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_view_results.dart';
 import 'package:schoolprojectjan/screens/parents/parent_exam_schedule.dart';
 import 'package:schoolprojectjan/screens/parents/fee_history_page.dart';
+import 'package:schoolprojectjan/screens/parents/select_child_page.dart';
 
 class ParentDashboard extends StatefulWidget {
-  const ParentDashboard({super.key});
+  final String? selectedChildId;
+  final String? selectedChildName;
+
+  const ParentDashboard({
+    super.key,
+    this.selectedChildId,
+    this.selectedChildName,
+  });
 
   @override
   State<ParentDashboard> createState() => _ParentDashboardState();
@@ -36,6 +44,7 @@ class _ParentDashboardState extends State<ParentDashboard>
   String _currentClassName = '';
   String _currentSection = '';
   String _currentRollNo = '';
+  String _currentAdmissionNo = '';
 
   @override
   void initState() {
@@ -134,19 +143,43 @@ class _ParentDashboardState extends State<ParentDashboard>
     );
   }
 
+  void _switchChild() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const SelectChildPage(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
-        title: const Text(
-          'Parent Dashboard',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Parent Dashboard',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            if (_currentStudentName.isNotEmpty)
+              Text(
+                _currentStudentName,
+                style: const TextStyle(fontSize: 12),
+              ),
+          ],
         ),
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.switch_account),
+            onPressed: _switchChild,
+            tooltip: "Switch Child",
+          ),
           Stack(
             children: [
               IconButton(
@@ -218,14 +251,32 @@ class _ParentDashboardState extends State<ParentDashboard>
 
                 final students = snapshot.data!.docs;
 
+                // Initialize selected student if not set
                 if (selectedStudentId == null && students.isNotEmpty) {
-                  selectedStudentId = students.first.id;
-                  _updateCurrentStudentData(students.first.data() as Map<String, dynamic>);
+                  if (widget.selectedChildId != null) {
+                    // FIXED: Properly find the matching student
+                    QueryDocumentSnapshot? matchingDoc;
+                    for (var doc in students) {
+                      if (doc.id == widget.selectedChildId) {
+                        matchingDoc = doc;
+                        break;
+                      }
+                    }
+                    // If not found, use first student
+                    matchingDoc ??= students.first;
+
+                    selectedStudentId = matchingDoc.id;
+                    _updateCurrentStudentData(matchingDoc.data() as Map<String, dynamic>);
+                  } else {
+                    selectedStudentId = students.first.id;
+                    _updateCurrentStudentData(students.first.data() as Map<String, dynamic>);
+                  }
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     _loadUnreadCounts();
                   });
                 }
 
+                // Find selected student document
                 QueryDocumentSnapshot? selectedDoc;
                 for (var doc in students) {
                   if (doc.id == selectedStudentId) {
@@ -234,6 +285,7 @@ class _ParentDashboardState extends State<ParentDashboard>
                   }
                 }
 
+                // If selected student not found, select first one
                 if (selectedDoc == null && students.isNotEmpty) {
                   selectedDoc = students.first;
                   selectedStudentId = selectedDoc.id;
@@ -255,7 +307,7 @@ class _ParentDashboardState extends State<ParentDashboard>
                 return Column(
                   children: [
                     _buildHeader(name, className, section, rollNo),
-                    _buildChildSelector(students),
+                    if (students.length > 1) _buildChildSelector(students),
                     Container(
                       color: Colors.white,
                       child: TabBar(
@@ -307,6 +359,7 @@ class _ParentDashboardState extends State<ParentDashboard>
     _currentClassName = data['class'] ?? '';
     _currentSection = data['section'] ?? '';
     _currentRollNo = data['rollNo'] ?? '';
+    _currentAdmissionNo = data['admissionNo'] ?? '';
   }
 
   Widget _buildDrawer() {
@@ -352,7 +405,7 @@ class _ParentDashboardState extends State<ParentDashboard>
                 const SizedBox(height: 4),
                 Text(
                   "Parent Portal",
-                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 11),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11),
                 ),
               ],
             ),
@@ -387,12 +440,17 @@ class _ParentDashboardState extends State<ParentDashboard>
                           ),
                         ),
                       );
-                      _tabController.animateTo(1);
                     } else {
                       _showSelectChildSnackbar();
                     }
                   },
                 ),
+                _drawerItem(
+                  icon: Icons.switch_account,
+                  title: "Switch Child",
+                  onTap: _switchChild,
+                ),
+                const Divider(),
                 _drawerItem(
                   icon: Icons.assignment,
                   title: "Homework",
@@ -402,7 +460,11 @@ class _ParentDashboardState extends State<ParentDashboard>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const HomeworkViewPage(),
+                          builder: (_) => HomeworkViewPage(
+                            studentId: selectedStudentId!,
+                            className: _currentClassName,
+                            section: _currentSection,
+                          ),
                         ),
                       );
                     } else {
@@ -419,7 +481,10 @@ class _ParentDashboardState extends State<ParentDashboard>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const ParentViewResultsPage(),
+                          builder: (_) => ParentViewResultsPage(
+                            studentId: selectedStudentId!,
+                            studentName: _currentStudentName,
+                          ),
                         ),
                       );
                     } else {
@@ -436,7 +501,10 @@ class _ParentDashboardState extends State<ParentDashboard>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const ParentExamSchedulePage(),
+                          builder: (_) => ParentExamSchedulePage(
+                            className: _currentClassName,
+                            section: _currentSection,
+                          ),
                         ),
                       );
                     } else {
@@ -453,7 +521,9 @@ class _ParentDashboardState extends State<ParentDashboard>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const FeeHistoryPage(),
+                          builder: (_) => FeeHistoryPage(
+                            studentId: selectedStudentId!,
+                          ),
                         ),
                       );
                     } else {
@@ -462,20 +532,32 @@ class _ParentDashboardState extends State<ParentDashboard>
                   },
                 ),
                 _drawerItem(
+                  icon: Icons.payment,
+                  title: "Fee Status",
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => FeeStatusPage(studentId: selectedStudentId),
+                      ),
+                    );
+                  },
+                ),
+                _drawerItem(
                   icon: Icons.announcement,
                   title: "Notices",
                   onTap: () {
                     Navigator.pop(context);
-                    if (selectedStudentId != null) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ParentNoticesPage(),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ParentNoticesPage(
+                          className: _currentClassName,
+                          section: _currentSection,
                         ),
-                      );
-                    } else {
-                      _showSelectChildSnackbar();
-                    }
+                      ),
+                    );
                   },
                 ),
                 _drawerItem(
@@ -744,7 +826,7 @@ class _ParentDashboardState extends State<ParentDashboard>
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -816,14 +898,13 @@ class _ParentDashboardState extends State<ParentDashboard>
   Widget _buildStatsRow(String studentId) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('attendance')
+          .collectionGroup('records')
           .where('studentId', isEqualTo: studentId)
           .snapshots(),
       builder: (context, attendanceSnapshot) {
         int present = 0;
         int total = 0;
+        int late = 0;
 
         if (attendanceSnapshot.hasData) {
           for (var doc in attendanceSnapshot.data!.docs) {
@@ -831,6 +912,8 @@ class _ParentDashboardState extends State<ParentDashboard>
             total++;
             if (data['status'] == 'Present') {
               present++;
+            } else if (data['status'] == 'Late') {
+              late++;
             }
           }
         }
@@ -857,7 +940,13 @@ class _ParentDashboardState extends State<ParentDashboard>
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const HomeworkViewPage()),
+                    MaterialPageRoute(
+                      builder: (_) => HomeworkViewPage(
+                        studentId: studentId,
+                        className: _currentClassName,
+                        section: _currentSection,
+                      ),
+                    ),
                   );
                 },
               ),
@@ -908,6 +997,8 @@ class _ParentDashboardState extends State<ParentDashboard>
             _infoRow('Name', data['name'] ?? 'N/A'),
             _infoRow('Class', '${data['class'] ?? ''}-${data['section'] ?? ''}'),
             _infoRow('Roll No', data['rollNo'] ?? 'N/A'),
+            if (_currentAdmissionNo.isNotEmpty)
+              _infoRow('Admission No', _currentAdmissionNo),
             if (data['fatherName'] != null && data['fatherName'].toString().isNotEmpty)
               _infoRow('Father', data['fatherName']),
           ],
@@ -922,7 +1013,7 @@ class _ParentDashboardState extends State<ParentDashboard>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 55, child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11))),
+          SizedBox(width: 70, child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11))),
           Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11))),
         ],
       ),
@@ -1048,38 +1139,73 @@ class _ParentDashboardState extends State<ParentDashboard>
                 _actionChip(Icons.assignment, "Homework", () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const HomeworkViewPage()),
+                    MaterialPageRoute(
+                      builder: (_) => HomeworkViewPage(
+                        studentId: selectedStudentId!,
+                        className: _currentClassName,
+                        section: _currentSection,
+                      ),
+                    ),
                   );
                 }),
                 _actionChip(Icons.assessment, "Results", () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const ParentViewResultsPage()),
+                    MaterialPageRoute(
+                      builder: (_) => ParentViewResultsPage(
+                        studentId: selectedStudentId!,
+                        studentName: _currentStudentName,
+                      ),
+                    ),
                   );
                 }),
                 _actionChip(Icons.calendar_month, "Exam Schedule", () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const ParentExamSchedulePage()),
+                    MaterialPageRoute(
+                      builder: (_) => ParentExamSchedulePage(
+                        className: _currentClassName,
+                        section: _currentSection,
+                      ),
+                    ),
                   );
                 }),
                 _actionChip(Icons.receipt, "Fee History", () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const FeeHistoryPage()),
+                    MaterialPageRoute(
+                      builder: (_) => FeeHistoryPage(
+                        studentId: selectedStudentId!,
+                      ),
+                    ),
+                  );
+                }),
+                _actionChip(Icons.payment, "Fee Status", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => FeeStatusPage(studentId: selectedStudentId),
+                    ),
                   );
                 }),
                 _actionChip(Icons.announcement, "Notices", () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const ParentNoticesPage()),
+                    MaterialPageRoute(
+                      builder: (_) => ParentNoticesPage(
+                        className: _currentClassName,
+                        section: _currentSection,
+                      ),
+                    ),
                   );
                 }),
                 _actionChip(Icons.feedback, "Complaint", () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ParentComplaintPage(studentId: selectedStudentId!),
+                      builder: (_) => ParentComplaintPage(
+                        studentId: selectedStudentId!,
+                      ),
                     ),
                   ).then((_) => _loadUnreadCounts());
                 }),
@@ -1104,9 +1230,7 @@ class _ParentDashboardState extends State<ParentDashboard>
   Widget _buildAttendanceTab(String studentId, String studentName) {
     return FutureBuilder<QuerySnapshot>(
       future: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('attendance')
+          .collectionGroup('records')
           .where('studentId', isEqualTo: studentId)
           .get(),
       builder: (context, snapshot) {
@@ -1129,17 +1253,21 @@ class _ParentDashboardState extends State<ParentDashboard>
 
         int present = 0;
         int absent = 0;
+        int late = 0;
         List<Map<String, dynamic>> records = [];
 
         for (var doc in snapshot.data!.docs) {
+          final parentDoc = doc.reference.parent.parent;
+          final date = parentDoc?.id ?? '';
+
           final data = doc.data() as Map<String, dynamic>;
           final status = data['status'] ?? 'Absent';
-          final date = data['date'] as String?;
 
           if (status == 'Present') present++;
+          else if (status == 'Late') late++;
           else absent++;
 
-          if (date != null) {
+          if (date.isNotEmpty) {
             records.add({'date': date, 'status': status});
           }
         }
@@ -1147,7 +1275,7 @@ class _ParentDashboardState extends State<ParentDashboard>
         records.sort((a, b) => b['date'].compareTo(a['date']));
         if (records.length > 10) records = records.sublist(0, 10);
 
-        int total = present + absent;
+        int total = present + absent + late;
         double attendanceRate = total > 0 ? (present / total) * 100 : 0;
 
         return SingleChildScrollView(
@@ -1157,6 +1285,9 @@ class _ParentDashboardState extends State<ParentDashboard>
               Row(
                 children: [
                   Expanded(child: _StatCard(title: "Present", value: present.toString(), color: Colors.green, icon: Icons.check_circle)),
+                  const SizedBox(width: 8),
+                  if (late > 0)
+                    Expanded(child: _StatCard(title: "Late", value: late.toString(), color: Colors.orange, icon: Icons.access_time)),
                   const SizedBox(width: 8),
                   Expanded(child: _StatCard(title: "Absent", value: absent.toString(), color: Colors.red, icon: Icons.cancel)),
                   const SizedBox(width: 8),
@@ -1183,26 +1314,31 @@ class _ParentDashboardState extends State<ParentDashboard>
                           final record = records[index];
                           final date = DateTime.tryParse(record['date']) ?? DateTime.now();
                           final status = record['status'];
+                          final statusColor = status == 'Present'
+                              ? Colors.green
+                              : (status == 'Late' ? Colors.orange : Colors.red);
 
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
                             dense: true,
                             leading: Icon(
-                              status == 'Present' ? Icons.check_circle : Icons.cancel,
-                              color: status == 'Present' ? Colors.green : Colors.red,
+                              status == 'Present'
+                                  ? Icons.check_circle
+                                  : (status == 'Late' ? Icons.access_time : Icons.cancel),
+                              color: statusColor,
                               size: 18,
                             ),
                             title: Text(DateFormat('dd MMM yyyy').format(date), style: const TextStyle(fontSize: 12)),
                             trailing: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: (status == 'Present' ? Colors.green : Colors.red).withOpacity(0.1),
+                                color: statusColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 status,
                                 style: TextStyle(
-                                  color: status == 'Present' ? Colors.green : Colors.red,
+                                  color: statusColor,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -1245,7 +1381,7 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(

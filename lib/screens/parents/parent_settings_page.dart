@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:schoolprojectjan/screens/parents/select_child_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ParentSettingsPage extends StatefulWidget {
@@ -492,6 +493,20 @@ class _ParentSettingsPageState extends State<ParentSettingsPage> {
             ],
           ),
           const Divider(height: 24),
+          // In parent_settings_page.dart
+          ListTile(
+            leading: const Icon(Icons.switch_account, color: Colors.orange),
+            title: const Text("Switch Child"),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SelectChildPage(),
+                ),
+              );
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.help, color: Colors.orange),
             title: const Text("Help Center"),

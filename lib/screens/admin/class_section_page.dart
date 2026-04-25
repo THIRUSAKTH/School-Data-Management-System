@@ -10,7 +10,7 @@ class ClassSectionPage extends StatefulWidget {
 }
 
 class _ClassSectionPageState extends State<ClassSectionPage> {
-  String searchText = "";
+  String _searchText = "";
   bool _isLoading = false;
 
   // Cache for student counts
@@ -75,13 +75,8 @@ class _ClassSectionPageState extends State<ClassSectionPage> {
       ),
       body: Column(
         children: [
-          // Header Card
           _buildHeaderCard(),
-
-          // Search Bar
           _buildSearchBar(),
-
-          // Class List
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -103,6 +98,13 @@ class _ClassSectionPageState extends State<ClassSectionPage> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.deepPurple.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -154,12 +156,12 @@ class _ClassSectionPageState extends State<ClassSectionPage> {
         decoration: InputDecoration(
           hintText: "Search by class name...",
           prefixIcon: const Icon(Icons.search, color: Colors.deepPurple),
-          suffixIcon: searchText.isNotEmpty
+          suffixIcon: _searchText.isNotEmpty
               ? IconButton(
             icon: const Icon(Icons.clear),
             onPressed: () {
               setState(() {
-                searchText = "";
+                _searchText = "";
               });
             },
           )
@@ -178,8 +180,9 @@ class _ClassSectionPageState extends State<ClassSectionPage> {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.deepPurple, width: 1),
           ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
-        onChanged: (value) => setState(() => searchText = value.toLowerCase()),
+        onChanged: (value) => setState(() => _searchText = value.toLowerCase()),
       ),
     );
   }
@@ -194,6 +197,22 @@ class _ClassSectionPageState extends State<ClassSectionPage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  "Error loading classes",
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+          );
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -239,6 +258,7 @@ class _ClassSectionPageState extends State<ClassSectionPage> {
             (classMap[key]!['students'] as List).add({
               'name': data['name'] ?? 'Unknown',
               'rollNo': data['rollNo'] ?? '',
+              'admissionNo': data['admissionNo'] ?? '',
             });
           }
         }
@@ -246,10 +266,10 @@ class _ClassSectionPageState extends State<ClassSectionPage> {
         // Convert to list and apply search filter
         List<Map<String, dynamic>> classList = classMap.values.toList();
 
-        if (searchText.isNotEmpty) {
+        if (_searchText.isNotEmpty) {
           classList = classList.where((classInfo) {
             final fullName = "${classInfo['className']} ${classInfo['section']}".toLowerCase();
-            return fullName.contains(searchText);
+            return fullName.contains(_searchText);
           }).toList();
         }
 
@@ -277,146 +297,154 @@ class _ClassSectionPageState extends State<ClassSectionPage> {
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: classList.length,
-          itemBuilder: (context, index) {
-            final classInfo = classList[index];
-            final className = classInfo['className'];
-            final section = classInfo['section'];
-            final studentCount = classInfo['studentCount'];
-            final students = classInfo['students'] as List;
+        return RefreshIndicator(
+          onRefresh: _loadData,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: classList.length,
+            itemBuilder: (context, index) {
+              final classInfo = classList[index];
+              final className = classInfo['className'];
+              final section = classInfo['section'];
+              final studentCount = classInfo['studentCount'];
+              final students = classInfo['students'] as List;
 
-            // Color based on student count
-            Color cardColor = Colors.white;
-            Color iconColor = Colors.deepPurple;
-            if (studentCount == 0) {
-              cardColor = Colors.grey.shade50;
-              iconColor = Colors.grey;
-            }
+              // Color based on student count
+              Color cardColor = Colors.white;
+              Color iconColor = Colors.deepPurple;
+              if (studentCount == 0) {
+                iconColor = Colors.grey;
+              }
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ExpansionTile(
-                leading: Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: iconColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.class_,
-                    color: iconColor,
-                    size: 28,
-                  ),
+              final displaySection = section.isEmpty ? "A" : section;
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                title: Text(
-                  "$className - ${section.isEmpty ? 'A' : section}",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: studentCount > 0 ? Colors.black87 : Colors.grey,
-                  ),
-                ),
-                subtitle: Row(
-                  children: [
-                    Icon(Icons.people, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text(
-                      "$studentCount Student${studentCount != 1 ? 's' : ''}",
-                      style: TextStyle(color: Colors.grey.shade600),
+                child: ExpansionTile(
+                  leading: Container(
+                    width: 50,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: iconColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ],
-                ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: studentCount > 0
-                        ? Colors.deepPurple.shade100
-                        : Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(20),
+                    child: Icon(
+                      Icons.class_,
+                      color: iconColor,
+                      size: 28,
+                    ),
                   ),
-                  child: Text(
-                    "$studentCount",
+                  title: Text(
+                    "$className - $displaySection",
                     style: TextStyle(
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: studentCount > 0 ? Colors.deepPurple : Colors.grey,
+                      color: studentCount > 0 ? Colors.black87 : Colors.grey,
                     ),
                   ),
-                ),
-                children: [
-                  if (students.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "Student List",
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: students.length > 20 ? 20 : students.length,
-                            separatorBuilder: (_, __) => const Divider(),
-                            itemBuilder: (context, index) {
-                              final student = students[index];
-                              return ListTile(
-                                dense: true,
-                                leading: CircleAvatar(
-                                  radius: 16,
-                                  backgroundColor: Colors.deepPurple.shade100,
-                                  child: Text(
-                                    student['rollNo']?.toString() ?? '?',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.deepPurple,
-                                    ),
-                                  ),
-                                ),
-                                title: Text(
-                                  student['name'],
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                              );
-                            },
-                          ),
-                          if (students.length > 20)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                "+ ${students.length - 20} more students",
-                                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                  subtitle: Row(
+                    children: [
+                      Icon(Icons.people, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        "$studentCount Student${studentCount != 1 ? 's' : ''}",
+                        style: TextStyle(color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: studentCount > 0
+                          ? Colors.deepPurple.shade100
+                          : Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      "$studentCount",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: studentCount > 0 ? Colors.deepPurple : Colors.grey,
+                      ),
+                    ),
+                  ),
+                  children: [
+                    if (students.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Student List",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                  if (students.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(
-                        child: Text(
-                          "No students in this class",
-                          style: TextStyle(color: Colors.grey),
+                            const SizedBox(height: 12),
+                            ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: students.length > 20 ? 20 : students.length,
+                              separatorBuilder: (_, __) => const Divider(),
+                              itemBuilder: (context, index) {
+                                final student = students[index];
+                                return ListTile(
+                                  dense: true,
+                                  leading: CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: Colors.deepPurple.shade100,
+                                    child: Text(
+                                      '${index + 1}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.deepPurple,
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    student['name'],
+                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                  ),
+                                  subtitle: Text(
+                                    "Roll No: ${student['rollNo']}",
+                                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                  ),
+                                );
+                              },
+                            ),
+                            if (students.length > 20)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text(
+                                  "+ ${students.length - 20} more students",
+                                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                    ),
-                ],
-              ),
-            );
-          },
+                    if (students.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Center(
+                          child: Text(
+                            "No students in this class",
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         );
       },
     );

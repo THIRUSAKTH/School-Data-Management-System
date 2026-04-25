@@ -32,6 +32,11 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
     _loadStudents();
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   Future<void> _loadStudents() async {
     setState(() => _isLoading = true);
 
@@ -114,7 +119,6 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              setState(() {});
               _loadStudents();
             },
             tooltip: "Refresh",
@@ -190,6 +194,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                   );
                 }).toList(),
                 onChanged: (value) async {
+                  if (value == null) return;
                   setState(() => _isLoading = true);
 
                   final selectedStudent = _students.firstWhere((s) => s['id'] == value);
@@ -284,6 +289,28 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  'Error loading exams',
+                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  snapshot.error.toString(),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        }
+
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
             child: Column(
@@ -307,29 +334,10 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
 
         final exams = snapshot.data!.docs;
 
-        // Separate exams by status
-        final Map<String, List<QueryDocumentSnapshot>> groupedExams = {
-          'Ongoing': [],
-          'Upcoming': [],
-          'Completed': [],
-        };
-
-        for (var exam in exams) {
-          final data = exam.data() as Map<String, dynamic>;
-          final startDate = (data['startDate'] as Timestamp).toDate();
-          final endDate = (data['endDate'] as Timestamp).toDate();
-
-          if (startDate.isBefore(DateTime.now()) && endDate.isAfter(DateTime.now())) {
-            groupedExams['Ongoing']!.add(exam);
-          } else if (startDate.isAfter(DateTime.now())) {
-            groupedExams['Upcoming']!.add(exam);
-          } else {
-            groupedExams['Completed']!.add(exam);
-          }
-        }
-
         return RefreshIndicator(
-          onRefresh: () async => setState(() {}),
+          onRefresh: () async {
+            setState(() {});
+          },
           child: ListView.builder(
             padding: const EdgeInsets.all(12),
             itemCount: exams.length,
@@ -345,19 +353,28 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
   }
 
   Widget _buildExamCard(Map<String, dynamic> exam) {
-    final startDate = (exam['startDate'] as Timestamp).toDate();
-    final endDate = (exam['endDate'] as Timestamp).toDate();
+    // Safely parse dates
+    Timestamp? startTimestamp = exam['startDate'] as Timestamp?;
+    Timestamp? endTimestamp = exam['endDate'] as Timestamp?;
+
+    if (startTimestamp == null || endTimestamp == null) {
+      return const SizedBox.shrink();
+    }
+
+    final startDate = startTimestamp.toDate();
+    final endDate = endTimestamp.toDate();
     final subjects = List<String>.from(exam['subjects'] ?? []);
     final maxMarks = List<int>.from(exam['maxMarks'] ?? []);
+    final now = DateTime.now();
 
-    final isUpcoming = startDate.isAfter(DateTime.now());
-    final isOngoing = startDate.isBefore(DateTime.now()) && endDate.isAfter(DateTime.now());
-    final daysUntil = isUpcoming ? startDate.difference(DateTime.now()).inDays : 0;
+    final isUpcoming = startDate.isAfter(now);
+    final isOngoing = startDate.isBefore(now) && endDate.isAfter(now);
+    final daysUntil = isUpcoming ? startDate.difference(now).inDays : 0;
 
     Color getStatusColor() {
-      if (isOngoing) return Colors.green;
-      if (isUpcoming) return Colors.orange;
-      return Colors.grey;
+      if (isOngoing) return const Color(0xFF10B981); // Green
+      if (isUpcoming) return const Color(0xFFF59E0B); // Orange
+      return const Color(0xFF6B7280); // Grey
     }
 
     String getStatusText() {
@@ -405,8 +422,10 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
               style: const TextStyle(fontSize: 12),
             ),
             if (isUpcoming && daysUntil > 0)
+              const SizedBox(height: 2),
+            if (isUpcoming && daysUntil > 0)
               Text(
-                "$daysUntil days to go",
+                "$daysUntil day${daysUntil == 1 ? '' : 's'} to go",
                 style: TextStyle(fontSize: 10, color: Colors.orange.shade700),
               ),
           ],
@@ -471,7 +490,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                           width: 6,
                           height: 6,
                           decoration: const BoxDecoration(
-                            color: Colors.blue,
+                            color: Color(0xFF3B82F6),
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -537,6 +556,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                   ),
                 ),
 
+                // Urgent reminder for upcoming exams
                 if (isUpcoming && daysUntil <= 3 && daysUntil > 0)
                   const SizedBox(height: 8),
                 if (isUpcoming && daysUntil <= 3 && daysUntil > 0)
@@ -553,9 +573,9 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            daysUntil == 0
-                                ? "Exam starts tomorrow! Best of luck!"
-                                : "Only $daysUntil days left for exam! Start preparing.",
+                            daysUntil == 1
+                                ? "Exam starts tomorrow! Best of luck! 🎯"
+                                : "Only $daysUntil days left for exam! Start preparing. 📚",
                             style: const TextStyle(fontSize: 11, color: Colors.orange),
                           ),
                         ),

@@ -4,7 +4,7 @@ import 'package:schoolprojectjan/screens/admin/notice_post_page.dart';
 import 'admin_dashboard.dart';
 
 class AdminHome extends StatefulWidget {
-  final String schoolId; // ✅ required
+  final String schoolId;
 
   const AdminHome({
     super.key,
@@ -43,20 +43,30 @@ class _AdminHomeState extends State<AdminHome> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.deepPurple,
         unselectedItemColor: Colors.grey,
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 12,
+        ),
         onTap: (index) {
           setState(() => _currentIndex = index);
         },
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
+            icon: Icon(Icons.dashboard, size: 24),
+            activeIcon: Icon(Icons.dashboard, size: 24),
             label: "Dashboard",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.class_),
+            icon: Icon(Icons.class_, size: 24),
+            activeIcon: Icon(Icons.class_, size: 24),
             label: "Class & Section",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
+            icon: Icon(Icons.announcement, size: 24),
+            activeIcon: Icon(Icons.announcement, size: 24),
             label: "Notices",
           ),
         ],

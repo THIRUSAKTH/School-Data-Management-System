@@ -12,42 +12,35 @@ class AdminFeeUploadPage extends StatefulWidget {
 }
 
 class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
-  final _amountController = TextEditingController();
-  final _descriptionController = TextEditingController();
+  final TextEditingController _amountController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
 
-  String selectedClass = "Class 6";
-  String selectedSection = "A";
-  String selectedFeeType = "Tuition Fee";
-  DateTime? dueDate;
-  bool isRecurring = false;
-  String recurringPeriod = "Monthly";
-  double lateFee = 0;
-  double discount = 0;
+  String _selectedClass = "Class 6";
+  String _selectedSection = "A";
+  String _selectedFeeType = "Tuition Fee";
+  DateTime? _dueDate;
+  bool _isRecurring = false;
+  String _recurringPeriod = "Monthly";
+  double _lateFee = 0;
+  double _discount = 0;
 
   int _studentCount = 0;
   double _totalAmount = 0;
+  bool _isLoading = false;
 
-  final List<String> classes = [
+  final List<String> _classes = [
     "LKG", "UKG", "Class 1", "Class 2", "Class 3", "Class 4",
     "Class 5", "Class 6", "Class 7", "Class 8", "Class 9", "Class 10"
   ];
 
-  final List<String> sections = ["A", "B", "C", "D"];
+  final List<String> _sections = ["A", "B", "C", "D"];
 
-  final List<String> feeTypes = [
-    "Tuition Fee",
-    "Exam Fee",
-    "Transport Fee",
-    "Library Fee",
-    "Sports Fee",
-    "Development Fee",
-    "Activity Fee",
-    "Other"
+  final List<String> _feeTypes = [
+    "Tuition Fee", "Exam Fee", "Transport Fee", "Library Fee",
+    "Sports Fee", "Development Fee", "Activity Fee", "Other"
   ];
 
-  final List<String> recurringPeriods = ["Monthly", "Quarterly", "Half-Yearly", "Yearly"];
-
-  bool isLoading = false;
+  final List<String> _recurringPeriods = ["Monthly", "Quarterly", "Half-Yearly", "Yearly"];
 
   @override
   void initState() {
@@ -68,8 +61,8 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
           .collection('schools')
           .doc(widget.schoolId)
           .collection('students')
-          .where('class', isEqualTo: selectedClass)
-          .where('section', isEqualTo: selectedSection)
+          .where('class', isEqualTo: _selectedClass)
+          .where('section', isEqualTo: _selectedSection)
           .get();
 
       setState(() {
@@ -108,6 +101,14 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
             onPressed: _viewFeeHistory,
             tooltip: "Fee History",
           ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              _loadStudentCount();
+              _updateTotal();
+            },
+            tooltip: "Refresh",
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -115,31 +116,18 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Card
             _buildHeaderCard(),
             const SizedBox(height: 20),
-
-            // Class & Section Selection
             _buildClassSectionCard(),
             const SizedBox(height: 16),
-
-            // Student Count Preview
             _buildStudentCountCard(),
             const SizedBox(height: 16),
-
-            // Fee Details Card
             _buildFeeDetailsCard(),
             const SizedBox(height: 16),
-
-            // Additional Options Card
             _buildAdditionalOptionsCard(),
             const SizedBox(height: 16),
-
-            // Summary Card
             _buildSummaryCard(),
             const SizedBox(height: 24),
-
-            // Submit Button
             _buildSubmitButton(),
           ],
         ),
@@ -158,6 +146,13 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.deepPurple.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,11 +190,11 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
               Expanded(
                 child: _dropdown(
                   "Class",
-                  selectedClass,
-                  classes,
+                  _selectedClass,
+                  _classes,
                       (v) {
                     setState(() {
-                      selectedClass = v;
+                      _selectedClass = v;
                     });
                     _loadStudentCount();
                     _updateTotal();
@@ -210,11 +205,11 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
               Expanded(
                 child: _dropdown(
                   "Section",
-                  selectedSection,
-                  sections,
+                  _selectedSection,
+                  _sections,
                       (v) {
                     setState(() {
-                      selectedSection = v;
+                      _selectedSection = v;
                     });
                     _loadStudentCount();
                     _updateTotal();
@@ -283,40 +278,56 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
         children: [
           _sectionTitle("Fee Details", Icons.receipt),
           const SizedBox(height: 16),
-
           _dropdown(
             "Fee Type",
-            selectedFeeType,
-            feeTypes,
-                (v) => setState(() => selectedFeeType = v),
+            _selectedFeeType,
+            _feeTypes,
+                (v) => setState(() => _selectedFeeType = v),
           ),
           const SizedBox(height: 12),
-
           TextField(
             controller: _amountController,
             keyboardType: TextInputType.number,
             onChanged: (value) => _updateTotal(),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: "Amount per Student (₹)",
-              prefixIcon: Icon(Icons.currency_rupee),
+              prefixIcon: const Icon(Icons.currency_rupee),
               filled: true,
-              border: OutlineInputBorder(),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+              ),
             ),
           ),
           const SizedBox(height: 12),
-
           TextField(
             controller: _descriptionController,
             maxLines: 2,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: "Description (Optional)",
               hintText: "e.g., Annual fee for 2024-2025",
               filled: true,
-              border: OutlineInputBorder(),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+              ),
             ),
           ),
           const SizedBox(height: 12),
-
           _datePicker(),
         ],
       ),
@@ -330,64 +341,59 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
         children: [
           _sectionTitle("Additional Options", Icons.settings),
           const SizedBox(height: 16),
-
-          // Recurring Fee Switch
           SwitchListTile(
             title: const Text("Recurring Fee"),
             subtitle: const Text("Auto-generate fee for future periods"),
-            value: isRecurring,
+            value: _isRecurring,
             onChanged: (value) {
               setState(() {
-                isRecurring = value;
+                _isRecurring = value;
               });
             },
             activeColor: Colors.deepPurple,
             contentPadding: EdgeInsets.zero,
           ),
-
-          if (isRecurring) ...[
+          if (_isRecurring) ...[
             const SizedBox(height: 8),
             _dropdown(
               "Recurring Period",
-              recurringPeriod,
-              recurringPeriods,
-                  (v) => setState(() => recurringPeriod = v),
+              _recurringPeriod,
+              _recurringPeriods,
+                  (v) => setState(() => _recurringPeriod = v),
             ),
           ],
-
           const SizedBox(height: 12),
-
-          // Late Fee
           TextField(
             keyboardType: TextInputType.number,
             onChanged: (value) {
               setState(() {
-                lateFee = double.tryParse(value) ?? 0;
+                _lateFee = double.tryParse(value) ?? 0;
               });
             },
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: "Late Fee (₹) - Optional",
-              prefixIcon: Icon(Icons.warning_amber),
+              prefixIcon: const Icon(Icons.warning_amber),
               filled: true,
-              border: OutlineInputBorder(),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
-
           const SizedBox(height: 12),
-
-          // Discount
           TextField(
             keyboardType: TextInputType.number,
             onChanged: (value) {
               setState(() {
-                discount = double.tryParse(value) ?? 0;
+                _discount = double.tryParse(value) ?? 0;
               });
             },
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: "Discount (₹) - Optional",
-              prefixIcon: Icon(Icons.local_offer),
+              prefixIcon: const Icon(Icons.local_offer),
               filled: true,
-              border: OutlineInputBorder(),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ],
@@ -397,7 +403,7 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
 
   Widget _buildSummaryCard() {
     double amountPerStudent = double.tryParse(_amountController.text) ?? 0;
-    double totalAfterDiscount = _totalAmount - (discount * _studentCount);
+    double totalAfterDiscount = _totalAmount - (_discount * _studentCount);
 
     return _card(
       child: Column(
@@ -405,13 +411,12 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
         children: [
           _sectionTitle("Summary", Icons.summarize),
           const SizedBox(height: 16),
-
-          _summaryRow("Fee Type", selectedFeeType),
-          _summaryRow("Class/Section", "$selectedClass - $selectedSection"),
+          _summaryRow("Fee Type", _selectedFeeType),
+          _summaryRow("Class/Section", "$_selectedClass - $_selectedSection"),
           _summaryRow("Students", _studentCount.toString()),
           _summaryRow("Amount per Student", "₹${amountPerStudent.toStringAsFixed(0)}"),
-          if (discount > 0)
-            _summaryRow("Discount per Student", "-₹${discount.toStringAsFixed(0)}"),
+          if (_discount > 0)
+            _summaryRow("Discount per Student", "-₹${_discount.toStringAsFixed(0)}"),
           const Divider(),
           _summaryRow(
             "Total Amount",
@@ -419,18 +424,18 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
             isBold: true,
             color: Colors.deepPurple,
           ),
-          if (dueDate != null)
+          if (_dueDate != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: _summaryRow(
                 "Due Date",
-                DateFormat('dd MMM yyyy').format(dueDate!),
+                DateFormat('dd MMM yyyy').format(_dueDate!),
               ),
             ),
-          if (lateFee > 0)
+          if (_lateFee > 0)
             _summaryRow(
               "Late Fee",
-              "₹${lateFee.toStringAsFixed(0)} after due date",
+              "₹${_lateFee.toStringAsFixed(0)} after due date",
             ),
         ],
       ),
@@ -442,7 +447,7 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
       width: double.infinity,
       height: 52,
       child: ElevatedButton.icon(
-        icon: isLoading
+        icon: _isLoading
             ? const SizedBox(
           width: 20,
           height: 20,
@@ -452,15 +457,16 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
           ),
         )
             : const Icon(Icons.upload),
-        label: Text(isLoading ? "Publishing..." : "Publish Fee"),
+        label: Text(_isLoading ? "Publishing..." : "Publish Fee"),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.deepPurple,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
+          elevation: 2,
         ),
-        onPressed: isLoading ? null : _publishFee,
+        onPressed: _isLoading ? null : _publishFee,
       ),
     );
   }
@@ -533,15 +539,23 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
       ) {
     return DropdownButtonFormField<String>(
       value: value,
-      items: items
-          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-          .toList(),
+      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
       onChanged: (v) => onChanged(v!),
       decoration: InputDecoration(
         labelText: label,
         filled: true,
-        border: const OutlineInputBorder(),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       ),
     );
   }
@@ -553,26 +567,35 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
           context: context,
           firstDate: DateTime.now(),
           lastDate: DateTime.now().add(const Duration(days: 365)),
-          initialDate: dueDate ?? DateTime.now(),
+          initialDate: _dueDate ?? DateTime.now(),
         );
-
         if (picked != null) {
-          setState(() => dueDate = picked);
+          setState(() => _dueDate = picked);
         }
       },
       child: InputDecorator(
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           labelText: "Due Date *",
-          prefixIcon: Icon(Icons.calendar_today),
+          prefixIcon: const Icon(Icons.calendar_today),
           filled: true,
-          border: OutlineInputBorder(),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+          ),
         ),
         child: Text(
-          dueDate == null
+          _dueDate == null
               ? "Select due date"
-              : DateFormat('dd MMM yyyy').format(dueDate!),
+              : DateFormat('dd MMM yyyy').format(_dueDate!),
           style: TextStyle(
-            color: dueDate == null ? Colors.grey : Colors.black,
+            color: _dueDate == null ? Colors.grey : Colors.black,
           ),
         ),
       ),
@@ -582,27 +605,27 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
   Future<void> _publishFee() async {
     // Validation
     if (_amountController.text.isEmpty) {
-      _msg("Please enter fee amount");
+      _showMessage("Please enter fee amount", isError: true);
       return;
     }
 
-    if (dueDate == null) {
-      _msg("Please select due date");
+    if (_dueDate == null) {
+      _showMessage("Please select due date", isError: true);
       return;
     }
 
     if (_studentCount == 0) {
-      _msg("No students found in this class/section");
+      _showMessage("No students found in this class/section", isError: true);
       return;
     }
 
     final amount = double.tryParse(_amountController.text);
     if (amount == null || amount <= 0) {
-      _msg("Enter valid amount");
+      _showMessage("Enter valid amount", isError: true);
       return;
     }
 
-    setState(() => isLoading = true);
+    setState(() => _isLoading = true);
 
     try {
       final schoolRef = FirebaseFirestore.instance
@@ -613,16 +636,16 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
       final feeDoc = await schoolRef
           .collection('fees')
           .add({
-        "class": selectedClass,
-        "section": selectedSection,
-        "type": selectedFeeType,
+        "class": _selectedClass,
+        "section": _selectedSection,
+        "type": _selectedFeeType,
         "description": _descriptionController.text.trim(),
         "amount": amount,
-        "lateFee": lateFee,
-        "discount": discount,
-        "dueDate": Timestamp.fromDate(dueDate!),
-        "isRecurring": isRecurring,
-        "recurringPeriod": recurringPeriod,
+        "lateFee": _lateFee,
+        "discount": _discount,
+        "dueDate": Timestamp.fromDate(_dueDate!),
+        "isRecurring": _isRecurring,
+        "recurringPeriod": _recurringPeriod,
         "createdAt": FieldValue.serverTimestamp(),
         "createdBy": "Admin",
         "totalStudents": _studentCount,
@@ -632,8 +655,8 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
       // Get all students in the class/section
       final students = await schoolRef
           .collection('students')
-          .where('class', isEqualTo: selectedClass)
-          .where('section', isEqualTo: selectedSection)
+          .where('class', isEqualTo: _selectedClass)
+          .where('section', isEqualTo: _selectedSection)
           .get();
 
       // Create individual fee records for each student
@@ -650,14 +673,14 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
           "studentName": studentData['name'] ?? 'Unknown',
           "rollNo": studentData['rollNo'] ?? '',
           "feeId": feeDoc.id,
-          "feeType": selectedFeeType,
+          "feeType": _selectedFeeType,
           "amount": amount,
           "paidAmount": 0,
           "remainingAmount": amount,
-          "discount": discount,
-          "lateFee": lateFee,
+          "discount": _discount,
+          "lateFee": _lateFee,
           "status": "pending",
-          "dueDate": Timestamp.fromDate(dueDate!),
+          "dueDate": Timestamp.fromDate(_dueDate!),
           "createdAt": FieldValue.serverTimestamp(),
           "updatedAt": FieldValue.serverTimestamp(),
         });
@@ -665,22 +688,22 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
 
       await batch.commit();
 
-      _msg("Fee published successfully for $_studentCount students");
+      _showMessage("Fee published successfully for $_studentCount students", isError: false);
 
       // Clear form
       _amountController.clear();
       _descriptionController.clear();
       setState(() {
-        dueDate = null;
-        lateFee = 0;
-        discount = 0;
-        isRecurring = false;
+        _dueDate = null;
+        _lateFee = 0;
+        _discount = 0;
+        _isRecurring = false;
       });
 
     } catch (e) {
-      _msg("Error: $e");
+      _showMessage("Error: $e", isError: true);
     } finally {
-      setState(() => isLoading = false);
+      setState(() => _isLoading = false);
     }
   }
 
@@ -728,11 +751,11 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
                         .limit(20)
                         .snapshots(),
                     builder: (context, snapshot) {
-                      if (!snapshot.hasData) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
 
-                      if (snapshot.data!.docs.isEmpty) {
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                         return const Center(
                           child: Text("No fee records found"),
                         );
@@ -778,11 +801,12 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage> {
     );
   }
 
-  void _msg(String message) {
+  void _showMessage(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: message.contains("success") ? Colors.green : Colors.red,
+        backgroundColor: isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
       ),
     );

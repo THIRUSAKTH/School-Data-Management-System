@@ -19,21 +19,22 @@ class StudentEditPage extends StatefulWidget {
 class _StudentEditPageState extends State<StudentEditPage> {
   final _formKey = GlobalKey<FormState>();
 
-  final nameController = TextEditingController();
-  final classController = TextEditingController();
-  final sectionController = TextEditingController();
-  final rollController = TextEditingController();
-  final admissionNoController = TextEditingController();
-  final parentNameController = TextEditingController();
-  final parentPhoneController = TextEditingController();
-  final parentEmailController = TextEditingController();
-  final bloodGroupController = TextEditingController();
-  final addressController = TextEditingController();
+  // Controllers
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _classController = TextEditingController();
+  final TextEditingController _sectionController = TextEditingController();
+  final TextEditingController _rollController = TextEditingController();
+  final TextEditingController _admissionNoController = TextEditingController();
+  final TextEditingController _parentNameController = TextEditingController();
+  final TextEditingController _parentPhoneController = TextEditingController();
+  final TextEditingController _parentEmailController = TextEditingController();
+  final TextEditingController _bloodGroupController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
 
-  DateTime? dob;
+  DateTime? _dob;
   String? _selectedGender;
-  bool loading = true;
-  bool isUpdating = false;
+  bool _isLoading = true;
+  bool _isUpdating = false;
 
   final List<String> _genders = ['Male', 'Female', 'Other'];
   final List<String> _bloodGroups = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
@@ -49,16 +50,16 @@ class _StudentEditPageState extends State<StudentEditPage> {
 
   @override
   void dispose() {
-    nameController.dispose();
-    classController.dispose();
-    sectionController.dispose();
-    rollController.dispose();
-    admissionNoController.dispose();
-    parentNameController.dispose();
-    parentPhoneController.dispose();
-    parentEmailController.dispose();
-    bloodGroupController.dispose();
-    addressController.dispose();
+    _nameController.dispose();
+    _classController.dispose();
+    _sectionController.dispose();
+    _rollController.dispose();
+    _admissionNoController.dispose();
+    _parentNameController.dispose();
+    _parentPhoneController.dispose();
+    _parentEmailController.dispose();
+    _bloodGroupController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -70,18 +71,20 @@ class _StudentEditPageState extends State<StudentEditPage> {
           .collection('classes')
           .get();
 
-      setState(() {
-        _availableClasses = classesSnapshot.docs
-            .map((doc) => doc['class'] as String)
-            .toList();
-      });
+      if (classesSnapshot.docs.isNotEmpty) {
+        setState(() {
+          _availableClasses = classesSnapshot.docs
+              .map((doc) => doc['class'] as String)
+              .toList();
+        });
+      }
     } catch (e) {
       debugPrint('Error loading classes: $e');
     }
   }
 
   Future<void> _loadStudent() async {
-    setState(() => loading = true);
+    setState(() => _isLoading = true);
 
     try {
       final doc = await FirebaseFirestore.instance
@@ -93,58 +96,57 @@ class _StudentEditPageState extends State<StudentEditPage> {
 
       if (!doc.exists) {
         _showError("Student not found");
-        Navigator.pop(context);
+        if (mounted) Navigator.pop(context);
         return;
       }
 
       final data = doc.data()!;
 
-      nameController.text = data['name'] ?? '';
-      classController.text = data['class'] ?? '';
-      sectionController.text = data['section'] ?? '';
-      rollController.text = data['rollNo'] ?? '';
-      admissionNoController.text = data['admissionNo'] ?? '';
-      parentNameController.text = data['parentName'] ?? '';
-      parentPhoneController.text = data['parentPhone'] ?? '';
-      parentEmailController.text = data['parentEmail'] ?? '';
-      bloodGroupController.text = data['bloodGroup'] ?? '';
-      addressController.text = data['address'] ?? '';
-
+      _nameController.text = data['name'] ?? '';
+      _classController.text = data['class'] ?? '';
+      _sectionController.text = data['section'] ?? '';
+      _rollController.text = data['rollNo'] ?? '';
+      _admissionNoController.text = data['admissionNo'] ?? '';
+      _parentNameController.text = data['parentName'] ?? '';
+      _parentPhoneController.text = data['parentPhone'] ?? '';
+      _parentEmailController.text = data['parentEmail'] ?? '';
+      _bloodGroupController.text = data['bloodGroup'] ?? '';
+      _addressController.text = data['address'] ?? '';
       _selectedGender = data['gender'];
 
       if (data['dob'] != null) {
-        dob = (data['dob'] as Timestamp).toDate();
+        _dob = (data['dob'] as Timestamp).toDate();
       }
     } catch (e) {
       _showError("Error loading student: $e");
     } finally {
-      setState(() => loading = false);
+      setState(() => _isLoading = false);
     }
   }
 
   Future<void> _updateStudent() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => isUpdating = true);
+    setState(() => _isUpdating = true);
 
     try {
-      final updateData = {
-        'name': nameController.text.trim(),
-        'class': classController.text.trim(),
-        'section': sectionController.text.trim(),
-        'rollNo': rollController.text.trim(),
-        'admissionNo': admissionNoController.text.trim(),
-        'parentName': parentNameController.text.trim(),
-        'parentPhone': parentPhoneController.text.trim(),
-        'parentEmail': parentEmailController.text.trim(),
-        'bloodGroup': bloodGroupController.text.trim(),
-        'address': addressController.text.trim(),
+      final updateData = <String, dynamic>{
+        'name': _nameController.text.trim(),
+        'class': _classController.text.trim(),
+        'section': _sectionController.text.trim(),
+        'rollNo': _rollController.text.trim(),
+        'admissionNo': _admissionNoController.text.trim(),
+        'parentName': _parentNameController.text.trim(),
+        'parentPhone': _parentPhoneController.text.trim(),
+        'parentEmail': _parentEmailController.text.trim(),
+        'bloodGroup': _bloodGroupController.text.trim(),
+        'address': _addressController.text.trim(),
         'gender': _selectedGender,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      if (dob != null) {
-        updateData['dob'] = Timestamp.fromDate(dob!);
+      if (_dob != null) {
+        updateData['dob'] = Timestamp.fromDate(_dob!);
       }
 
       await FirebaseFirestore.instance
@@ -166,20 +168,86 @@ class _StudentEditPageState extends State<StudentEditPage> {
     } catch (e) {
       _showError("Error updating student: $e");
     } finally {
-      setState(() => isUpdating = false);
+      setState(() => _isUpdating = false);
     }
   }
 
   Future<void> _selectDateOfBirth() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: dob ?? DateTime.now().subtract(const Duration(days: 365 * 10)),
+      initialDate: _dob ?? DateTime.now().subtract(const Duration(days: 365 * 10)),
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
     );
 
     if (picked != null) {
-      setState(() => dob = picked);
+      setState(() => _dob = picked);
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text("Delete Student"),
+        content: const Text(
+          "Are you sure you want to delete this student? This action cannot be undone.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isUpdating = true);
+
+      try {
+        // Delete from students collection
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(widget.schoolId)
+            .collection('students')
+            .doc(widget.studentId)
+            .delete();
+
+        // Also delete from class subcollection
+        final className = _classController.text.trim();
+        if (className.isNotEmpty) {
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('classes')
+              .doc(className)
+              .collection('students')
+              .doc(widget.studentId)
+              .delete();
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Student deleted successfully"),
+              backgroundColor: Colors.red,
+            ),
+          );
+          Navigator.pop(context, true);
+        }
+      } catch (e) {
+        _showError("Error deleting student: $e");
+        setState(() => _isUpdating = false);
+      }
     }
   }
 
@@ -215,7 +283,7 @@ class _StudentEditPageState extends State<StudentEditPage> {
           ),
         ],
       ),
-      body: loading
+      body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -271,31 +339,24 @@ class _StudentEditPageState extends State<StudentEditPage> {
           ),
           const SizedBox(height: 16),
 
-          // Student Name
-          _buildTextField(nameController, "Student Name *", Icons.person_outline),
+          _buildTextField(_nameController, "Student Name *", Icons.person_outline),
           const SizedBox(height: 12),
 
-          // Class Dropdown
           _buildClassDropdown(),
           const SizedBox(height: 12),
 
-          // Section Dropdown
           _buildSectionDropdown(),
           const SizedBox(height: 12),
 
-          // Roll Number
-          _buildTextField(rollController, "Roll Number *", Icons.numbers),
+          _buildTextField(_rollController, "Roll Number *", Icons.numbers),
           const SizedBox(height: 12),
 
-          // Admission Number
-          _buildTextField(admissionNoController, "Admission Number", Icons.badge),
+          _buildTextField(_admissionNoController, "Admission Number", Icons.badge),
           const SizedBox(height: 12),
 
-          // Gender
           _buildGenderDropdown(),
           const SizedBox(height: 12),
 
-          // Date of Birth
           _buildDatePickerField(),
         ],
       ),
@@ -328,18 +389,23 @@ class _StudentEditPageState extends State<StudentEditPage> {
           ),
           const SizedBox(height: 16),
 
-          // Parent Name
-          _buildTextField(parentNameController, "Parent Name", Icons.person),
+          _buildTextField(_parentNameController, "Parent Name", Icons.person),
           const SizedBox(height: 12),
 
-          // Parent Phone
-          _buildTextField(parentPhoneController, "Parent Phone", Icons.phone,
-              keyboardType: TextInputType.phone),
+          _buildTextField(
+            _parentPhoneController,
+            "Parent Phone",
+            Icons.phone,
+            keyboardType: TextInputType.phone,
+          ),
           const SizedBox(height: 12),
 
-          // Parent Email
-          _buildTextField(parentEmailController, "Parent Email", Icons.email,
-              keyboardType: TextInputType.emailAddress),
+          _buildTextField(
+            _parentEmailController,
+            "Parent Email",
+            Icons.email,
+            keyboardType: TextInputType.emailAddress,
+          ),
         ],
       ),
     );
@@ -371,67 +437,95 @@ class _StudentEditPageState extends State<StudentEditPage> {
           ),
           const SizedBox(height: 16),
 
-          // Blood Group Dropdown
           _buildBloodGroupDropdown(),
           const SizedBox(height: 12),
 
-          // Address
-          _buildTextField(addressController, "Address", Icons.location_on,
-              maxLines: 2),
+          _buildTextField(_addressController, "Address", Icons.location_on, maxLines: 2),
         ],
       ),
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, IconData icon,
-      {TextInputType keyboardType = TextInputType.text, int maxLines = 1}) {
+  Widget _buildTextField(
+      TextEditingController controller,
+      String label,
+      IconData icon, {
+        TextInputType keyboardType = TextInputType.text,
+        int maxLines = 1,
+      }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
-      validator: (v) {
-        if (label.contains('*') && (v == null || v.isEmpty)) {
+      style: const TextStyle(fontSize: 14),
+      validator: (value) {
+        if (label.contains('*') && (value == null || value.isEmpty)) {
           return "This field is required";
         }
-        if (label.contains('Email') && v != null && v.isNotEmpty) {
-          if (!v.contains('@') || !v.contains('.')) {
+        if (label.contains('Email') && value != null && value.isNotEmpty) {
+          if (!value.contains('@') || !value.contains('.')) {
             return "Enter a valid email";
           }
         }
-        if (label.contains('Phone') && v != null && v.isNotEmpty) {
-          if (v.length < 10) {
-            return "Enter a valid phone number";
+        if (label.contains('Phone') && value != null && value.isNotEmpty) {
+          if (value.length < 10) {
+            return "Enter a valid phone number (min 10 digits)";
+          }
+        }
+        if (label.contains('Roll Number') && value != null && value.isNotEmpty) {
+          if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
+            return "Roll number should contain only numbers";
           }
         }
         return null;
       },
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: Colors.cyan),
+        labelStyle: const TextStyle(fontSize: 13),
+        prefixIcon: Icon(icon, color: Colors.cyan, size: 20),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.cyan, width: 2),
+        ),
         filled: true,
         fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }
 
   Widget _buildClassDropdown() {
     if (_availableClasses.isEmpty) {
-      return _buildTextField(classController, "Class *", Icons.class_);
+      return _buildTextField(_classController, "Class *", Icons.class_);
     }
 
     return DropdownButtonFormField<String>(
-      value: classController.text.isEmpty ? null : classController.text,
+      value: _classController.text.isEmpty ? null : _classController.text,
       hint: const Text("Select Class *"),
+      isExpanded: true,
       decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.class_, color: Colors.cyan),
+        prefixIcon: const Icon(Icons.class_, color: Colors.cyan, size: 20),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.cyan, width: 2),
+        ),
         filled: true,
         fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       items: _availableClasses.map((className) {
         return DropdownMenuItem(
@@ -441,24 +535,34 @@ class _StudentEditPageState extends State<StudentEditPage> {
       }).toList(),
       onChanged: (value) {
         setState(() {
-          classController.text = value ?? '';
+          _classController.text = value ?? '';
         });
       },
-      validator: (v) => classController.text.isEmpty ? "Please select a class" : null,
+      validator: (value) => _classController.text.isEmpty ? "Please select a class" : null,
     );
   }
 
   Widget _buildSectionDropdown() {
     return DropdownButtonFormField<String>(
-      value: sectionController.text.isEmpty ? null : sectionController.text,
+      value: _sectionController.text.isEmpty ? null : _sectionController.text,
       hint: const Text("Select Section *"),
+      isExpanded: true,
       decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.group, color: Colors.cyan),
+        prefixIcon: const Icon(Icons.group, color: Colors.cyan, size: 20),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.cyan, width: 2),
+        ),
         filled: true,
         fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       items: _availableSections.map((section) {
         return DropdownMenuItem(
@@ -468,10 +572,10 @@ class _StudentEditPageState extends State<StudentEditPage> {
       }).toList(),
       onChanged: (value) {
         setState(() {
-          sectionController.text = value ?? '';
+          _sectionController.text = value ?? '';
         });
       },
-      validator: (v) => sectionController.text.isEmpty ? "Please select a section" : null,
+      validator: (value) => _sectionController.text.isEmpty ? "Please select a section" : null,
     );
   }
 
@@ -479,13 +583,23 @@ class _StudentEditPageState extends State<StudentEditPage> {
     return DropdownButtonFormField<String>(
       value: _selectedGender,
       hint: const Text("Select Gender"),
+      isExpanded: true,
       decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.people, color: Colors.cyan),
+        prefixIcon: const Icon(Icons.people, color: Colors.cyan, size: 20),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.cyan, width: 2),
+        ),
         filled: true,
         fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       items: _genders.map((gender) {
         return DropdownMenuItem(
@@ -503,15 +617,25 @@ class _StudentEditPageState extends State<StudentEditPage> {
 
   Widget _buildBloodGroupDropdown() {
     return DropdownButtonFormField<String>(
-      value: bloodGroupController.text.isEmpty ? null : bloodGroupController.text,
+      value: _bloodGroupController.text.isEmpty ? null : _bloodGroupController.text,
       hint: const Text("Select Blood Group"),
+      isExpanded: true,
       decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.bloodtype, color: Colors.cyan),
+        prefixIcon: const Icon(Icons.bloodtype, color: Colors.cyan, size: 20),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.cyan, width: 2),
+        ),
         filled: true,
         fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
       items: _bloodGroups.map((bg) {
         return DropdownMenuItem(
@@ -521,7 +645,7 @@ class _StudentEditPageState extends State<StudentEditPage> {
       }).toList(),
       onChanged: (value) {
         setState(() {
-          bloodGroupController.text = value ?? '';
+          _bloodGroupController.text = value ?? '';
         });
       },
     );
@@ -533,16 +657,25 @@ class _StudentEditPageState extends State<StudentEditPage> {
       child: AbsorbPointer(
         child: TextFormField(
           controller: TextEditingController(
-            text: dob != null ? DateFormat('dd/MM/yyyy').format(dob!) : '',
+            text: _dob != null ? DateFormat('dd/MM/yyyy').format(_dob!) : '',
           ),
           decoration: InputDecoration(
             labelText: "Date of Birth",
-            prefixIcon: const Icon(Icons.cake, color: Colors.cyan),
+            prefixIcon: const Icon(Icons.cake, color: Colors.cyan, size: 20),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.cyan, width: 2),
+            ),
             filled: true,
             fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
       ),
@@ -554,7 +687,7 @@ class _StudentEditPageState extends State<StudentEditPage> {
       width: double.infinity,
       height: 52,
       child: ElevatedButton(
-        onPressed: isUpdating ? null : _updateStudent,
+        onPressed: _isUpdating ? null : _updateStudent,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.cyan,
           foregroundColor: Colors.white,
@@ -562,7 +695,7 @@ class _StudentEditPageState extends State<StudentEditPage> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: isUpdating
+        child: _isUpdating
             ? const SizedBox(
           height: 20,
           width: 20,
@@ -577,55 +710,6 @@ class _StudentEditPageState extends State<StudentEditPage> {
         ),
       ),
     );
-  }
-
-  Future<void> _confirmDelete() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Delete Student"),
-        content: const Text(
-          "Are you sure you want to delete this student? This action cannot be undone.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Delete"),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      setState(() => isUpdating = true);
-
-      try {
-        await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(widget.schoolId)
-            .collection('students')
-            .doc(widget.studentId)
-            .delete();
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Student deleted successfully"),
-              backgroundColor: Colors.red,
-            ),
-          );
-          Navigator.pop(context, true);
-        }
-      } catch (e) {
-        _showError("Error deleting student: $e");
-        setState(() => isUpdating = false);
-      }
-    }
   }
 
   BoxDecoration _cardDecoration() {
