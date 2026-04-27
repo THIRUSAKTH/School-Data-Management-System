@@ -527,7 +527,7 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.05),
           blurRadius: 8,
-          offset: const Offset(0, 2),
+          offset: const Offset(0, 2.1),
         ),
       ],
     );
