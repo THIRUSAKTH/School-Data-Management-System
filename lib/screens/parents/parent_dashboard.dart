@@ -5,17 +5,18 @@ import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
 import 'package:schoolprojectjan/screens/parents/attendance_view_page.dart';
+import 'package:schoolprojectjan/screens/parents/fee_history_page.dart';
 import 'package:schoolprojectjan/screens/parents/fee_status_page.dart';
 import 'package:schoolprojectjan/screens/parents/homework_view_page.dart';
-import 'package:schoolprojectjan/screens/parents/parent_notices_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_complaint_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_exam_schedule.dart';
+import 'package:schoolprojectjan/screens/parents/parent_notices_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_notifications_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_profile_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_settings_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_view_results.dart';
-import 'package:schoolprojectjan/screens/parents/parent_exam_schedule.dart';
-import 'package:schoolprojectjan/screens/parents/fee_history_page.dart';
 import 'package:schoolprojectjan/screens/parents/select_child_page.dart';
+import 'package:schoolprojectjan/screens/parents/student_timetable_page.dart';
 
 class ParentDashboard extends StatefulWidget {
   final String? selectedChildId;
@@ -62,7 +63,8 @@ class _ParentDashboardState extends State<ParentDashboard>
     if (selectedStudentId == null) return;
 
     try {
-      final notifications = await FirebaseFirestore.instance
+      final notifications =
+      await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('notifications')
@@ -70,7 +72,8 @@ class _ParentDashboardState extends State<ParentDashboard>
           .where('isRead', isEqualTo: false)
           .get();
 
-      final complaints = await FirebaseFirestore.instance
+      final complaints =
+      await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('complaints')
@@ -93,7 +96,8 @@ class _ParentDashboardState extends State<ParentDashboard>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder:
+          (context) => AlertDialog(
         title: const Text("Logout"),
         content: const Text("Are you sure you want to logout?"),
         actions: [
@@ -120,7 +124,10 @@ class _ParentDashboardState extends State<ParentDashboard>
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+                    SnackBar(
+                      content: Text("Error: $e"),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                 }
               }
@@ -146,9 +153,7 @@ class _ParentDashboardState extends State<ParentDashboard>
   void _switchChild() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (_) => const SelectChildPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const SelectChildPage()),
     );
   }
 
@@ -165,10 +170,7 @@ class _ParentDashboardState extends State<ParentDashboard>
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             if (_currentStudentName.isNotEmpty)
-              Text(
-                _currentStudentName,
-                style: const TextStyle(fontSize: 12),
-              ),
+              Text(_currentStudentName, style: const TextStyle(fontSize: 12)),
           ],
         ),
         backgroundColor: Colors.orange,
@@ -189,7 +191,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ParentNotificationsPage(
+                        builder:
+                            (_) => ParentNotificationsPage(
                           studentId: selectedStudentId!,
                         ),
                       ),
@@ -234,7 +237,8 @@ class _ParentDashboardState extends State<ParentDashboard>
         child: LayoutBuilder(
           builder: (context, constraints) {
             return StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
+              stream:
+              FirebaseFirestore.instance
                   .collection('schools')
                   .doc(AppConfig.schoolId)
                   .collection('students')
@@ -254,7 +258,6 @@ class _ParentDashboardState extends State<ParentDashboard>
                 // Initialize selected student if not set
                 if (selectedStudentId == null && students.isNotEmpty) {
                   if (widget.selectedChildId != null) {
-                    // FIXED: Properly find the matching student
                     QueryDocumentSnapshot? matchingDoc;
                     for (var doc in students) {
                       if (doc.id == widget.selectedChildId) {
@@ -262,14 +265,16 @@ class _ParentDashboardState extends State<ParentDashboard>
                         break;
                       }
                     }
-                    // If not found, use first student
                     matchingDoc ??= students.first;
-
                     selectedStudentId = matchingDoc.id;
-                    _updateCurrentStudentData(matchingDoc.data() as Map<String, dynamic>);
+                    _updateCurrentStudentData(
+                      matchingDoc.data() as Map<String, dynamic>,
+                    );
                   } else {
                     selectedStudentId = students.first.id;
-                    _updateCurrentStudentData(students.first.data() as Map<String, dynamic>);
+                    _updateCurrentStudentData(
+                      students.first.data() as Map<String, dynamic>,
+                    );
                   }
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     _loadUnreadCounts();
@@ -285,11 +290,12 @@ class _ParentDashboardState extends State<ParentDashboard>
                   }
                 }
 
-                // If selected student not found, select first one
                 if (selectedDoc == null && students.isNotEmpty) {
                   selectedDoc = students.first;
                   selectedStudentId = selectedDoc.id;
-                  _updateCurrentStudentData(selectedDoc.data() as Map<String, dynamic>);
+                  _updateCurrentStudentData(
+                    selectedDoc.data() as Map<String, dynamic>,
+                  );
                 }
 
                 if (selectedDoc == null) {
@@ -316,8 +322,14 @@ class _ParentDashboardState extends State<ParentDashboard>
                         unselectedLabelColor: Colors.grey,
                         indicatorColor: Colors.orange,
                         tabs: const [
-                          Tab(icon: Icon(Icons.dashboard, size: 18), text: 'Overview'),
-                          Tab(icon: Icon(Icons.calendar_month, size: 18), text: 'Attendance'),
+                          Tab(
+                            icon: Icon(Icons.dashboard, size: 18),
+                            text: 'Overview',
+                          ),
+                          Tab(
+                            icon: Icon(Icons.calendar_month, size: 18),
+                            text: 'Attendance',
+                          ),
                         ],
                       ),
                     ),
@@ -383,7 +395,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                 ),
                 const SizedBox(height: 8),
                 StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseFirestore.instance
+                  stream:
+                  FirebaseFirestore.instance
                       .collection('schools')
                       .doc(AppConfig.schoolId)
                       .snapshots(),
@@ -405,7 +418,10 @@ class _ParentDashboardState extends State<ParentDashboard>
                 const SizedBox(height: 4),
                 Text(
                   "Parent Portal",
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.8),
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -432,7 +448,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => AttendanceViewPage(
+                          builder:
+                              (_) => ParentAttendanceViewPage(
                             studentId: selectedStudentId!,
                             studentName: _currentStudentName,
                             className: _currentClassName,
@@ -460,7 +477,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => HomeworkViewPage(
+                          builder:
+                              (_) => HomeworkViewPage(
                             studentId: selectedStudentId!,
                             className: _currentClassName,
                             section: _currentSection,
@@ -481,9 +499,33 @@ class _ParentDashboardState extends State<ParentDashboard>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentViewResultsPage(
+                          builder:
+                              (_) => ParentViewResultsPage(
                             studentId: selectedStudentId!,
                             studentName: _currentStudentName,
+                          ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _drawerItem(
+                  icon: Icons.schedule,
+                  title: "Timetable",
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => StudentTimetablePage(
+                            studentId: selectedStudentId!,
+                            studentName: _currentStudentName,
+                            className: _currentClassName,
+                            section: _currentSection,
                           ),
                         ),
                       );
@@ -501,7 +543,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentExamSchedulePage(
+                          builder:
+                              (_) => ParentExamSchedulePage(
                             className: _currentClassName,
                             section: _currentSection,
                           ),
@@ -521,9 +564,9 @@ class _ParentDashboardState extends State<ParentDashboard>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => FeeHistoryPage(
-                            studentId: selectedStudentId!,
-                          ),
+                          builder:
+                              (_) =>
+                              FeeHistoryPage(studentId: selectedStudentId!),
                         ),
                       );
                     } else {
@@ -539,7 +582,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => FeeStatusPage(studentId: selectedStudentId),
+                        builder:
+                            (_) => FeeStatusPage(studentId: selectedStudentId),
                       ),
                     );
                   },
@@ -552,7 +596,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ParentNoticesPage(
+                        builder:
+                            (_) => ParentNoticesPage(
                           className: _currentClassName,
                           section: _currentSection,
                         ),
@@ -563,14 +608,18 @@ class _ParentDashboardState extends State<ParentDashboard>
                 _drawerItem(
                   icon: Icons.feedback,
                   title: "Complaints",
-                  badge: _unreadComplaints > 0 ? _unreadComplaints.toString() : null,
+                  badge:
+                  _unreadComplaints > 0
+                      ? _unreadComplaints.toString()
+                      : null,
                   onTap: () {
                     Navigator.pop(context);
                     if (selectedStudentId != null) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentComplaintPage(
+                          builder:
+                              (_) => ParentComplaintPage(
                             studentId: selectedStudentId!,
                           ),
                         ),
@@ -590,7 +639,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentProfilePage(
+                          builder:
+                              (_) => ParentProfilePage(
                             studentId: selectedStudentId!,
                             schoolId: AppConfig.schoolId,
                           ),
@@ -609,7 +659,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ParentSettingsPage(
+                        builder:
+                            (_) => ParentSettingsPage(
                           schoolId: AppConfig.schoolId,
                           parentUid: parentUid,
                         ),
@@ -659,7 +710,11 @@ class _ParentDashboardState extends State<ParentDashboard>
   }) {
     return ListTile(
       dense: true,
-      leading: Icon(icon, size: 20, color: isLogout ? Colors.red : Colors.orange),
+      leading: Icon(
+        icon,
+        size: 20,
+        color: isLogout ? Colors.red : Colors.orange,
+      ),
       title: Text(
         title,
         style: TextStyle(
@@ -668,7 +723,8 @@ class _ParentDashboardState extends State<ParentDashboard>
           fontSize: 13,
         ),
       ),
-      trailing: badge != null
+      trailing:
+      badge != null
           ? Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
@@ -692,7 +748,8 @@ class _ParentDashboardState extends State<ParentDashboard>
   void _showHelpDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder:
+          (context) => AlertDialog(
         title: const Text("Help & Support"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -707,13 +764,18 @@ class _ParentDashboardState extends State<ParentDashboard>
             SizedBox(height: 6),
             Text("Monday - Friday: 9:00 AM - 5:00 PM"),
             Divider(),
-            Text("For urgent issues, please contact the school office directly."),
+            Text(
+              "For urgent issues, please contact the school office directly.",
+            ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Close", style: TextStyle(color: Colors.orange)),
+            child: const Text(
+              "Close",
+              style: TextStyle(color: Colors.orange),
+            ),
           ),
         ],
       ),
@@ -753,7 +815,11 @@ class _ParentDashboardState extends State<ParentDashboard>
             const SizedBox(height: 16),
             Text(
               'No Children Linked',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade600,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -769,7 +835,10 @@ class _ParentDashboardState extends State<ParentDashboard>
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -781,7 +850,12 @@ class _ParentDashboardState extends State<ParentDashboard>
     );
   }
 
-  Widget _buildHeader(String name, String className, String section, String rollNo) {
+  Widget _buildHeader(
+      String name,
+      String className,
+      String section,
+      String rollNo,
+      ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 25, 16, 16),
@@ -826,7 +900,7 @@ class _ParentDashboardState extends State<ParentDashboard>
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -837,7 +911,11 @@ class _ParentDashboardState extends State<ParentDashboard>
         children: [
           const Text(
             'Select Child',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey,
+            ),
           ),
           const SizedBox(height: 6),
           SizedBox(
@@ -859,7 +937,10 @@ class _ParentDashboardState extends State<ParentDashboard>
                   },
                   child: Container(
                     margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: isSelected ? Colors.orange : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(18),
@@ -896,82 +977,133 @@ class _ParentDashboardState extends State<ParentDashboard>
   }
 
   Widget _buildStatsRow(String studentId) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collectionGroup('records')
-          .where('studentId', isEqualTo: studentId)
-          .snapshots(),
-      builder: (context, attendanceSnapshot) {
-        int present = 0;
-        int total = 0;
-        int late = 0;
+    return FutureBuilder<int>(
+      future: _getPresentCount(studentId),
+      builder: (context, presentSnapshot) {
+        final present = presentSnapshot.data ?? 0;
+        return FutureBuilder<int>(
+          future: _getTotalCount(),
+          builder: (context, totalSnapshot) {
+            final total = totalSnapshot.data ?? 0;
+            double attendanceRate = total > 0 ? (present / total) * 100 : 0;
 
-        if (attendanceSnapshot.hasData) {
-          for (var doc in attendanceSnapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            total++;
-            if (data['status'] == 'Present') {
-              present++;
-            } else if (data['status'] == 'Late') {
-              late++;
-            }
-          }
-        }
+            return FutureBuilder<Map<String, double>>(
+              future: _getFeeData(studentId),
+              builder: (context, feeSnapshot) {
+                double totalPaid = feeSnapshot.data?['paid'] ?? 0;
+                double totalDue = feeSnapshot.data?['due'] ?? 0;
 
-        double attendanceRate = total > 0 ? (present / total) * 100 : 0;
-
-        return Row(
-          children: [
-            Expanded(
-              child: _StatCard(
-                title: "Attendance",
-                value: "${attendanceRate.toStringAsFixed(1)}%",
-                color: Colors.green,
-                icon: Icons.check_circle,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _StatCard(
-                title: "Homework",
-                value: "View",
-                color: Colors.blue,
-                icon: Icons.assignment,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => HomeworkViewPage(
-                        studentId: studentId,
-                        className: _currentClassName,
-                        section: _currentSection,
+                return Row(
+                  children: [
+                    Expanded(
+                      child: _StatCard(
+                        title: "Attendance",
+                        value: "${attendanceRate.toStringAsFixed(1)}%",
+                        color: Colors.green,
+                        icon: Icons.check_circle,
                       ),
                     ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _StatCard(
-                title: "Complaint",
-                value: "Raise",
-                color: Colors.orange,
-                icon: Icons.feedback,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ParentComplaintPage(studentId: studentId),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _StatCard(
+                        title: "Homework",
+                        value: "View",
+                        color: Colors.blue,
+                        icon: Icons.assignment,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => HomeworkViewPage(
+                                studentId: studentId,
+                                className: _currentClassName,
+                                section: _currentSection,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  ).then((_) => _loadUnreadCounts());
-                },
-              ),
-            ),
-          ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _StatCard(
+                        title: "Complaint",
+                        value: "Raise",
+                        color: Colors.orange,
+                        icon: Icons.feedback,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (_) =>
+                                  ParentComplaintPage(studentId: studentId),
+                            ),
+                          ).then((_) => _loadUnreadCounts());
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
         );
       },
     );
+  }
+
+  Future<int> _getPresentCount(String studentId) async {
+    final attendanceDates =
+    await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(AppConfig.schoolId)
+        .collection('attendance')
+        .get();
+
+    int present = 0;
+    for (var dateDoc in attendanceDates.docs) {
+      final record =
+      await dateDoc.reference.collection('records').doc(studentId).get();
+      if (record.exists && record.data()?['status'] == 'Present') {
+        present++;
+      }
+    }
+    return present;
+  }
+
+  Future<int> _getTotalCount() async {
+    final attendanceDates =
+    await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(AppConfig.schoolId)
+        .collection('attendance')
+        .get();
+    return attendanceDates.docs.length;
+  }
+
+  Future<Map<String, double>> _getFeeData(String studentId) async {
+    final fees =
+    await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(AppConfig.schoolId)
+        .collection('student_fees')
+        .where('studentId', isEqualTo: studentId)
+        .get();
+
+    double paid = 0;
+    double due = 0;
+    for (var doc in fees.docs) {
+      final data = doc.data();
+      final amount = (data['amount'] ?? 0).toDouble();
+      if (data['status'] == 'paid') {
+        paid += amount;
+      } else {
+        due += amount;
+      }
+    }
+    return {'paid': paid, 'due': due};
   }
 
   Widget _buildStudentDetailsCard(Map<String, dynamic> data) {
@@ -995,11 +1127,15 @@ class _ParentDashboardState extends State<ParentDashboard>
             ),
             const Divider(height: 12),
             _infoRow('Name', data['name'] ?? 'N/A'),
-            _infoRow('Class', '${data['class'] ?? ''}-${data['section'] ?? ''}'),
+            _infoRow(
+              'Class',
+              '${data['class'] ?? ''}-${data['section'] ?? ''}',
+            ),
             _infoRow('Roll No', data['rollNo'] ?? 'N/A'),
             if (_currentAdmissionNo.isNotEmpty)
               _infoRow('Admission No', _currentAdmissionNo),
-            if (data['fatherName'] != null && data['fatherName'].toString().isNotEmpty)
+            if (data['fatherName'] != null &&
+                data['fatherName'].toString().isNotEmpty)
               _infoRow('Father', data['fatherName']),
           ],
         ),
@@ -1013,8 +1149,19 @@ class _ParentDashboardState extends State<ParentDashboard>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 70, child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11))),
-          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11))),
+          SizedBox(
+            width: 70,
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.grey, fontSize: 11),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
+            ),
+          ),
         ],
       ),
     );
@@ -1022,7 +1169,8 @@ class _ParentDashboardState extends State<ParentDashboard>
 
   Widget _buildFeeSection() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
+      stream:
+      FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('student_fees')
@@ -1040,7 +1188,12 @@ class _ParentDashboardState extends State<ParentDashboard>
           return Card(
             child: const Padding(
               padding: EdgeInsets.all(12),
-              child: Center(child: Text('No fee records found', style: TextStyle(fontSize: 12))),
+              child: Center(
+                child: Text(
+                  'No fee records found',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
             ),
           );
         }
@@ -1060,7 +1213,9 @@ class _ParentDashboardState extends State<ParentDashboard>
         }
 
         return Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(10),
             child: Column(
@@ -1068,9 +1223,19 @@ class _ParentDashboardState extends State<ParentDashboard>
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.receipt_outlined, color: Colors.orange, size: 16),
+                    Icon(
+                      Icons.receipt_outlined,
+                      color: Colors.orange,
+                      size: 16,
+                    ),
                     SizedBox(width: 6),
-                    Text('Fee Summary', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    Text(
+                      'Fee Summary',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
                 const Divider(height: 12),
@@ -1079,22 +1244,40 @@ class _ParentDashboardState extends State<ParentDashboard>
                     Expanded(
                       child: Column(
                         children: [
-                          const Text('Paid', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          const Text(
+                            'Paid',
+                            style: TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
                           Text(
                             '₹${totalPaid.toInt()}',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    Container(width: 1, height: 25, color: Colors.grey.shade300),
+                    Container(
+                      width: 1,
+                      height: 25,
+                      color: Colors.grey.shade300,
+                    ),
                     Expanded(
                       child: Column(
                         children: [
-                          const Text('Due', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          const Text(
+                            'Due',
+                            style: TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
                           Text(
                             '₹${totalDue.toInt()}',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red,
+                            ),
                           ),
                         ],
                       ),
@@ -1117,7 +1300,10 @@ class _ParentDashboardState extends State<ParentDashboard>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Quick Actions', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            const Text(
+              'Quick Actions',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 10),
             Wrap(
               spacing: 6,
@@ -1127,7 +1313,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => AttendanceViewPage(
+                      builder:
+                          (_) => ParentAttendanceViewPage(
                         studentId: selectedStudentId!,
                         studentName: _currentStudentName,
                         className: _currentClassName,
@@ -1140,7 +1327,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => HomeworkViewPage(
+                      builder:
+                          (_) => HomeworkViewPage(
                         studentId: selectedStudentId!,
                         className: _currentClassName,
                         section: _currentSection,
@@ -1152,9 +1340,24 @@ class _ParentDashboardState extends State<ParentDashboard>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ParentViewResultsPage(
+                      builder:
+                          (_) => ParentViewResultsPage(
                         studentId: selectedStudentId!,
                         studentName: _currentStudentName,
+                      ),
+                    ),
+                  );
+                }),
+                _actionChip(Icons.schedule, "Timetable", () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) => StudentTimetablePage(
+                        studentId: selectedStudentId!,
+                        studentName: _currentStudentName,
+                        className: _currentClassName,
+                        section: _currentSection,
                       ),
                     ),
                   );
@@ -1163,7 +1366,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ParentExamSchedulePage(
+                      builder:
+                          (_) => ParentExamSchedulePage(
                         className: _currentClassName,
                         section: _currentSection,
                       ),
@@ -1174,9 +1378,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => FeeHistoryPage(
-                        studentId: selectedStudentId!,
-                      ),
+                      builder:
+                          (_) => FeeHistoryPage(studentId: selectedStudentId!),
                     ),
                   );
                 }),
@@ -1184,7 +1387,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => FeeStatusPage(studentId: selectedStudentId),
+                      builder:
+                          (_) => FeeStatusPage(studentId: selectedStudentId),
                     ),
                   );
                 }),
@@ -1192,7 +1396,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ParentNoticesPage(
+                      builder:
+                          (_) => ParentNoticesPage(
                         className: _currentClassName,
                         section: _currentSection,
                       ),
@@ -1203,7 +1408,8 @@ class _ParentDashboardState extends State<ParentDashboard>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ParentComplaintPage(
+                      builder:
+                          (_) => ParentComplaintPage(
                         studentId: selectedStudentId!,
                       ),
                     ),
@@ -1229,7 +1435,8 @@ class _ParentDashboardState extends State<ParentDashboard>
 
   Widget _buildAttendanceTab(String studentId, String studentName) {
     return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance
+      future:
+      FirebaseFirestore.instance
           .collectionGroup('records')
           .where('studentId', isEqualTo: studentId)
           .get(),
@@ -1245,7 +1452,10 @@ class _ParentDashboardState extends State<ParentDashboard>
               children: [
                 Icon(Icons.calendar_today, size: 40, color: Colors.grey),
                 SizedBox(height: 12),
-                Text('No attendance records found', style: TextStyle(fontSize: 12)),
+                Text(
+                  'No attendance records found',
+                  style: TextStyle(fontSize: 12),
+                ),
               ],
             ),
           );
@@ -1259,13 +1469,15 @@ class _ParentDashboardState extends State<ParentDashboard>
         for (var doc in snapshot.data!.docs) {
           final parentDoc = doc.reference.parent.parent;
           final date = parentDoc?.id ?? '';
-
           final data = doc.data() as Map<String, dynamic>;
           final status = data['status'] ?? 'Absent';
 
-          if (status == 'Present') present++;
-          else if (status == 'Late') late++;
-          else absent++;
+          if (status == 'Present')
+            present++;
+          else if (status == 'Late')
+            late++;
+          else
+            absent++;
 
           if (date.isNotEmpty) {
             records.add({'date': date, 'status': status});
@@ -1284,26 +1496,62 @@ class _ParentDashboardState extends State<ParentDashboard>
             children: [
               Row(
                 children: [
-                  Expanded(child: _StatCard(title: "Present", value: present.toString(), color: Colors.green, icon: Icons.check_circle)),
+                  Expanded(
+                    child: _StatCard(
+                      title: "Present",
+                      value: present.toString(),
+                      color: Colors.green,
+                      icon: Icons.check_circle,
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   if (late > 0)
-                    Expanded(child: _StatCard(title: "Late", value: late.toString(), color: Colors.orange, icon: Icons.access_time)),
+                    Expanded(
+                      child: _StatCard(
+                        title: "Late",
+                        value: late.toString(),
+                        color: Colors.orange,
+                        icon: Icons.access_time,
+                      ),
+                    ),
                   const SizedBox(width: 8),
-                  Expanded(child: _StatCard(title: "Absent", value: absent.toString(), color: Colors.red, icon: Icons.cancel)),
+                  Expanded(
+                    child: _StatCard(
+                      title: "Absent",
+                      value: absent.toString(),
+                      color: Colors.red,
+                      icon: Icons.cancel,
+                    ),
+                  ),
                   const SizedBox(width: 8),
-                  Expanded(child: _StatCard(title: "Rate", value: "${attendanceRate.toStringAsFixed(1)}%", color: Colors.orange, icon: Icons.trending_up)),
+                  Expanded(
+                    child: _StatCard(
+                      title: "Rate",
+                      value: "${attendanceRate.toStringAsFixed(1)}%",
+                      color: Colors.orange,
+                      icon: Icons.trending_up,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
               Card(
                 elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Recent Records', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                      const Text(
+                        'Recent Records',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       ListView.separated(
                         shrinkWrap: true,
@@ -1312,11 +1560,16 @@ class _ParentDashboardState extends State<ParentDashboard>
                         separatorBuilder: (_, __) => const Divider(),
                         itemBuilder: (context, index) {
                           final record = records[index];
-                          final date = DateTime.tryParse(record['date']) ?? DateTime.now();
+                          final date =
+                              DateTime.tryParse(record['date']) ??
+                                  DateTime.now();
                           final status = record['status'];
-                          final statusColor = status == 'Present'
+                          final statusColor =
+                          status == 'Present'
                               ? Colors.green
-                              : (status == 'Late' ? Colors.orange : Colors.red);
+                              : (status == 'Late'
+                              ? Colors.orange
+                              : Colors.red);
 
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
@@ -1324,15 +1577,23 @@ class _ParentDashboardState extends State<ParentDashboard>
                             leading: Icon(
                               status == 'Present'
                                   ? Icons.check_circle
-                                  : (status == 'Late' ? Icons.access_time : Icons.cancel),
+                                  : (status == 'Late'
+                                  ? Icons.access_time
+                                  : Icons.cancel),
                               color: statusColor,
                               size: 18,
                             ),
-                            title: Text(DateFormat('dd MMM yyyy').format(date), style: const TextStyle(fontSize: 12)),
+                            title: Text(
+                              DateFormat('dd MMM yyyy').format(date),
+                              style: const TextStyle(fontSize: 12),
+                            ),
                             trailing: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.1),
+                                color: statusColor.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
@@ -1381,7 +1642,7 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
@@ -1390,12 +1651,20 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               value,
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: color,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 2),
-            Text(title, style: const TextStyle(fontSize: 9, color: Colors.grey), textAlign: TextAlign.center),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 9, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),

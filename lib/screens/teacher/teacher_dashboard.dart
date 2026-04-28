@@ -3,8 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
-import 'package:schoolprojectjan/screens/admin/notice_post_page.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_exam_schedule.dart';
+import 'package:schoolprojectjan/screens/teacher/teacher_notice_view_page.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_upload_marks.dart';
 import 'select_class_attendance_page.dart';
 import 'attendance_report_page.dart';
@@ -37,31 +37,34 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
 
     try {
       final teacherUid = FirebaseAuth.instance.currentUser!.uid;
-      final teacherDoc = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('teachers')
-          .where('uid', isEqualTo: teacherUid)
-          .limit(1)
-          .get();
+      final teacherDoc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('teachers')
+              .where('uid', isEqualTo: teacherUid)
+              .limit(1)
+              .get();
 
       if (teacherDoc.docs.isNotEmpty) {
         final data = teacherDoc.docs.first.data();
         setState(() {
           _teacherName = data['name'] ?? "Teacher";
-          _assignedClasses = List<Map<String, dynamic>>.from(data['assignedClasses'] ?? []);
+          _assignedClasses = List<Map<String, dynamic>>.from(
+            data['assignedClasses'] ?? [],
+          );
         });
 
-        // Calculate total students from assigned classes
         int totalStudents = 0;
         for (var classInfo in _assignedClasses) {
-          final studentsSnapshot = await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('students')
-              .where('class', isEqualTo: classInfo['className'])
-              .where('section', isEqualTo: classInfo['section'])
-              .get();
+          final studentsSnapshot =
+              await FirebaseFirestore.instance
+                  .collection('schools')
+                  .doc(AppConfig.schoolId)
+                  .collection('students')
+                  .where('class', isEqualTo: classInfo['className'])
+                  .where('section', isEqualTo: classInfo['section'])
+                  .get();
           totalStudents += studentsSnapshot.docs.length;
         }
 
@@ -77,28 +80,27 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   }
 
   Future<void> _loadTodaySchedule() async {
-    // Load today's schedule from Firestore
     try {
       final teacherUid = FirebaseAuth.instance.currentUser!.uid;
       final today = DateFormat('EEEE').format(DateTime.now()).toLowerCase();
 
-      final scheduleSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('timetable')
-          .where('teacherId', isEqualTo: teacherUid)
-          .where('day', isEqualTo: today)
-          .orderBy('time')
-          .get();
+      final scheduleSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('timetable')
+              .where('teacherId', isEqualTo: teacherUid)
+              .where('day', isEqualTo: today)
+              .get();
 
       if (scheduleSnapshot.docs.isNotEmpty) {
         final List<Map<String, dynamic>> schedule = [];
         for (var doc in scheduleSnapshot.docs) {
           final data = doc.data();
           schedule.add({
-            'time': data['time'],
-            'subject': data['subject'],
-            'class': "${data['className']} - ${data['section']}",
+            'time': data['period']?.toString() ?? '',
+            'subject': data['subject'] ?? '',
+            'class': "${data['className'] ?? ''} - ${data['section'] ?? ''}",
           });
         }
         setState(() {
@@ -106,26 +108,16 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           _todayClasses = schedule.length;
         });
       } else {
-        // Demo schedule fallback
         setState(() {
-          _todaySchedule = [
-            {'time': '08:00 AM', 'subject': 'Mathematics', 'class': 'Class 10-A'},
-            {'time': '09:00 AM', 'subject': 'Mathematics', 'class': 'Class 10-B'},
-            {'time': '11:00 AM', 'subject': 'Algebra', 'class': 'Class 9-A'},
-          ];
-          _todayClasses = _todaySchedule.length;
+          _todaySchedule = [];
+          _todayClasses = 0;
         });
       }
     } catch (e) {
       debugPrint('Error loading schedule: $e');
-      // Fallback to demo schedule
       setState(() {
-        _todaySchedule = [
-          {'time': '08:00 AM', 'subject': 'Mathematics', 'class': 'Class 10-A'},
-          {'time': '09:00 AM', 'subject': 'Mathematics', 'class': 'Class 10-B'},
-          {'time': '11:00 AM', 'subject': 'Algebra', 'class': 'Class 9-A'},
-        ];
-        _todayClasses = _todaySchedule.length;
+        _todaySchedule = [];
+        _todayClasses = 0;
       });
     }
   }
@@ -133,30 +125,31 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   void _logout(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Logout"),
-        content: const Text("Are you sure you want to logout?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              if (mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
+      builder:
+          (context) => AlertDialog(
+            title: const Text("Logout"),
+            content: const Text("Are you sure you want to logout?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () async {
+                  await FirebaseAuth.instance.signOut();
+                  if (mounted) {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/login',
                       (route) => false,
-                );
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Logout"),
+                    );
+                  }
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text("Logout"),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -172,27 +165,22 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            /// Header Card with Logout
-            _buildHeaderCard(today),
-            const SizedBox(height: 20),
-
-            /// Quick Stats Row
-            _buildQuickStatsRow(),
-            const SizedBox(height: 20),
-
-            /// Action Grid
-            _buildActionGrid(),
-            const SizedBox(height: 24),
-
-            /// Today's Schedule
-            _buildTodaySchedule(),
-          ],
-        ),
+        child:
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: 30),
+                    _buildHeaderCard(today),
+                    const SizedBox(height: 20),
+                    _buildQuickStatsRow(),
+                    const SizedBox(height: 20),
+                    _buildActionGrid(),
+                    const SizedBox(height: 24),
+                    _buildTodaySchedule(),
+                  ],
+                ),
       ),
     );
   }
@@ -210,7 +198,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.green.withValues(alpha: 0.3),
+            color: Colors.green.withOpacity(0.3),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -239,13 +227,14 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                     Text(
                       today,
                       style: const TextStyle(color: Colors.white70),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: IconButton(
@@ -257,12 +246,26 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+          Wrap(
+            spacing: 20,
+            runSpacing: 10,
+            alignment: WrapAlignment.spaceAround,
             children: [
-              _headerStat(Icons.class_, "Today's Classes", _todayClasses.toString()),
-              _headerStat(Icons.people, "My Students", _totalStudents.toString()),
-              _headerStat(Icons.assignment, "Classes", _assignedClasses.length.toString()),
+              _headerStat(
+                Icons.class_,
+                "Today's Classes",
+                _todayClasses.toString(),
+              ),
+              _headerStat(
+                Icons.people,
+                "My Students",
+                _totalStudents.toString(),
+              ),
+              _headerStat(
+                Icons.assignment,
+                "Classes",
+                _assignedClasses.length.toString(),
+              ),
             ],
           ),
         ],
@@ -270,15 +273,116 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     );
   }
 
-  Widget _buildQuickStatsRow() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _headerStat(IconData icon, String label, String value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _quickStat(Icons.check_circle, "Attendance", Colors.green),
-        _quickStat(Icons.bar_chart, "Reports", Colors.indigo),
-        _quickStat(Icons.calendar_month, "Exam Schedule", Colors.purple),
-        _quickStat(Icons.notifications, "Notices", Colors.orange),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: Colors.white, size: 18),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 10),
+        ),
       ],
+    );
+  }
+
+  Widget _buildQuickStatsRow() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _quickStat(Icons.check_circle, "Attendance", Colors.green, () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (_) =>
+                        SelectClassAttendancePage(schoolId: AppConfig.schoolId),
+              ),
+            );
+          }),
+          const SizedBox(width: 12),
+          _quickStat(Icons.bar_chart, "Reports", Colors.indigo, () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (_) => AttendanceReportPage(schoolId: AppConfig.schoolId),
+              ),
+            );
+          }),
+          const SizedBox(width: 12),
+          _quickStat(Icons.calendar_month, "Exam Schedule", Colors.purple, () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const TeacherExamSchedulePage(),
+              ),
+            );
+          }),
+          const SizedBox(width: 12),
+          _quickStat(Icons.notifications, "Notices", Colors.orange, () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TeacherNoticeViewPage()),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickStat(
+    IconData icon,
+    String label,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 70,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -287,9 +391,9 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      childAspectRatio: 1.1,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 1.2,
       children: [
         _ActionCard(
           title: "Mark Attendance",
@@ -299,9 +403,9 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => SelectClassAttendancePage(
-                  schoolId: AppConfig.schoolId,
-                ),
+                builder:
+                    (_) =>
+                        SelectClassAttendancePage(schoolId: AppConfig.schoolId),
               ),
             );
           },
@@ -314,9 +418,8 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => AttendanceReportPage(
-                  schoolId: AppConfig.schoolId,
-                ),
+                builder:
+                    (_) => AttendanceReportPage(schoolId: AppConfig.schoolId),
               ),
             );
           },
@@ -328,9 +431,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const HomeworkPostPage(),
-              ),
+              MaterialPageRoute(builder: (_) => const HomeworkPostPage()),
             );
           },
         ),
@@ -341,9 +442,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const TeacherUploadMarksPage(),
-              ),
+              MaterialPageRoute(builder: (_) => const TeacherUploadMarksPage()),
             );
           },
         ),
@@ -354,9 +453,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const NoticePostPage(),
-              ),
+              MaterialPageRoute(builder: (_) => const TeacherNoticeViewPage()),
             );
           },
         ),
@@ -393,112 +490,17 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Center(
-              child: Text("No classes scheduled for today"),
-            ),
+            child: const Center(child: Text("No classes scheduled for today")),
           )
         else
-          ..._todaySchedule.map((classItem) => _scheduleTile(
-            classItem['time'],
-            classItem['subject'],
-            classItem['class'],
-          )),
-      ],
-    );
-  }
-
-  Widget _headerStat(IconData icon, String label, String value) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(12),
+          ..._todaySchedule.map(
+            (classItem) => _scheduleTile(
+              classItem['time'],
+              classItem['subject'],
+              classItem['class'],
+            ),
           ),
-          child: Icon(icon, color: Colors.white, size: 20),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white70, fontSize: 11),
-        ),
       ],
-    );
-  }
-
-  Widget _quickStat(IconData icon, String label, Color color) {
-    return GestureDetector(
-      onTap: () {
-        // Handle quick stat tap
-        if (label == "Exam Schedule") {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const TeacherExamSchedulePage(),
-            ),
-          );
-        } else if (label == "Attendance") {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SelectClassAttendancePage(
-                schoolId: AppConfig.schoolId,
-              ),
-            ),
-          );
-        } else if (label == "Reports") {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AttendanceReportPage(
-                schoolId: AppConfig.schoolId,
-              ),
-            ),
-          );
-        } else if (label == "Notices") {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const NoticePostPage(),
-            ),
-          );
-        }
-      },
-      child: Container(
-        width: 85,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -506,16 +508,18 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         leading: CircleAvatar(
+          radius: 18,
           backgroundColor: Colors.green.shade100,
           child: Text(
-            time.replaceAll(' AM', '').replaceAll(' PM', ''),
+            time.isEmpty
+                ? "P"
+                : (time.length > 2 ? time.substring(0, 2) : time),
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.bold,
               color: Colors.green.shade700,
             ),
@@ -523,10 +527,17 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         ),
         title: Text(
           subject,
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(className),
-        trailing: const Icon(Icons.access_time, size: 16, color: Colors.grey),
+        subtitle: Text(
+          className,
+          style: const TextStyle(fontSize: 12),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: const Icon(Icons.access_time, size: 14, color: Colors.grey),
       ),
     );
   }
@@ -549,31 +560,31 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: color.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+              color: color.withOpacity(0.3),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: Colors.white, size: 32),
+            Icon(icon, color: Colors.white, size: 26),
             const Spacer(),
             Text(
               title,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 15,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
               maxLines: 2,

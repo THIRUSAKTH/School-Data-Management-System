@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/screens/admin/admin_dashboard.dart';
+import 'package:schoolprojectjan/screens/authentication_page/change_password_screen.dart';
 import 'package:schoolprojectjan/screens/parents/parent_dashboard.dart';
 import 'package:schoolprojectjan/screens/parents/select_child_page.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
-import 'package:schoolprojectjan/screens/authentication_page/change_password_screen.dart';
 
 class LoginPage extends StatefulWidget {
   final String role;
@@ -30,7 +29,7 @@ class _LoginPageState extends State<LoginPage> {
   Color get roleColor {
     switch (widget.role) {
       case "Admin":
-        return Colors.blue;
+        return Colors.cyan;
       case "Teacher":
         return Colors.green;
       case "Parent":
@@ -145,8 +144,8 @@ class _LoginPageState extends State<LoginPage> {
                                 try {
                                   await FirebaseAuth.instance
                                       .sendPasswordResetEmail(
-                                        email: emailController.text.trim(),
-                                      );
+                                    email: emailController.text.trim(),
+                                  );
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
@@ -186,22 +185,22 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             onPressed: isLoading ? null : _loginUser,
                             child:
-                                isLoading
-                                    ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                    : const Text(
-                                      "Sign In",
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                            isLoading
+                                ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                                : const Text(
+                              "Sign In",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -218,12 +217,12 @@ class _LoginPageState extends State<LoginPage> {
 
   /// ================= INPUT FIELD =================
   Widget _buildTextField(
-    TextEditingController controller,
-    String hint,
-    IconData icon, {
-    bool isPassword = false,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
+      TextEditingController controller,
+      String hint,
+      IconData icon, {
+        bool isPassword = false,
+        TextInputType keyboardType = TextInputType.text,
+      }) {
     return TextField(
       controller: controller,
       obscureText: isPassword ? hidePassword : false,
@@ -247,19 +246,19 @@ class _LoginPageState extends State<LoginPage> {
           borderSide: BorderSide(color: roleColor, width: 1),
         ),
         suffixIcon:
-            isPassword
-                ? IconButton(
-                  icon: Icon(
-                    hidePassword ? Icons.visibility_off : Icons.visibility,
-                    color: Colors.grey,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      hidePassword = !hidePassword;
-                    });
-                  },
-                )
-                : null,
+        isPassword
+            ? IconButton(
+          icon: Icon(
+            hidePassword ? Icons.visibility_off : Icons.visibility,
+            color: Colors.grey,
+          ),
+          onPressed: () {
+            setState(() {
+              hidePassword = !hidePassword;
+            });
+          },
+        )
+            : null,
       ),
     );
   }
@@ -335,10 +334,10 @@ class _LoginPageState extends State<LoginPage> {
             MaterialPageRoute(
               builder:
                   (_) => ChangePasswordScreen(
-                    schoolId: AppConfig.schoolId,
-                    userId: uid,
-                    role: "Teacher",
-                  ),
+                schoolId: AppConfig.schoolId,
+                userId: uid,
+                role: "Teacher",
+              ),
             ),
           );
           return;

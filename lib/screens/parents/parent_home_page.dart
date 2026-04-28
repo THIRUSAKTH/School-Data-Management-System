@@ -5,17 +5,16 @@ import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
 import 'package:schoolprojectjan/screens/parents/attendance_view_page.dart';
+import 'package:schoolprojectjan/screens/parents/fee_history_page.dart';
+import 'package:schoolprojectjan/screens/parents/fee_status_page.dart';
 import 'package:schoolprojectjan/screens/parents/homework_view_page.dart';
-import 'package:schoolprojectjan/screens/parents/parent_notices_page.dart';
-import 'package:schoolprojectjan/screens/parents/parent_attendance_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_complaint_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_exam_schedule.dart';
+import 'package:schoolprojectjan/screens/parents/parent_notices_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_notifications_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_profile_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_settings_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_view_results.dart';
-import 'package:schoolprojectjan/screens/parents/fee_status_page.dart';
-import 'package:schoolprojectjan/screens/parents/fee_history_page.dart';
-import 'package:schoolprojectjan/screens/parents/parent_exam_schedule.dart';
 
 class ParentHomePage extends StatefulWidget {
   const ParentHomePage({super.key});
@@ -80,10 +79,11 @@ class _ParentHomePageState extends State<ParentHomePage>
 
       // Load pending homework
       final homework = await FirebaseFirestore.instance
-          .collectionGroup('homework')
-          .where('class', isEqualTo: _selectedClassName)
+          .collection('schools')
+          .doc(_schoolId)
+          .collection('homework')
+          .where('className', isEqualTo: _selectedClassName)
           .where('section', isEqualTo: _selectedSection)
-          .where('dueDate', isGreaterThanOrEqualTo: Timestamp.now())
           .get();
 
       setState(() {
@@ -138,10 +138,7 @@ class _ParentHomePageState extends State<ParentHomePage>
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("Error: $e"),
-                      backgroundColor: Colors.red,
-                    ),
+                    SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
                   );
                 }
               }
@@ -172,18 +169,17 @@ class _ParentHomePageState extends State<ParentHomePage>
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("📞 Contact School:"),
-            const SizedBox(height: 8),
-            const Text("Phone: +91 98765 43210"),
-            const Text("Email: support@school.com"),
-            const SizedBox(height: 16),
-            const Text("🕒 Support Hours:"),
-            const SizedBox(height: 8),
-            const Text("Monday - Friday: 9:00 AM - 5:00 PM"),
-            const Divider(),
-            const Text(
-                "For urgent issues, please contact the school office directly."),
+          children: const [
+            Text("📞 Contact School:"),
+            SizedBox(height: 8),
+            Text("Phone: +91 98765 43210"),
+            Text("Email: support@school.com"),
+            SizedBox(height: 16),
+            Text("🕒 Support Hours:"),
+            SizedBox(height: 8),
+            Text("Monday - Friday: 9:00 AM - 5:00 PM"),
+            Divider(),
+            Text("For urgent issues, please contact the school office directly."),
           ],
         ),
         actions: [
@@ -241,11 +237,11 @@ class _ParentHomePageState extends State<ParentHomePage>
               color: Colors.green,
               onTap: () {
                 Navigator.pop(context);
-                if (_selectedStudentId != null) {
+                if (_selectedStudentId != null && _selectedStudentName != null) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => AttendanceViewPage(
+                      builder: (_) => ParentAttendanceViewPage(
                         studentId: _selectedStudentId!,
                         studentName: _selectedStudentName!,
                         className: _selectedClassName!,
@@ -332,9 +328,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => FeeStatusPage(
-                        studentId: _selectedStudentId!,
-                      ),
+                      builder: (_) => FeeStatusPage(studentId: _selectedStudentId!),
                     ),
                   );
                 } else {
@@ -352,9 +346,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => FeeHistoryPage(
-                        studentId: _selectedStudentId!,
-                      ),
+                      builder: (_) => FeeHistoryPage(studentId: _selectedStudentId!),
                     ),
                   );
                 } else {
@@ -393,9 +385,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ParentComplaintPage(
-                        studentId: _selectedStudentId!,
-                      ),
+                      builder: (_) => ParentComplaintPage(studentId: _selectedStudentId!),
                     ),
                   ).then((_) => _loadUnreadCounts());
                 } else {
@@ -413,9 +403,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => ParentNotificationsPage(
-                        studentId: _selectedStudentId!,
-                      ),
+                      builder: (_) => ParentNotificationsPage(studentId: _selectedStudentId!),
                     ),
                   ).then((_) => _loadUnreadCounts());
                 } else {
@@ -439,7 +427,7 @@ class _ParentHomePageState extends State<ParentHomePage>
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(icon, color: color),
@@ -466,10 +454,7 @@ class _ParentHomePageState extends State<ParentHomePage>
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             if (_selectedStudentName != null)
-              Text(
-                _selectedStudentName!,
-                style: const TextStyle(fontSize: 12),
-              ),
+              Text(_selectedStudentName!, style: const TextStyle(fontSize: 12)),
           ],
         ),
         backgroundColor: Colors.orange,
@@ -496,9 +481,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ParentNotificationsPage(
-                          studentId: _selectedStudentId!,
-                        ),
+                        builder: (_) => ParentNotificationsPage(studentId: _selectedStudentId!),
                       ),
                     ).then((_) => _loadUnreadCounts());
                   } else {
@@ -523,10 +506,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                     ),
                     child: Text(
                       '$_unreadNotifications',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -625,7 +605,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                 const SizedBox(height: 4),
                 Text(
                   "Parent Portal",
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+                  style: TextStyle(color: Colors.white.withOpacity(0.8)),
                 ),
               ],
             ),
@@ -657,16 +637,15 @@ class _ParentHomePageState extends State<ParentHomePage>
                   title: "Attendance",
                   onTap: () {
                     Navigator.pop(context);
-                    if (_selectedStudentId != null &&
-                        _selectedStudentName != null) {
+                    if (_selectedStudentId != null && _selectedStudentName != null) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => AttendanceViewPage(
+                          builder: (_) => ParentAttendanceViewPage(
                             studentId: _selectedStudentId!,
                             studentName: _selectedStudentName!,
-                            className: _selectedClassName ?? '',
-                            section: _selectedSection ?? '',
+                            className: _selectedClassName!,
+                            section: _selectedSection!,
                           ),
                         ),
                       );
@@ -678,9 +657,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                 _drawerItem(
                   icon: Icons.assignment,
                   title: "Homework",
-                  badge: _pendingHomeworkCount > 0
-                      ? _pendingHomeworkCount.toString()
-                      : null,
+                  badge: _pendingHomeworkCount > 0 ? _pendingHomeworkCount.toString() : null,
                   onTap: () {
                     Navigator.pop(context);
                     if (_selectedStudentId != null) {
@@ -748,9 +725,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => FeeStatusPage(
-                            studentId: _selectedStudentId!,
-                          ),
+                          builder: (_) => FeeStatusPage(studentId: _selectedStudentId!),
                         ),
                       );
                     } else {
@@ -767,9 +742,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => FeeHistoryPage(
-                            studentId: _selectedStudentId!,
-                          ),
+                          builder: (_) => FeeHistoryPage(studentId: _selectedStudentId!),
                         ),
                       );
                     } else {
@@ -801,18 +774,14 @@ class _ParentHomePageState extends State<ParentHomePage>
                 _drawerItem(
                   icon: Icons.feedback,
                   title: "Complaints",
-                  badge: _unreadComplaints > 0
-                      ? _unreadComplaints.toString()
-                      : null,
+                  badge: _unreadComplaints > 0 ? _unreadComplaints.toString() : null,
                   onTap: () {
                     Navigator.pop(context);
                     if (_selectedStudentId != null) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentComplaintPage(
-                            studentId: _selectedStudentId!,
-                          ),
+                          builder: (_) => ParentComplaintPage(studentId: _selectedStudentId!),
                         ),
                       ).then((_) => _loadUnreadCounts());
                     } else {
@@ -823,18 +792,14 @@ class _ParentHomePageState extends State<ParentHomePage>
                 _drawerItem(
                   icon: Icons.notifications,
                   title: "Notifications",
-                  badge: _unreadNotifications > 0
-                      ? _unreadNotifications.toString()
-                      : null,
+                  badge: _unreadNotifications > 0 ? _unreadNotifications.toString() : null,
                   onTap: () {
                     Navigator.pop(context);
                     if (_selectedStudentId != null) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentNotificationsPage(
-                            studentId: _selectedStudentId!,
-                          ),
+                          builder: (_) => ParentNotificationsPage(studentId: _selectedStudentId!),
                         ),
                       ).then((_) => _loadUnreadCounts());
                     } else {
@@ -969,10 +934,7 @@ class _ParentHomePageState extends State<ParentHomePage>
           const SizedBox(height: 16),
           Text(
             "No Child Linked",
-            style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 8),
           Text(
@@ -981,9 +943,7 @@ class _ParentHomePageState extends State<ParentHomePage>
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () {
-              _showHelpDialog();
-            },
+            onPressed: () => _showHelpDialog(),
             icon: const Icon(Icons.support_agent),
             label: const Text("Contact Support"),
             style: ElevatedButton.styleFrom(
@@ -1035,8 +995,7 @@ class _ParentHomePageState extends State<ParentHomePage>
               ),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor:
-                  isSelected ? Colors.orange : Colors.orange.shade100,
+                  backgroundColor: isSelected ? Colors.orange : Colors.orange.shade100,
                   child: Icon(
                     Icons.person,
                     color: isSelected ? Colors.white : Colors.orange,
@@ -1053,29 +1012,23 @@ class _ParentHomePageState extends State<ParentHomePage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 4),
-                    Text(
-                        "Class: ${data['class'] ?? 'N/A'} ${data['section'] ?? ''}"),
+                    Text("Class: ${data['class'] ?? 'N/A'} ${data['section'] ?? ''}"),
                     Text("Roll No: ${data['rollNo'] ?? 'N/A'}"),
                   ],
                 ),
                 trailing: isSelected
                     ? Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: Colors.orange,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Text(
                     'SELECTED',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold),
+                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                   ),
                 )
-                    : const Icon(Icons.arrow_forward_ios,
-                    size: 16, color: Colors.grey),
+                    : const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
               ),
             ),
           ),
@@ -1138,14 +1091,11 @@ class _ParentHomePageState extends State<ParentHomePage>
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
-            _buildStudentHeader(
-                studentName, className, section, rollNo, admissionNo),
+            _buildStudentHeader(studentName, className, section, rollNo, admissionNo),
             const SizedBox(height: 16),
             _buildStatsRow(_selectedStudentId!),
             const SizedBox(height: 16),
             _buildAttendanceSummary(_selectedStudentId!),
-            const SizedBox(height: 16),
-            _buildAttendanceChart(_selectedStudentId!),
             const SizedBox(height: 16),
             _buildFeeDetails(_selectedStudentId!),
             const SizedBox(height: 16),
@@ -1167,117 +1117,13 @@ class _ParentHomePageState extends State<ParentHomePage>
 
   // ================= ADDITIONAL WIDGETS =================
 
-  Widget _buildAttendanceChart(String studentId) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(_schoolId)
-          .collection('attendance')
-          .where('studentId', isEqualTo: studentId)
-          .orderBy('date', descending: false)
-          .limit(30)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const SizedBox();
-        }
-
-        Map<String, int> weeklyData = {};
-        for (var doc in snapshot.data!.docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          final dateStr = data['date'];
-          if (dateStr != null) {
-            try {
-              final date = DateTime.parse(dateStr);
-              final week = ((date.day - 1) ~/ 7) + 1;
-              final weekKey = "Week $week";
-              if (data['status'] == 'Present') {
-                weeklyData[weekKey] = (weeklyData[weekKey] ?? 0) + 1;
-              }
-            } catch (e) {
-              // Skip invalid dates
-            }
-          }
-        }
-
-        final weeks = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
-        final dataPoints =
-        weeks.map((w) => weeklyData[w]?.toDouble() ?? 0).toList();
-        final maxValue = dataPoints.reduce((a, b) => a > b ? a : b);
-
-        return Card(
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.bar_chart, color: Colors.orange),
-                    SizedBox(width: 8),
-                    Text(
-                      'Attendance Trend',
-                      style:
-                      TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 200,
-                  child: BarChart(
-                    BarChartData(
-                      barGroups: List.generate(weeks.length, (i) {
-                        return BarChartGroupData(
-                          x: i,
-                          barRods: [
-                            BarChartRodData(
-                              toY: dataPoints[i],
-                              color: Colors.orange,
-                              width: 30,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ],
-                        );
-                      }),
-                      maxY: maxValue + 2,
-                      titlesData: FlTitlesData(
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            getTitlesWidget: (value, meta) =>
-                                Text('${value.toInt()}'),
-                          ),
-                        ),
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            getTitlesWidget: (value, meta) {
-                              int index = value.toInt();
-                              return index < weeks.length
-                                  ? Text(weeks[index])
-                                  : const Text('');
-                            },
-                          ),
-                        ),
-                      ),
-                      gridData: const FlGridData(show: true),
-                      borderData: FlBorderData(show: true),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStudentHeader(String name, String className, String section,
-      String rollNo, String admissionNo) {
+  Widget _buildStudentHeader(
+      String name,
+      String className,
+      String section,
+      String rollNo,
+      String admissionNo,
+      ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1289,7 +1135,7 @@ class _ParentHomePageState extends State<ParentHomePage>
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withValues(alpha: 0.3),
+            color: Colors.orange.withOpacity(0.3),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -1330,84 +1176,54 @@ class _ParentHomePageState extends State<ParentHomePage>
   }
 
   Widget _buildStatsRow(String studentId) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collectionGroup('records')
-          .where('studentId', isEqualTo: studentId)
-          .snapshots(),
-      builder: (context, attendanceSnapshot) {
-        int present = 0;
-        int total = 0;
-        int late = 0;
+    return FutureBuilder<int>(
+      future: _getPresentCount(studentId),
+      builder: (context, presentSnapshot) {
+        final present = presentSnapshot.data ?? 0;
 
-        if (attendanceSnapshot.hasData) {
-          for (var doc in attendanceSnapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            total++;
-            if (data['status'] == 'Present') {
-              present++;
-            } else if (data['status'] == 'Late') {
-              late++;
-            }
-          }
-        }
+        return FutureBuilder<int>(
+          future: _getTotalCount(),
+          builder: (context, totalSnapshot) {
+            final total = totalSnapshot.data ?? 0;
+            double attendanceRate = total > 0 ? (present / total) * 100 : 0;
 
-        double attendanceRate = total > 0 ? (present / total) * 100 : 0;
+            return FutureBuilder<Map<String, double>>(
+              future: _getFeeData(studentId),
+              builder: (context, feeSnapshot) {
+                double totalPaid = feeSnapshot.data?['paid'] ?? 0;
+                double totalDue = feeSnapshot.data?['due'] ?? 0;
 
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('schools')
-              .doc(_schoolId)
-              .collection('student_fees')
-              .where('studentId', isEqualTo: studentId)
-              .snapshots(),
-          builder: (context, feeSnapshot) {
-            double totalDue = 0;
-            double totalPaid = 0;
-
-            if (feeSnapshot.hasData) {
-              for (var doc in feeSnapshot.data!.docs) {
-                final data = doc.data() as Map<String, dynamic>;
-                double amount = (data['amount'] ?? 0).toDouble();
-                String status = data['status'] ?? "pending";
-
-                if (status == "paid") {
-                  totalPaid += amount;
-                } else {
-                  totalDue += amount;
-                }
-              }
-            }
-
-            return Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    title: "Attendance",
-                    value: "${attendanceRate.toStringAsFixed(1)}%",
-                    color: Colors.green,
-                    icon: Icons.check_circle,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    title: "Fees Paid",
-                    value: "₹${totalPaid.toInt()}",
-                    color: Colors.blue,
-                    icon: Icons.account_balance_wallet,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatCard(
-                    title: "Fees Due",
-                    value: "₹${totalDue.toInt()}",
-                    color: Colors.red,
-                    icon: Icons.pending_actions,
-                  ),
-                ),
-              ],
+                return Row(
+                  children: [
+                    Expanded(
+                      child: _StatCard(
+                        title: "Attendance",
+                        value: "${attendanceRate.toStringAsFixed(1)}%",
+                        color: Colors.green,
+                        icon: Icons.check_circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _StatCard(
+                        title: "Fees Paid",
+                        value: "₹${totalPaid.toInt()}",
+                        color: Colors.blue,
+                        icon: Icons.account_balance_wallet,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _StatCard(
+                        title: "Fees Due",
+                        value: "₹${totalDue.toInt()}",
+                        color: Colors.red,
+                        icon: Icons.pending_actions,
+                      ),
+                    ),
+                  ],
+                );
+              },
             );
           },
         );
@@ -1415,16 +1231,62 @@ class _ParentHomePageState extends State<ParentHomePage>
     );
   }
 
+  Future<int> _getPresentCount(String studentId) async {
+    final attendanceDates = await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(_schoolId)
+        .collection('attendance')
+        .get();
+
+    int present = 0;
+    for (var dateDoc in attendanceDates.docs) {
+      final record = await dateDoc.reference
+          .collection('records')
+          .doc(studentId)
+          .get();
+      if (record.exists && record.data()?['status'] == 'Present') {
+        present++;
+      }
+    }
+    return present;
+  }
+
+  Future<int> _getTotalCount() async {
+    final attendanceDates = await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(_schoolId)
+        .collection('attendance')
+        .get();
+    return attendanceDates.docs.length;
+  }
+
+  Future<Map<String, double>> _getFeeData(String studentId) async {
+    final fees = await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(_schoolId)
+        .collection('student_fees')
+        .where('studentId', isEqualTo: studentId)
+        .get();
+
+    double paid = 0;
+    double due = 0;
+    for (var doc in fees.docs) {
+      final data = doc.data();
+      final amount = (data['amount'] ?? 0).toDouble();
+      if (data['status'] == 'paid') {
+        paid += amount;
+      } else {
+        due += amount;
+      }
+    }
+    return {'paid': paid, 'due': due};
+  }
+
   Widget _buildAttendanceSummary(String studentId) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collectionGroup('records')
-          .where('studentId', isEqualTo: studentId)
-          .orderBy('date', descending: true)
-          .limit(10)
-          .snapshots(),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _getRecentAttendance(studentId),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Card(
             child: Padding(
               padding: EdgeInsets.all(20),
@@ -1433,7 +1295,7 @@ class _ParentHomePageState extends State<ParentHomePage>
           );
         }
 
-        if (snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Card(
             child: const Padding(
               padding: EdgeInsets.all(32),
@@ -1442,25 +1304,13 @@ class _ParentHomePageState extends State<ParentHomePage>
           );
         }
 
-        final records = snapshot.data!.docs;
-        int present = 0;
-        int absent = 0;
-        int late = 0;
-
-        for (var doc in records) {
-          final data = doc.data() as Map<String, dynamic>;
-          final status = data['status'] ?? 'Absent';
-          if (status == 'Present')
-            present++;
-          else if (status == 'Late')
-            late++;
-          else
-            absent++;
-        }
+        final records = snapshot.data!;
+        int present = records.where((r) => r['status'] == 'Present').length;
+        int absent = records.where((r) => r['status'] == 'Absent').length;
+        int late = records.where((r) => r['status'] == 'Late').length;
 
         return Card(
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -1472,8 +1322,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                     SizedBox(width: 8),
                     Text(
                       'Recent Attendance',
-                      style:
-                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -1504,74 +1353,71 @@ class _ParentHomePageState extends State<ParentHomePage>
                   ],
                 ),
                 const SizedBox(height: 16),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: records.length > 5 ? 5 : records.length,
-                  separatorBuilder: (_, __) => const Divider(),
-                  itemBuilder: (context, index) {
-                    final doc = records[index];
-                    final data = doc.data() as Map<String, dynamic>;
+                ...records.take(5).map((record) {
+                  final date = DateTime.parse(record['date']);
+                  final status = record['status'];
+                  Color statusColor = status == 'Present'
+                      ? Colors.green
+                      : (status == 'Late' ? Colors.orange : Colors.red);
 
-                    // Get date from parent document
-                    final parentDoc = doc.reference.parent.parent;
-                    final dateStr = parentDoc?.id ?? '';
-
-                    DateTime date;
-                    try {
-                      date = DateTime.parse(dateStr);
-                    } catch (e) {
-                      date = DateTime.now();
-                    }
-                    final status = data['status'] ?? 'Absent';
-
-                    Color statusColor;
-                    IconData statusIcon;
-                    if (status == 'Present') {
-                      statusColor = Colors.green;
-                      statusIcon = Icons.check_circle;
-                    } else if (status == 'Late') {
-                      statusColor = Colors.orange;
-                      statusIcon = Icons.access_time;
-                    } else {
-                      statusColor = Colors.red;
-                      statusIcon = Icons.cancel;
-                    }
-
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: statusColor.withValues(alpha: 0.1),
-                        child: Icon(statusIcon, color: statusColor, size: 20),
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: statusColor.withOpacity(0.1),
+                      child: Icon(
+                        status == 'Present' ? Icons.check_circle : (status == 'Late' ? Icons.access_time : Icons.cancel),
+                        color: statusColor,
+                        size: 20,
                       ),
-                      title: Text(
-                        DateFormat('EEEE, dd MMM yyyy').format(date),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w500, fontSize: 14),
+                    ),
+                    title: Text(
+                      DateFormat('EEEE, dd MMM yyyy').format(date),
+                      style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                    ),
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          status,
-                          style: TextStyle(
-                              color: statusColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12),
-                        ),
+                      child: Text(
+                        status,
+                        style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  );
+                }),
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  Future<List<Map<String, dynamic>>> _getRecentAttendance(String studentId) async {
+    final attendanceDates = await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(_schoolId)
+        .collection('attendance')
+        .get();
+
+    List<Map<String, dynamic>> records = [];
+    for (var dateDoc in attendanceDates.docs) {
+      final record = await dateDoc.reference
+          .collection('records')
+          .doc(studentId)
+          .get();
+
+      if (record.exists) {
+        records.add({
+          'date': dateDoc.id,
+          'status': record.data()?['status'] ?? 'Absent',
+        });
+      }
+    }
+
+    records.sort((a, b) => b['date'].compareTo(a['date']));
+    return records;
   }
 
   Widget _buildFeeDetails(String studentId) {
@@ -1602,8 +1448,7 @@ class _ParentHomePageState extends State<ParentHomePage>
         }
 
         return Card(
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -1615,8 +1460,7 @@ class _ParentHomePageState extends State<ParentHomePage>
                     SizedBox(width: 8),
                     Text(
                       'Fee Details',
-                      style:
-                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -1638,9 +1482,7 @@ class _ParentHomePageState extends State<ParentHomePage>
 
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: status == 'paid'
-                            ? Colors.green.shade100
-                            : Colors.red.shade100,
+                        backgroundColor: status == 'paid' ? Colors.green.shade100 : Colors.red.shade100,
                         radius: 20,
                         child: Icon(
                           status == 'paid' ? Icons.check : Icons.pending,
@@ -1667,20 +1509,15 @@ class _ParentHomePageState extends State<ParentHomePage>
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: status == 'paid'
-                                  ? Colors.green.shade100
-                                  : Colors.red.shade100,
+                              color: status == 'paid' ? Colors.green.shade100 : Colors.red.shade100,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               status.toUpperCase(),
                               style: TextStyle(
-                                color: status == 'paid'
-                                    ? Colors.green
-                                    : Colors.red,
+                                color: status == 'paid' ? Colors.green : Colors.red,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1731,10 +1568,8 @@ class _ParentHomePageState extends State<ParentHomePage>
             _infoRow('Class & Section', '$className - $section'),
             _infoRow('Roll Number', rollNo),
             if (admissionNo.isNotEmpty) _infoRow('Admission No', admissionNo),
-            _infoRow('Father\'s Name',
-                fatherName.isNotEmpty ? fatherName : 'Not provided'),
-            _infoRow('Mother\'s Name',
-                motherName.isNotEmpty ? motherName : 'Not provided'),
+            _infoRow('Father\'s Name', fatherName.isNotEmpty ? fatherName : 'Not provided'),
+            _infoRow('Mother\'s Name', motherName.isNotEmpty ? motherName : 'Not provided'),
             if (phone.isNotEmpty) _infoRow('Phone', phone),
           ],
         ),
@@ -1786,7 +1621,7 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -1829,7 +1664,7 @@ class _MiniStat extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -1842,10 +1677,7 @@ class _MiniStat extends StatelessWidget {
               color: color,
             ),
           ),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         ],
       ),
     );

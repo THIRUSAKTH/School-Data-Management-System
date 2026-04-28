@@ -23,6 +23,25 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
   List<Map<String, dynamic>> _children = [];
   bool _isLoading = true;
 
+  // Colors for different categories
+  final Map<String, Color> _categoryColors = {
+    'Exam': Colors.blue,
+    'Holiday': Colors.green,
+    'Meeting': Colors.purple,
+    'Event': Colors.teal,
+    'General': Colors.orange,
+    'Urgent': Colors.red,
+  };
+
+  final Map<String, IconData> _categoryIcons = {
+    'Exam': Icons.assignment,
+    'Holiday': Icons.beach_access,
+    'Meeting': Icons.people,
+    'Event': Icons.celebration,
+    'General': Icons.announcement,
+    'Urgent': Icons.priority_high,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -34,29 +53,33 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
 
     try {
       final parentUid = FirebaseAuth.instance.currentUser!.uid;
-      final snapshot = await FirebaseFirestore.instance
+      final snapshot =
+      await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('students')
           .where('parentUid', isEqualTo: parentUid)
           .get();
 
-      _children = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? 'Student',
-          'class': data['class'] ?? '',
-          'section': data['section'] ?? '',
-        };
-      }).toList();
+      _children =
+          snapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'id': doc.id,
+              'name': data['name'] ?? 'Student',
+              'class': data['class'] ?? '',
+              'section': data['section'] ?? '',
+            };
+          }).toList();
 
       if (_children.isNotEmpty) {
         if (widget.className != null && widget.section != null) {
           _studentClass = widget.className;
           _studentSection = widget.section;
           final matchingChild = _children.firstWhere(
-                (c) => c['class'] == widget.className && c['section'] == widget.section,
+                (c) =>
+            c['class'] == widget.className &&
+                c['section'] == widget.section,
             orElse: () => _children.first,
           );
           _selectedStudentId = matchingChild['id'];
@@ -90,10 +113,7 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             if (_selectedStudentName != null)
-              Text(
-                _selectedStudentName!,
-                style: const TextStyle(fontSize: 12),
-              ),
+              Text(_selectedStudentName!, style: const TextStyle(fontSize: 12)),
           ],
         ),
         elevation: 0,
@@ -110,19 +130,24 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
           ),
         ],
       ),
-      body: _isLoading
+      body:
+      _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _children.isEmpty
-          ? _buildEmptyState('No Children Linked', 'Please contact the school admin to link your children.')
+          ? _buildEmptyState(
+        'No Children Linked',
+        'Please contact the school admin to link your children.',
+      )
           : _studentClass == null
-          ? _buildEmptyState('No Class Assigned', 'Your child has not been assigned to any class yet.')
+          ? _buildEmptyState(
+        'No Class Assigned',
+        'Your child has not been assigned to any class yet.',
+      )
           : Column(
         children: [
           if (_children.length > 1) _buildChildSelector(),
           _buildFilterChips(),
-          Expanded(
-            child: _buildNoticesList(),
-          ),
+          Expanded(child: _buildNoticesList()),
         ],
       ),
     );
@@ -137,13 +162,30 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
           const SizedBox(height: 16),
           Text(
             title,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             message,
             style: TextStyle(color: Colors.grey.shade500),
             textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: _loadStudents,
+            icon: const Icon(Icons.refresh),
+            label: const Text("Refresh"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ],
       ),
@@ -159,7 +201,7 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -181,7 +223,8 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                 hint: const Text('Select Child'),
                 isExpanded: true,
                 icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
-                items: _children.map<DropdownMenuItem<String>>((child) {
+                items:
+                _children.map<DropdownMenuItem<String>>((child) {
                   return DropdownMenuItem<String>(
                     value: child['id'] as String,
                     child: Text(
@@ -193,7 +236,9 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                 onChanged: (value) async {
                   setState(() {
                     _selectedStudentId = value;
-                    final selected = _children.firstWhere((c) => c['id'] == value);
+                    final selected = _children.firstWhere(
+                          (c) => c['id'] == value,
+                    );
                     _selectedStudentName = selected['name'];
                     _studentClass = selected['class'];
                     _studentSection = selected['section'];
@@ -227,7 +272,6 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
         itemBuilder: (context, index) {
           final category = categories[index];
           final isSelected = _selectedFilter == category['value'];
-          // FIXED: Explicitly cast the color
           final Color chipColor = category['color'] as Color;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -237,20 +281,20 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                 style: TextStyle(
                   color: isSelected ? Colors.white : chipColor,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 12,
                 ),
               ),
               selected: isSelected,
               onSelected: (selected) {
                 setState(() {
-                  _selectedFilter = selected ? category['value'] as String : "All";
+                  _selectedFilter =
+                  selected ? category['value'] as String : "All";
                 });
               },
               backgroundColor: Colors.white,
               selectedColor: chipColor,
               checkmarkColor: Colors.white,
-              side: BorderSide(
-                color: chipColor.withValues(alpha: 0.3),
-              ),
+              side: BorderSide(color: chipColor.withOpacity(0.3)),
               shape: const StadiumBorder(),
             ),
           );
@@ -261,11 +305,12 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
 
   Widget _buildNoticesList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
+      stream:
+      FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('notices')
-          .where('targetClass', arrayContains: _studentClass)
+          .orderBy('isPinned', descending: true)
           .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
@@ -289,6 +334,16 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                   'Check back later for announcements',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                 ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () => setState(() {}),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text("Refresh"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
               ],
             ),
           );
@@ -296,22 +351,62 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
 
         var notices = snapshot.data!.docs;
 
-        if (_selectedFilter != "All") {
-          notices = notices.where((n) {
-            final data = n.data() as Map<String, dynamic>;
-            if (_selectedFilter == "Urgent") {
-              return data['isUrgent'] == true;
-            }
-            return data['category'] == _selectedFilter;
-          }).toList();
-        }
+        // Apply filters
+        notices =
+            notices.where((notice) {
+              final data = notice.data() as Map<String, dynamic>;
+
+              // Check if notice is expired
+              final expiryDate = data['expiryDate'] as Timestamp?;
+              if (expiryDate != null &&
+                  expiryDate.toDate().isBefore(DateTime.now())) {
+                return false;
+              }
+
+              // Check if notice is active
+              if (data['isActive'] == false) {
+                return false;
+              }
+
+              // Check target audience
+              final targetAudience = data['targetAudience'] ?? 'All';
+              if (targetAudience != 'All' && targetAudience != 'Parents') {
+                return false;
+              }
+
+              // Check specific class if needed
+              if (data['targetAudience'] == 'Specific Class') {
+                final selectedClasses =
+                    data['selectedClasses'] as List<dynamic>? ?? [];
+                if (_studentClass != null &&
+                    !selectedClasses.contains(_studentClass)) {
+                  return false;
+                }
+              }
+
+              // Apply category filter
+              if (_selectedFilter != "All") {
+                if (_selectedFilter == "Urgent") {
+                  return data['priority'] == 'Urgent';
+                }
+                // For compatibility with old data structure
+                final category = data['category'] ?? 'General';
+                return category == _selectedFilter;
+              }
+
+              return true;
+            }).toList();
 
         if (notices.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.filter_alt_off, size: 64, color: Colors.grey.shade400),
+                Icon(
+                  Icons.filter_alt_off,
+                  size: 64,
+                  color: Colors.grey.shade400,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'No $_selectedFilter notices found',
@@ -339,29 +434,28 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
   }
 
   Widget _buildNoticeCard(String noticeId, Map<String, dynamic> data) {
-    final isUrgent = data['isUrgent'] ?? false;
+    final priority = data['priority'] ?? 'Normal';
+    final isPinned = data['isPinned'] ?? false;
+    final isUrgent = priority == 'Urgent';
     final category = data['category'] ?? 'General';
     final date = data['createdAt'] as Timestamp?;
-    final hasImage = data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty;
+    final hasImage =
+        data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty;
+    final createdBy = data['createdBy'] ?? 'School Admin';
 
-    Color getCategoryColor() {
-      switch (category) {
-        case 'Exam': return Colors.blue;
-        case 'Holiday': return Colors.green;
-        case 'Meeting': return Colors.purple;
-        case 'Event': return Colors.teal;
-        default: return Colors.orange;
+    Color getPriorityColor() {
+      switch (priority) {
+        case 'Urgent':
+          return Colors.red;
+        case 'Important':
+          return Colors.orange;
+        default:
+          return _categoryColors[category] ?? Colors.blue;
       }
     }
 
     IconData getCategoryIcon() {
-      switch (category) {
-        case 'Exam': return Icons.assignment;
-        case 'Holiday': return Icons.beach_access;
-        case 'Meeting': return Icons.people;
-        case 'Event': return Icons.celebration;
-        default: return Icons.announcement;
-      }
+      return _categoryIcons[category] ?? Icons.announcement;
     }
 
     return Container(
@@ -371,7 +465,7 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -390,48 +484,67 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Badges Row
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
-                            color: getCategoryColor().withValues(alpha: 0.1),
+                            color: getPriorityColor().withOpacity(0.1),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(getCategoryIcon(), size: 12, color: getCategoryColor()),
+                              Icon(
+                                getCategoryIcon(),
+                                size: 12,
+                                color: getPriorityColor(),
+                              ),
                               const SizedBox(width: 4),
                               Text(
-                                category,
+                                priority == 'Urgent'
+                                    ? 'URGENT'
+                                    : (priority == 'Important'
+                                    ? 'IMPORTANT'
+                                    : category),
                                 style: TextStyle(
-                                  color: getCategoryColor(),
-                                  fontSize: 11,
+                                  color: getPriorityColor(),
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        if (isUrgent) ...[
+                        if (isPinned) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: Colors.red.withValues(alpha: 0.1),
+                              color: Colors.deepPurple.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.priority_high, size: 12, color: Colors.red),
+                                Icon(
+                                  Icons.push_pin,
+                                  size: 10,
+                                  color: Colors.deepPurple,
+                                ),
                                 SizedBox(width: 4),
                                 Text(
-                                  "URGENT",
+                                  "PINNED",
                                   style: TextStyle(
-                                    color: Colors.red,
-                                    fontSize: 10,
+                                    color: Colors.deepPurple,
+                                    fontSize: 9,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -446,12 +559,16 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                           date != null
                               ? DateFormat('dd MMM yyyy').format(date.toDate())
                               : 'Unknown',
-                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
 
+                    // Title
                     Text(
                       data['title'] ?? 'Notice',
                       style: const TextStyle(
@@ -459,9 +576,12 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                         fontWeight: FontWeight.bold,
                         height: 1.3,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 8),
 
+                    // Description
                     Text(
                       data['description'] ?? 'No description',
                       style: TextStyle(
@@ -471,6 +591,26 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Author
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 10,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          createdBy,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade400,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -483,24 +623,27 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                   ),
                   child: Image.network(
                     data['imageUrl'],
-                    height: 180,
+                    height: 160,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      height: 180,
+                    errorBuilder:
+                        (_, __, ___) => Container(
+                      height: 160,
                       color: Colors.grey.shade200,
                       child: const Center(
-                        child: Icon(Icons.broken_image, size: 40, color: Colors.grey),
+                        child: Icon(
+                          Icons.broken_image,
+                          size: 40,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
                       return Container(
-                        height: 180,
+                        height: 160,
                         color: Colors.grey.shade100,
-                        child: const Center(
-                          child: CircularProgressIndicator(),
-                        ),
+                        child: const Center(child: CircularProgressIndicator()),
                       );
                     },
                   ),
@@ -513,10 +656,17 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                   children: [
                     Text(
                       'Tap to read more',
-                      style: TextStyle(fontSize: 11, color: Colors.orange.shade400),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.orange.shade400,
+                      ),
                     ),
                     const SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_ios, size: 10, color: Colors.orange.shade400),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 10,
+                      color: Colors.orange.shade400,
+                    ),
                   ],
                 ),
               ),
@@ -529,9 +679,24 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
 
   void _showNoticeDetail(Map<String, dynamic> data) {
     final date = data['createdAt'] as Timestamp?;
-    final hasImage = data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty;
-    final isUrgent = data['isUrgent'] ?? false;
+    final hasImage =
+        data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty;
+    final priority = data['priority'] ?? 'Normal';
+    final isUrgent = priority == 'Urgent';
     final category = data['category'] ?? 'General';
+    final createdBy = data['createdBy'] ?? 'School Admin';
+    final isPinned = data['isPinned'] ?? false;
+
+    Color getPriorityColor() {
+      switch (priority) {
+        case 'Urgent':
+          return Colors.red;
+        case 'Important':
+          return Colors.orange;
+        default:
+          return _categoryColors[category] ?? Colors.blue;
+      }
+    }
 
     showModalBottomSheet(
       context: context,
@@ -539,8 +704,9 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.8,
+      builder:
+          (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
         minChildSize: 0.5,
         maxChildSize: 0.95,
         expand: false,
@@ -562,54 +728,101 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                 ),
                 const SizedBox(height: 20),
 
-                Row(
+                // Badges
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: Colors.orange.shade100,
+                        color: getPriorityColor().withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        category,
-                        style: const TextStyle(
-                          color: Colors.orange,
+                        isUrgent
+                            ? 'URGENT'
+                            : (priority == 'Important'
+                            ? 'IMPORTANT'
+                            : category),
+                        style: TextStyle(
+                          color: getPriorityColor(),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                    if (isUrgent) ...[
-                      const SizedBox(width: 8),
+                    if (isPinned)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: Colors.red.shade100,
+                          color: Colors.deepPurple.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Text(
-                          "URGENT",
-                          style: TextStyle(color: Colors.red, fontSize: 10, fontWeight: FontWeight.bold),
+                          "PINNED",
+                          style: TextStyle(
+                            color: Colors.deepPurple,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                    ],
-                    const Spacer(),
-                    Text(
-                      date != null
-                          ? DateFormat('dd MMM yyyy').format(date.toDate())
-                          : 'Unknown',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
 
+                // Title
                 Text(
                   data['title'] ?? 'Notice',
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
+                ),
+                const SizedBox(height: 8),
+
+                // Meta info
+                Row(
+                  children: [
+                    Icon(
+                      Icons.person_outline,
+                      size: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      createdBy,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Icon(
+                      Icons.calendar_today,
+                      size: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      date != null
+                          ? DateFormat(
+                        'dd MMM yyyy, hh:mm a',
+                      ).format(date.toDate())
+                          : 'Unknown',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
 
@@ -621,11 +834,16 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                       height: 200,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder:
+                          (_, __, ___) => Container(
                         height: 200,
                         color: Colors.grey.shade200,
                         child: const Center(
-                          child: Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                          child: Icon(
+                            Icons.broken_image,
+                            size: 50,
+                            color: Colors.grey,
+                          ),
                         ),
                       ),
                     ),
@@ -638,27 +856,9 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                     controller: scrollController,
                     child: Text(
                       data['description'] ?? 'No description',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        height: 1.5,
-                      ),
+                      style: const TextStyle(fontSize: 14, height: 1.5),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade500),
-                    const SizedBox(width: 8),
-                    Text(
-                      date != null
-                          ? DateFormat('dd MMM yyyy, hh:mm a').format(date.toDate())
-                          : 'Unknown',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                    ),
-                  ],
                 ),
 
                 const SizedBox(height: 16),
@@ -677,10 +877,14 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                     ),
                     child: const Text(
                       'Close',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
+                const SizedBox(height: 10),
               ],
             ),
           );
@@ -692,7 +896,8 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
   void _showFilterDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder:
+          (context) => AlertDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
@@ -704,6 +909,7 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _filterOption("All", Icons.all_inclusive),
+            _filterOption("General", Icons.announcement),
             _filterOption("Exam", Icons.assignment),
             _filterOption("Holiday", Icons.beach_access),
             _filterOption("Meeting", Icons.people),
@@ -714,14 +920,20 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(color: Colors.grey),
+            ),
           ),
           TextButton(
             onPressed: () {
               setState(() => _selectedFilter = "All");
               Navigator.pop(context);
             },
-            child: const Text("Reset", style: TextStyle(color: Colors.orange)),
+            child: const Text(
+              "Reset",
+              style: TextStyle(color: Colors.orange),
+            ),
           ),
         ],
       ),

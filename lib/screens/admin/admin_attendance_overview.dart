@@ -6,16 +6,15 @@ import 'package:fl_chart/fl_chart.dart';
 class AdminAttendanceOverviewPage extends StatefulWidget {
   final String schoolId;
 
-  const AdminAttendanceOverviewPage({
-    super.key,
-    required this.schoolId,
-  });
+  const AdminAttendanceOverviewPage({super.key, required this.schoolId});
 
   @override
-  State<AdminAttendanceOverviewPage> createState() => _AdminAttendanceOverviewPageState();
+  State<AdminAttendanceOverviewPage> createState() =>
+      _AdminAttendanceOverviewPageState();
 }
 
-class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPage> {
+class _AdminAttendanceOverviewPageState
+    extends State<AdminAttendanceOverviewPage> {
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
 
@@ -29,7 +28,9 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
   Map<String, Map<String, dynamic>> _classStats = {};
 
   String get _formattedDate => DateFormat('yyyy-MM-dd').format(_selectedDate);
-  String get _displayDate => DateFormat('EEEE, dd MMMM yyyy').format(_selectedDate);
+
+  String get _displayDate =>
+      DateFormat('EEEE, dd MMMM yyyy').format(_selectedDate);
 
   @override
   void initState() {
@@ -71,13 +72,14 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
           // Main Content
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('schools')
-                  .doc(widget.schoolId)
-                  .collection('attendance')
-                  .doc(_formattedDate)
-                  .collection('records')
-                  .snapshots(),
+              stream:
+                  FirebaseFirestore.instance
+                      .collection('schools')
+                      .doc(widget.schoolId)
+                      .collection('attendance')
+                      .doc(_formattedDate)
+                      .collection('records')
+                      .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -88,7 +90,11 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red.shade400,
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           "Error loading attendance",
@@ -139,7 +145,10 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
                             ),
                             Text(
                               "Tap to view details",
-                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
                             ),
                           ],
                         ),
@@ -231,9 +240,12 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
       final data = doc.data() as Map<String, dynamic>;
       final status = data['status'] ?? 'Absent';
 
-      if (status == 'Present') _totalPresent++;
-      else if (status == 'Late') _totalLate++;
-      else _totalAbsent++;
+      if (status == 'Present')
+        _totalPresent++;
+      else if (status == 'Late')
+        _totalLate++;
+      else
+        _totalAbsent++;
 
       // Process class-wise statistics
       final className = data['className'] ?? 'Unknown';
@@ -252,14 +264,18 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
         };
       }
 
-      _classStats[classKey]!['total'] = (_classStats[classKey]!['total'] as int) + 1;
+      _classStats[classKey]!['total'] =
+          (_classStats[classKey]!['total'] as int) + 1;
 
       if (status == 'Present') {
-        _classStats[classKey]!['present'] = (_classStats[classKey]!['present'] as int) + 1;
+        _classStats[classKey]!['present'] =
+            (_classStats[classKey]!['present'] as int) + 1;
       } else if (status == 'Late') {
-        _classStats[classKey]!['late'] = (_classStats[classKey]!['late'] as int) + 1;
+        _classStats[classKey]!['late'] =
+            (_classStats[classKey]!['late'] as int) + 1;
       } else {
-        _classStats[classKey]!['absent'] = (_classStats[classKey]!['absent'] as int) + 1;
+        _classStats[classKey]!['absent'] =
+            (_classStats[classKey]!['absent'] as int) + 1;
       }
 
       (_classStats[classKey]!['students'] as List).add({
@@ -271,7 +287,8 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
       });
     }
 
-    _attendanceRate = _totalStudents > 0 ? (_totalPresent / _totalStudents) * 100 : 0;
+    _attendanceRate =
+        _totalStudents > 0 ? (_totalPresent / _totalStudents) * 100 : 0;
   }
 
   Widget _buildEmptyState() {
@@ -283,7 +300,11 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
           const SizedBox(height: 16),
           Text(
             "No Attendance Records",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -337,7 +358,8 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
               _topItem("Total", _totalStudents, Icons.people),
               _topItem("Present", _totalPresent, Icons.check_circle),
               _topItem("Absent", _totalAbsent, Icons.cancel),
-              if (_totalLate > 0) _topItem("Late", _totalLate, Icons.access_time),
+              if (_totalLate > 0)
+                _topItem("Late", _totalLate, Icons.access_time),
             ],
           ),
           const SizedBox(height: 20),
@@ -384,7 +406,10 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
           title: 'No Data',
           color: Colors.grey,
           radius: 80,
-          titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          titleStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       );
     } else {
@@ -395,7 +420,10 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
             title: '${((_totalPresent / total) * 100).toStringAsFixed(0)}%',
             color: Colors.green,
             radius: 80,
-            titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            titleStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         );
       }
@@ -406,7 +434,10 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
             title: '${((_totalAbsent / total) * 100).toStringAsFixed(0)}%',
             color: Colors.red,
             radius: 80,
-            titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            titleStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         );
       }
@@ -417,7 +448,10 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
             title: '${((_totalLate / total) * 100).toStringAsFixed(0)}%',
             color: Colors.orange,
             radius: 80,
-            titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            titleStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         );
       }
@@ -486,9 +520,10 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
       final late = data['late'] as int;
       final percent = total > 0 ? (present / total) * 100 : 0;
 
-      final color = percent >= 75
-          ? Colors.green
-          : (percent >= 50 ? Colors.orange : Colors.red);
+      final color =
+          percent >= 75
+              ? Colors.green
+              : (percent >= 50 ? Colors.orange : Colors.red);
 
       widgets.add(
         Card(
@@ -539,7 +574,10 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(20),
@@ -560,11 +598,18 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
                       padding: const EdgeInsets.only(top: 8),
                       child: Row(
                         children: [
-                          Icon(Icons.access_time, size: 14, color: Colors.orange),
+                          Icon(
+                            Icons.access_time,
+                            size: 14,
+                            color: Colors.orange,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             "$late students arrived late",
-                            style: TextStyle(fontSize: 12, color: Colors.orange.shade700),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange.shade700,
+                            ),
                           ),
                         ],
                       ),
@@ -582,9 +627,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
         Container(
           padding: const EdgeInsets.all(32),
           decoration: _cardDecoration(),
-          child: const Center(
-            child: Text("No class data available"),
-          ),
+          child: const Center(child: Text("No class data available")),
         ),
       );
     }
@@ -605,148 +648,183 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.8,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) {
-          return Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
+      builder:
+          (context) => DraggableScrollableSheet(
+            initialChildSize: 0.8,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (context, scrollController) {
+              return Container(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade100,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(Icons.class_, size: 30, color: Colors.blue),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            className,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            _displayDate,
-                            style: TextStyle(color: Colors.grey.shade600),
-                          ),
-                        ],
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _detailStat('Total', total.toString(), Colors.blue),
-                    ),
-                    Expanded(
-                      child: _detailStat('Present', present.toString(), Colors.green),
-                    ),
-                    Expanded(
-                      child: _detailStat('Absent', absent.toString(), Colors.red),
-                    ),
-                    if (late > 0)
-                      Expanded(
-                        child: _detailStat('Late', late.toString(), Colors.orange),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Student List',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: ListView.builder(
-                    controller: scrollController,
-                    itemCount: students.length,
-                    itemBuilder: (context, index) {
-                      final student = students[index];
-                      final status = student['status'];
-                      final statusColor = status == 'Present'
-                          ? Colors.green
-                          : (status == 'Late' ? Colors.orange : Colors.red);
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: statusColor.withValues(alpha: 0.1),
-                            child: Text(
-                              student['rollNo'] ?? '?',
-                              style: TextStyle(
-                                color: statusColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade100,
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                          title: Text(student['name']),
-                          subtitle: student['checkInTime'] != null
-                              ? Text('Check In: ${student['checkInTime']}')
-                              : null,
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              status,
-                              style: TextStyle(
-                                color: statusColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
+                          child: Icon(
+                            Icons.class_,
+                            size: 30,
+                            color: Colors.blue,
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                className,
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                _displayDate,
+                                style: TextStyle(color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    child: const Text("Close"),
-                  ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _detailStat(
+                            'Total',
+                            total.toString(),
+                            Colors.blue,
+                          ),
+                        ),
+                        Expanded(
+                          child: _detailStat(
+                            'Present',
+                            present.toString(),
+                            Colors.green,
+                          ),
+                        ),
+                        Expanded(
+                          child: _detailStat(
+                            'Absent',
+                            absent.toString(),
+                            Colors.red,
+                          ),
+                        ),
+                        if (late > 0)
+                          Expanded(
+                            child: _detailStat(
+                              'Late',
+                              late.toString(),
+                              Colors.orange,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Student List',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemCount: students.length,
+                        itemBuilder: (context, index) {
+                          final student = students[index];
+                          final status = student['status'];
+                          final statusColor =
+                              status == 'Present'
+                                  ? Colors.green
+                                  : (status == 'Late'
+                                      ? Colors.orange
+                                      : Colors.red);
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: statusColor.withValues(
+                                  alpha: 0.1,
+                                ),
+                                child: Text(
+                                  student['rollNo'] ?? '?',
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              title: Text(student['name']),
+                              subtitle:
+                                  student['checkInTime'] != null
+                                      ? Text(
+                                        'Check In: ${student['checkInTime']}',
+                                      )
+                                      : null,
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: statusColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  status,
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text("Close"),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          );
-        },
-      ),
+              );
+            },
+          ),
     );
   }
 
@@ -763,7 +841,10 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
             fontWeight: FontWeight.bold,
           ),
         ),
-        Text(title, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        Text(
+          title,
+          style: const TextStyle(color: Colors.white70, fontSize: 11),
+        ),
       ],
     );
   }
@@ -771,7 +852,14 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
   Widget _legendItem(Color color, String label) {
     return Row(
       children: [
-        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
         const SizedBox(width: 4),
         Text(label, style: const TextStyle(fontSize: 11)),
       ],
@@ -795,10 +883,7 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
               color: color,
             ),
           ),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
-          ),
+          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
         ],
       ),
     );
@@ -823,7 +908,10 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
   Future<void> _exportReport() async {
     if (_totalStudents == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No data to export'), backgroundColor: Colors.orange),
+        const SnackBar(
+          content: Text('No data to export'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
@@ -833,39 +921,40 @@ class _AdminAttendanceOverviewPageState extends State<AdminAttendanceOverviewPag
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Export Report',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      builder:
+          (context) => Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Export Report',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                  title: const Text('Export as PDF'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('PDF export coming soon')),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.table_chart, color: Colors.green),
+                  title: const Text('Export as Excel'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Excel export coming soon')),
+                    );
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            ListTile(
-              leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-              title: const Text('Export as PDF'),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('PDF export coming soon')),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.table_chart, color: Colors.green),
-              title: const Text('Export as Excel'),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Excel export coming soon')),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 

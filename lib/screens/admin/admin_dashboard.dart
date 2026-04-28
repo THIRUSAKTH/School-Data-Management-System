@@ -5,13 +5,13 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:schoolprojectjan/app_config.dart';
+import 'package:schoolprojectjan/screens/admin/admin_academic_year_page.dart';
 import 'package:schoolprojectjan/screens/admin/admin_complaints_page.dart';
+import 'package:schoolprojectjan/screens/admin/admin_create_timetable_page.dart';
 import 'package:schoolprojectjan/screens/admin/exam_management_page.dart';
 import 'package:schoolprojectjan/screens/admin/notice_post_page.dart';
 import 'package:schoolprojectjan/screens/admin/school_settings_page.dart';
 import 'package:schoolprojectjan/screens/admin/select_class_for_attendance_page.dart';
-import 'package:schoolprojectjan/screens/common/profile_page.dart';
-import 'package:schoolprojectjan/screens/common/settings_page.dart';
 import 'admin_analytics_page.dart';
 import 'admin_attendance_overview.dart';
 import 'admin_feeupload_page.dart';
@@ -43,28 +43,28 @@ class _AdminDashboardState extends State<AdminDashboard> {
       context: context,
       builder:
           (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text("Logout"),
-            content: const Text("Are you sure you want to logout?"),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () async {
-                  await FirebaseAuth.instance.signOut();
-                  if (mounted) {
-                    Navigator.pushReplacementNamed(context, '/login');
-                  }
-                },
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text("Logout"),
-              ),
-            ],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text("Logout"),
+        content: const Text("Are you sure you want to logout?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
           ),
+          TextButton(
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (mounted) {
+                Navigator.pushReplacementNamed(context, '/login');
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Logout"),
+          ),
+        ],
+      ),
     );
   }
 
@@ -80,14 +80,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     try {
       final attendanceSnapshot =
-          await FirebaseFirestore.instance.collectionGroup('records').get();
+      await FirebaseFirestore.instance.collectionGroup('records').get();
 
       final feeSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('student_fees')
-              .get();
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('student_fees')
+          .get();
 
       Map<String, int> dailyAttendance = {};
       int totalPresent = 0;
@@ -139,9 +139,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
           'totalPending': totalPending,
           'monthlyFee': monthlyFee,
           'attendanceRate':
-              totalPresent + totalAbsent > 0
-                  ? (totalPresent / (totalPresent + totalAbsent)) * 100
-                  : 0,
+          totalPresent + totalAbsent > 0
+              ? (totalPresent / (totalPresent + totalAbsent)) * 100
+              : 0,
         };
       });
     } catch (e) {
@@ -190,10 +190,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
       elevation: 0,
       title: StreamBuilder<DocumentSnapshot>(
         stream:
-            FirebaseFirestore.instance
-                .collection('schools')
-                .doc(AppConfig.schoolId)
-                .snapshots(),
+        FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .snapshots(),
         builder: (context, snapshot) {
           String schoolName = "Smart School";
           if (snapshot.hasData && snapshot.data!.exists) {
@@ -287,14 +287,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildLiveCard(
-    String title,
-    IconData icon,
-    Color color,
-    Stream<QuerySnapshot>? stream, {
-    int? customValue,
-    bool isCurrency = false,
-    String suffix = '',
-  }) {
+      String title,
+      IconData icon,
+      Color color,
+      Stream<QuerySnapshot>? stream, {
+        int? customValue,
+        bool isCurrency = false,
+        String suffix = '',
+      }) {
     if (stream != null) {
       return StreamBuilder<QuerySnapshot>(
         stream: stream,
@@ -328,13 +328,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Widget _buildTodayOverview() {
     return FutureBuilder<QuerySnapshot>(
       future:
-          FirebaseFirestore.instance
-              .collectionGroup('records')
-              .where(
-                'date',
-                isEqualTo: DateFormat('yyyy-MM-dd').format(DateTime.now()),
-              )
-              .get(),
+      FirebaseFirestore.instance
+          .collectionGroup('records')
+          .where(
+        'date',
+        isEqualTo: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+      )
+          .get(),
       builder: (context, snapshot) {
         int presentToday = 0;
         int absentToday = 0;
@@ -488,9 +488,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       reservedSize: 40,
                       getTitlesWidget:
                           (value, meta) => Text(
-                            value.toInt().toString(),
-                            style: const TextStyle(fontSize: 10),
-                          ),
+                        value.toInt().toString(),
+                        style: const TextStyle(fontSize: 10),
+                      ),
                     ),
                   ),
                   bottomTitles: AxisTitles(
@@ -542,7 +542,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Widget _buildFeeChart() {
     final monthlyFee = _cachedChartData['monthlyFee'] ?? {};
 
-    // FIXED: Safely convert keys to List<String>
     List<String> months = [];
     for (var key in monthlyFee.keys) {
       months.add(key.toString());
@@ -709,14 +708,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
               color: Colors.blue,
               onTap:
                   () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) => StudentManagementPage(
-                            schoolId: AppConfig.schoolId,
-                          ),
-                    ),
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (_) => StudentManagementPage(
+                    schoolId: AppConfig.schoolId,
                   ),
+                ),
+              ),
             ),
             _QuickActionCard(
               icon: Icons.school,
@@ -724,14 +723,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
               color: Colors.purple,
               onTap:
                   () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) => TeacherManagementPage(
-                            schoolId: AppConfig.schoolId,
-                          ),
-                    ),
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (_) => TeacherManagementPage(
+                    schoolId: AppConfig.schoolId,
                   ),
+                ),
+              ),
             ),
             _QuickActionCard(
               icon: Icons.currency_rupee,
@@ -739,13 +738,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
               color: Colors.green,
               onTap:
                   () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) =>
-                              AdminFeeUploadPage(schoolId: AppConfig.schoolId),
-                    ),
-                  ),
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (_) =>
+                      AdminFeeUploadPage(schoolId: AppConfig.schoolId),
+                ),
+              ),
             ),
             _QuickActionCard(
               icon: Icons.analytics,
@@ -753,13 +752,42 @@ class _AdminDashboardState extends State<AdminDashboard> {
               color: Colors.orange,
               onTap:
                   () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) =>
-                              AdminAnalyticsPage(schoolId: AppConfig.schoolId),
-                    ),
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (_) =>
+                      AdminAnalyticsPage(schoolId: AppConfig.schoolId),
+                ),
+              ),
+            ),
+            // NEW: Academic Year Management
+            _QuickActionCard(
+              icon: Icons.calendar_today,
+              label: "Academic Year",
+              color: Colors.teal,
+              onTap:
+                  () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminAcademicYearPage(),
+                ),
+              ),
+            ),
+            // NEW: Create Timetable
+            _QuickActionCard(
+              icon: Icons.schedule,
+              label: "Timetable",
+              color: Colors.cyan,
+              onTap:
+                  () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (_) => AdminCreateTimetablePage(
+                    schoolId: AppConfig.schoolId,
                   ),
+                ),
+              ),
             ),
           ],
         ),
@@ -884,13 +912,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
             AdminAnalyticsPage(schoolId: AppConfig.schoolId),
           ),
           const Divider(),
-          _drawerItem(context, Icons.person, "Profile", const ProfilePage()),
-          _drawerItem(
-            context,
-            Icons.settings,
-            "Settings",
-            const SettingsPage(),
-          ),
           _drawerItem(
             context,
             Icons.business,
@@ -903,12 +924,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _drawerItem(
-    BuildContext context,
-    IconData icon,
-    String title,
-    Widget? page, {
-    bool isDashboard = false,
-  }) {
+      BuildContext context,
+      IconData icon,
+      String title,
+      Widget? page, {
+        bool isDashboard = false,
+      }) {
     return ListTile(
       leading: Icon(icon, color: isDashboard ? Colors.blue : Colors.blueGrey),
       title: Text(
@@ -942,7 +963,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 }
 
-// Helper Widgets (Keep all the same as before)
+// Helper Widgets
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;

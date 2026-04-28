@@ -16,7 +16,13 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
   String _selectedFilter = "all";
   bool _isLoading = false;
 
-  final List<String> _statusFilters = ["all", "pending", "in_progress", "resolved", "rejected"];
+  final List<String> _statusFilters = [
+    "all",
+    "pending",
+    "in_progress",
+    "resolved",
+    "rejected",
+  ];
 
   @override
   void initState() {
@@ -62,10 +68,7 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _buildComplaintsList(),
-          _buildStatisticsTab(),
-        ],
+        children: [_buildComplaintsList(), _buildStatisticsTab()],
       ),
     );
   }
@@ -76,12 +79,13 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
         _buildFilterChips(),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('schools')
-                .doc(AppConfig.schoolId)
-                .collection('complaints')
-                .orderBy('createdAt', descending: true)
-                .snapshots(),
+            stream:
+                FirebaseFirestore.instance
+                    .collection('schools')
+                    .doc(AppConfig.schoolId)
+                    .collection('complaints')
+                    .orderBy('createdAt', descending: true)
+                    .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -92,7 +96,11 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.red.shade400,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         "Error loading complaints",
@@ -108,11 +116,19 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.feedback_outlined, size: 80, color: Colors.grey.shade400),
+                      Icon(
+                        Icons.feedback_outlined,
+                        size: 80,
+                        color: Colors.grey.shade400,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'No Complaints',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -126,10 +142,11 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
 
               var complaints = snapshot.data!.docs;
               if (_selectedFilter != "all") {
-                complaints = complaints.where((c) {
-                  final data = c.data() as Map<String, dynamic>;
-                  return data['status'] == _selectedFilter;
-                }).toList();
+                complaints =
+                    complaints.where((c) {
+                      final data = c.data() as Map<String, dynamic>;
+                      return data['status'] == _selectedFilter;
+                    }).toList();
               }
 
               if (complaints.isEmpty) {
@@ -137,7 +154,11 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.filter_alt_off, size: 64, color: Colors.grey.shade400),
+                      Icon(
+                        Icons.filter_alt_off,
+                        size: 64,
+                        color: Colors.grey.shade400,
+                      ),
                       const SizedBox(height: 16),
                       Text(
                         'No ${_selectedFilter.toUpperCase()} complaints',
@@ -199,7 +220,8 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
               selected: isSelected,
               onSelected: (selected) {
                 setState(() {
-                  _selectedFilter = selected ? filter['value'] as String : "all";
+                  _selectedFilter =
+                      selected ? filter['value'] as String : "all";
                 });
               },
               backgroundColor: Colors.white,
@@ -226,14 +248,19 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: status == 'pending'
-            ? BorderSide(color: Colors.orange.shade300, width: 1.5)
-            : BorderSide.none,
+        side:
+            status == 'pending'
+                ? BorderSide(color: Colors.orange.shade300, width: 1.5)
+                : BorderSide.none,
       ),
       child: ExpansionTile(
         leading: CircleAvatar(
           backgroundColor: statusConfig['color'].withValues(alpha: 0.1),
-          child: Icon(statusConfig['icon'], color: statusConfig['color'], size: 20),
+          child: Icon(
+            statusConfig['icon'],
+            color: statusConfig['color'],
+            size: 20,
+          ),
         ),
         title: Text(
           data['title'] ?? 'Complaint',
@@ -285,7 +312,10 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                     children: [
                       const Text(
                         "Complaint Details",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -295,7 +325,10 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                       const SizedBox(height: 8),
                       Text(
                         "Submitted: ${createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(createdAt.toDate()) : 'Unknown'}",
-                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey,
+                        ),
                       ),
                     ],
                   ),
@@ -335,10 +368,34 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                     ),
                   ),
                   items: [
-                    DropdownMenuItem(value: 'pending', child: Text('Pending', style: TextStyle(color: Colors.orange))),
-                    DropdownMenuItem(value: 'in_progress', child: Text('In Progress', style: TextStyle(color: Colors.blue))),
-                    DropdownMenuItem(value: 'resolved', child: Text('Resolved', style: TextStyle(color: Colors.green))),
-                    DropdownMenuItem(value: 'rejected', child: Text('Rejected', style: TextStyle(color: Colors.red))),
+                    DropdownMenuItem(
+                      value: 'pending',
+                      child: Text(
+                        'Pending',
+                        style: TextStyle(color: Colors.orange),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'in_progress',
+                      child: Text(
+                        'In Progress',
+                        style: TextStyle(color: Colors.blue),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'resolved',
+                      child: Text(
+                        'Resolved',
+                        style: TextStyle(color: Colors.green),
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: 'rejected',
+                      child: Text(
+                        'Rejected',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
                   ],
                   onChanged: (newStatus) {
                     if (newStatus != null) {
@@ -373,7 +430,10 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
     );
   }
 
-  Future<void> _updateComplaintStatus(String complaintId, String newStatus) async {
+  Future<void> _updateComplaintStatus(
+    String complaintId,
+    String newStatus,
+  ) async {
     try {
       await FirebaseFirestore.instance
           .collection('schools')
@@ -381,9 +441,9 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
           .collection('complaints')
           .doc(complaintId)
           .update({
-        'status': newStatus,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+            'status': newStatus,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -397,16 +457,16 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error: $e"),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  Future<void> _submitResponse(String complaintId, Map<String, dynamic> currentData) async {
+  Future<void> _submitResponse(
+    String complaintId,
+    Map<String, dynamic> currentData,
+  ) async {
     _isLoading = true;
     setState(() {});
 
@@ -417,12 +477,12 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
           .collection('complaints')
           .doc(complaintId)
           .update({
-        'response': currentData['response'] ?? 'No response provided',
-        'status': 'resolved',
-        'respondedBy': 'Admin',
-        'respondedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+            'response': currentData['response'] ?? 'No response provided',
+            'status': 'resolved',
+            'respondedBy': 'Admin',
+            'respondedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -436,10 +496,7 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error: $e"),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -450,11 +507,12 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
 
   Widget _buildStatisticsTab() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('complaints')
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('complaints')
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -469,7 +527,11 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                 const SizedBox(height: 16),
                 Text(
                   "No Data Available",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
               ],
             ),
@@ -485,10 +547,18 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
           final data = doc.data() as Map<String, dynamic>;
           final status = data['status'] ?? 'pending';
           switch (status) {
-            case 'pending': pending++; break;
-            case 'in_progress': inProgress++; break;
-            case 'resolved': resolved++; break;
-            case 'rejected': rejected++; break;
+            case 'pending':
+              pending++;
+              break;
+            case 'in_progress':
+              inProgress++;
+              break;
+            case 'resolved':
+              resolved++;
+              break;
+            case 'rejected':
+              rejected++;
+              break;
           }
         }
 
@@ -528,7 +598,10 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                     const SizedBox(height: 8),
                     Text(
                       "Resolution Rate: ${resolutionRate.toStringAsFixed(1)}%",
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -543,10 +616,30 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
                 children: [
-                  _buildStatCard("Pending", pending, Colors.orange, Icons.pending),
-                  _buildStatCard("In Progress", inProgress, Colors.blue, Icons.hourglass_empty),
-                  _buildStatCard("Resolved", resolved, Colors.green, Icons.check_circle),
-                  _buildStatCard("Rejected", rejected, Colors.red, Icons.cancel),
+                  _buildStatCard(
+                    "Pending",
+                    pending,
+                    Colors.orange,
+                    Icons.pending,
+                  ),
+                  _buildStatCard(
+                    "In Progress",
+                    inProgress,
+                    Colors.blue,
+                    Icons.hourglass_empty,
+                  ),
+                  _buildStatCard(
+                    "Resolved",
+                    resolved,
+                    Colors.green,
+                    Icons.check_circle,
+                  ),
+                  _buildStatCard(
+                    "Rejected",
+                    rejected,
+                    Colors.red,
+                    Icons.cancel,
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -580,7 +673,11 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
           const SizedBox(height: 8),
           Text(
             count.toString(),
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color),
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
           Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         ],
@@ -621,31 +718,36 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          ...categories.map((category) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 120,
-                  child: Text(category, style: const TextStyle(fontSize: 13)),
-                ),
-                Expanded(
-                  child: LinearProgressIndicator(
-                    value: categoryCount[category]! / complaints.length,
-                    backgroundColor: Colors.grey.shade200,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
-                    minHeight: 8,
-                    borderRadius: BorderRadius.circular(4),
+          ...categories.map(
+            (category) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 120,
+                    child: Text(category, style: const TextStyle(fontSize: 13)),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  "${categoryCount[category]}",
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-              ],
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: categoryCount[category]! / complaints.length,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+                      minHeight: 8,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    "${categoryCount[category]}",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          )),
+          ),
         ],
       ),
     );
@@ -654,13 +756,25 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
   Map<String, dynamic> _getStatusConfig(String status) {
     switch (status) {
       case 'resolved':
-        return {'label': 'RESOLVED', 'color': Colors.green, 'icon': Icons.check_circle};
+        return {
+          'label': 'RESOLVED',
+          'color': Colors.green,
+          'icon': Icons.check_circle,
+        };
       case 'in_progress':
-        return {'label': 'IN PROGRESS', 'color': Colors.blue, 'icon': Icons.hourglass_empty};
+        return {
+          'label': 'IN PROGRESS',
+          'color': Colors.blue,
+          'icon': Icons.hourglass_empty,
+        };
       case 'rejected':
         return {'label': 'REJECTED', 'color': Colors.red, 'icon': Icons.cancel};
       default:
-        return {'label': 'PENDING', 'color': Colors.orange, 'icon': Icons.pending};
+        return {
+          'label': 'PENDING',
+          'color': Colors.orange,
+          'icon': Icons.pending,
+        };
     }
   }
 }

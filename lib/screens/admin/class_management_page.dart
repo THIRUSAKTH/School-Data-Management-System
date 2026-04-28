@@ -26,12 +26,13 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
     }
 
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('teachers')
-          .doc(id)
-          .get();
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('teachers')
+              .doc(id)
+              .get();
 
       final name = doc.exists ? (doc.data()?['name'] ?? "Unknown") : "Unknown";
       _teacherNameCache[id] = name;
@@ -108,14 +109,17 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                       ),
                       const SizedBox(height: 8),
                       StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('schools')
-                            .doc(widget.schoolId)
-                            .collection('teachers')
-                            .snapshots(),
+                        stream:
+                            FirebaseFirestore.instance
+                                .collection('schools')
+                                .doc(widget.schoolId)
+                                .collection('teachers')
+                                .snapshots(),
                         builder: (context, snap) {
                           if (snap.connectionState == ConnectionState.waiting) {
-                            return const Center(child: CircularProgressIndicator());
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
                           }
 
                           if (!snap.hasData || snap.data!.docs.isEmpty) {
@@ -132,7 +136,10 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                             decoration: const InputDecoration(
                               labelText: "Select Class Teacher",
                               border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
                             ),
                             items: [
                               const DropdownMenuItem<String>(
@@ -140,7 +147,8 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                                 child: Text("None"),
                               ),
                               ...teachers.map<DropdownMenuItem<String>>((t) {
-                                final teacherData = t.data() as Map<String, dynamic>;
+                                final teacherData =
+                                    t.data() as Map<String, dynamic>;
                                 return DropdownMenuItem<String>(
                                   value: t.id,
                                   child: Text(teacherData['name'] ?? 'Unknown'),
@@ -179,18 +187,30 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: subjectTeachers.length,
-                            separatorBuilder: (_, __) => const Divider(height: 0),
+                            separatorBuilder:
+                                (_, __) => const Divider(height: 0),
                             itemBuilder: (context, index) {
-                              final entry = subjectTeachers.entries.elementAt(index);
+                              final entry = subjectTeachers.entries.elementAt(
+                                index,
+                              );
                               return ListTile(
                                 dense: true,
-                                leading: const Icon(Icons.book, size: 18, color: Colors.blue),
+                                leading: const Icon(
+                                  Icons.book,
+                                  size: 18,
+                                  color: Colors.blue,
+                                ),
                                 title: Text(
                                   entry.key,
-                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                                 subtitle: FutureBuilder(
-                                  future: getTeacherName(entry.value.toString()),
+                                  future: getTeacherName(
+                                    entry.value.toString(),
+                                  ),
                                   builder: (context, snapshot) {
                                     return Text(
                                       "Teacher: ${snapshot.data ?? 'Loading...'}",
@@ -199,7 +219,11 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                                   },
                                 ),
                                 trailing: IconButton(
-                                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                    color: Colors.red,
+                                  ),
                                   onPressed: () {
                                     setDialogState(() {
                                       subjectTeachers.remove(entry.key);
@@ -237,19 +261,26 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                                 labelText: "Subject Name",
                                 hintText: "e.g., Mathematics, Physics",
                                 border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 8),
                             StreamBuilder<QuerySnapshot>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('schools')
-                                  .doc(widget.schoolId)
-                                  .collection('teachers')
-                                  .snapshots(),
+                              stream:
+                                  FirebaseFirestore.instance
+                                      .collection('schools')
+                                      .doc(widget.schoolId)
+                                      .collection('teachers')
+                                      .snapshots(),
                               builder: (context, snap) {
-                                if (snap.connectionState == ConnectionState.waiting) {
-                                  return const Center(child: CircularProgressIndicator());
+                                if (snap.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
+                                  );
                                 }
 
                                 if (!snap.hasData || snap.data!.docs.isEmpty) {
@@ -266,15 +297,24 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                                   isExpanded: true,
                                   decoration: const InputDecoration(
                                     border: OutlineInputBorder(),
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
                                   ),
-                                  items: teachers.map<DropdownMenuItem<String>>((t) {
-                                    final teacherData = t.data() as Map<String, dynamic>;
-                                    return DropdownMenuItem<String>(
-                                      value: t.id,
-                                      child: Text(teacherData['name'] ?? 'Unknown'),
-                                    );
-                                  }).toList(),
+                                  items:
+                                      teachers.map<DropdownMenuItem<String>>((
+                                        t,
+                                      ) {
+                                        final teacherData =
+                                            t.data() as Map<String, dynamic>;
+                                        return DropdownMenuItem<String>(
+                                          value: t.id,
+                                          child: Text(
+                                            teacherData['name'] ?? 'Unknown',
+                                          ),
+                                        );
+                                      }).toList(),
                                   onChanged: (value) {
                                     selectedTeacherForSubject = value;
                                     setDialogState(() {});
@@ -287,33 +327,45 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                               width: double.infinity,
                               child: ElevatedButton.icon(
                                 onPressed: () {
-                                  final subject = newSubjectController.text.trim();
-                                  if (subject.isNotEmpty && selectedTeacherForSubject != null) {
+                                  final subject =
+                                      newSubjectController.text.trim();
+                                  if (subject.isNotEmpty &&
+                                      selectedTeacherForSubject != null) {
                                     if (subjectTeachers.containsKey(subject)) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         const SnackBar(
-                                          content: Text("This subject already has a teacher assigned"),
+                                          content: Text(
+                                            "This subject already has a teacher assigned",
+                                          ),
                                           backgroundColor: Colors.orange,
                                         ),
                                       );
                                       return;
                                     }
                                     setDialogState(() {
-                                      subjectTeachers[subject] = selectedTeacherForSubject;
+                                      subjectTeachers[subject] =
+                                          selectedTeacherForSubject;
                                       newSubjectController.clear();
                                       selectedTeacherForSubject = null;
                                     });
                                   } else if (subject.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text("Please enter subject name"),
+                                        content: Text(
+                                          "Please enter subject name",
+                                        ),
                                         backgroundColor: Colors.orange,
                                       ),
                                     );
-                                  } else if (selectedTeacherForSubject == null) {
+                                  } else if (selectedTeacherForSubject ==
+                                      null) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                        content: Text("Please select a teacher"),
+                                        content: Text(
+                                          "Please select a teacher",
+                                        ),
                                         backgroundColor: Colors.orange,
                                       ),
                                     );
@@ -351,10 +403,10 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                           .collection('classes')
                           .doc(classDoc.id)
                           .update({
-                        "classTeacherId": selectedClassTeacher,
-                        "subjectTeachers": subjectTeachers,
-                        "updatedAt": FieldValue.serverTimestamp(),
-                      });
+                            "classTeacherId": selectedClassTeacher,
+                            "subjectTeachers": subjectTeachers,
+                            "updatedAt": FieldValue.serverTimestamp(),
+                          });
 
                       _teacherNameCache.clear();
 
@@ -404,16 +456,17 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: _isRefreshing
-                ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
-            )
-                : const Icon(Icons.refresh),
+            icon:
+                _isRefreshing
+                    ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                    : const Icon(Icons.refresh),
             onPressed: _isRefreshing ? null : _refreshData,
             tooltip: "Refresh",
           ),
@@ -423,9 +476,10 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
         children: [
           _buildSearchBar(),
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildClassList(),
+            child:
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildClassList(),
           ),
         ],
       ),
@@ -439,16 +493,17 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
         decoration: InputDecoration(
           hintText: "Search by class name...",
           prefixIcon: const Icon(Icons.search, color: Colors.blue),
-          suffixIcon: _searchText.isNotEmpty
-              ? IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: () {
-              setState(() {
-                _searchText = "";
-              });
-            },
-          )
-              : null,
+          suffixIcon:
+              _searchText.isNotEmpty
+                  ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      setState(() {
+                        _searchText = "";
+                      });
+                    },
+                  )
+                  : null,
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
@@ -463,7 +518,10 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.blue, width: 1),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
         ),
         onChanged: (value) => setState(() => _searchText = value.toLowerCase()),
       ),
@@ -472,12 +530,13 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
 
   Widget _buildClassList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('classes')
-          .orderBy('class')
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('classes')
+              .orderBy('class')
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -514,7 +573,11 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                 const SizedBox(height: 16),
                 Text(
                   "No Classes Found",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -526,11 +589,12 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
           );
         }
 
-        final docs = snapshot.data!.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final name = "${data['class']} ${data['section']}".toLowerCase();
-          return name.contains(_searchText);
-        }).toList();
+        final docs =
+            snapshot.data!.docs.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final name = "${data['class']} ${data['section']}".toLowerCase();
+              return name.contains(_searchText);
+            }).toList();
 
         if (docs.isEmpty) {
           return Center(
@@ -541,7 +605,11 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                 const SizedBox(height: 16),
                 Text(
                   "No matching classes",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -564,7 +632,9 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
               final className = data['class'] ?? 'Unknown';
               final section = data['section'] ?? '';
               final classTeacherId = data['classTeacherId'] as String?;
-              final subjectTeachers = Map<String, dynamic>.from(data['subjectTeachers'] ?? {});
+              final subjectTeachers = Map<String, dynamic>.from(
+                data['subjectTeachers'] ?? {},
+              );
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -622,7 +692,8 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         "Class Teacher",
@@ -633,9 +704,10 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                                       ),
                                       const SizedBox(height: 2),
                                       FutureBuilder(
-                                        future: classTeacherId != null
-                                            ? getTeacherName(classTeacherId)
-                                            : Future.value("Not Assigned"),
+                                        future:
+                                            classTeacherId != null
+                                                ? getTeacherName(classTeacherId)
+                                                : Future.value("Not Assigned"),
                                         builder: (context, snapshot) {
                                           return Text(
                                             snapshot.data ?? "Loading...",
@@ -672,15 +744,22 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                                 decoration: BoxDecoration(
                                   color: Colors.grey.shade50,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey.shade200),
+                                  border: Border.all(
+                                    color: Colors.grey.shade200,
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.book, size: 18, color: Colors.blue),
+                                    const Icon(
+                                      Icons.book,
+                                      size: 18,
+                                      color: Colors.blue,
+                                    ),
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             entry.key,
@@ -691,7 +770,9 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                                           ),
                                           const SizedBox(height: 2),
                                           FutureBuilder(
-                                            future: getTeacherName(entry.value.toString()),
+                                            future: getTeacherName(
+                                              entry.value.toString(),
+                                            ),
                                             builder: (context, snapshot) {
                                               return Text(
                                                 snapshot.data ?? "Loading...",

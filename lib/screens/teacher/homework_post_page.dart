@@ -21,7 +21,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
   DateTime? dueDate;
   TimeOfDay? dueTime;
   bool isUrgent = false;
-  List<String> attachments = [];
+  List<Map<String, dynamic>> attachments = [];
 
   bool isLoading = false;
   bool isEditing = false;
@@ -48,14 +48,20 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
 
   Future<void> _loadClasses() async {
     try {
-      final classesSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('classes')
-          .get();
+      final classesSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('classes')
+              .get();
 
       setState(() {
-        classes = ['All Classes', ...classesSnapshot.docs.map((doc) => doc['className'] as String).toList()];
+        classes = [
+          'All Classes',
+          ...classesSnapshot.docs
+              .map((doc) => doc['className'] as String)
+              .toList(),
+        ];
       });
     } catch (e) {
       debugPrint('Error loading classes: $e');
@@ -64,19 +70,35 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
 
   Future<void> _loadSubjects() async {
     try {
-      final subjectsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('subjects')
-          .get();
+      final subjectsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('subjects')
+              .get();
 
       if (subjectsSnapshot.docs.isNotEmpty) {
         setState(() {
-          subjects = subjectsSnapshot.docs.map((doc) => doc['name'] as String).toList();
+          subjects =
+              subjectsSnapshot.docs
+                  .map((doc) => doc['name'] as String)
+                  .toList();
         });
       } else {
-        // Default subjects
-        subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'History', 'Geography'];
+        subjects = [
+          'Mathematics',
+          'Physics',
+          'Chemistry',
+          'Biology',
+          'English',
+          'History',
+          'Geography',
+          'Computer Science',
+          'Tamil',
+          'Hindi',
+          'Physical Education',
+          'Art',
+        ];
       }
     } catch (e) {
       debugPrint('Error loading subjects: $e');
@@ -89,13 +111,17 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(isEditing ? "Edit Homework" : "Post Homework"),
+        title: Text(
+          isEditing ? "Edit Homework" : "Post Homework",
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
+        centerTitle: false,
         actions: [
           if (isEditing)
             IconButton(
-              icon: const Icon(Icons.delete),
+              icon: const Icon(Icons.delete, color: Colors.white),
               onPressed: _deleteHomework,
               tooltip: "Delete",
             ),
@@ -107,17 +133,17 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildTitleField(),
-            const SizedBox(height: 20),
-            _buildHomeworkField(),
-            const SizedBox(height: 20),
-            _buildClassSelector(),
-            const SizedBox(height: 20),
-            _buildSubjectSelector(),
-            const SizedBox(height: 20),
-            _buildDueDatePicker(),
             const SizedBox(height: 16),
+            _buildHomeworkField(),
+            const SizedBox(height: 16),
+            _buildClassSelector(),
+            const SizedBox(height: 16),
+            _buildSubjectSelector(),
+            const SizedBox(height: 16),
+            _buildDueDatePicker(),
+            const SizedBox(height: 12),
             _buildUrgentToggle(),
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
             _buildSubmitButton(),
           ],
         ),
@@ -133,19 +159,33 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
           "Homework Title *",
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         TextField(
           controller: _titleController,
           decoration: InputDecoration(
-            hintText: "e.g., Algebra Worksheet",
+            hintText: "e.g., Algebra Worksheet, Chapter 5 Questions",
+            hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
-            prefixIcon: const Icon(Icons.title),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+            ),
+            prefixIcon: const Icon(Icons.title, color: Colors.deepPurple),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
           ),
+          style: const TextStyle(fontSize: 14),
         ),
       ],
     );
@@ -159,70 +199,94 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
           "Homework Details *",
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         TextField(
           controller: _homeworkController,
           maxLines: 6,
           decoration: InputDecoration(
-            hintText: "Enter homework description...\n- Complete exercise 5.1\n- Read chapter 3\n- Prepare for quiz",
+            hintText:
+                "Enter detailed homework description...\n\nExample:\n• Complete exercise 5.2 from textbook\n• Write 10 sentences about your hobby\n• Practice multiplication tables 2-10",
+            hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            alignLabelWithHint: true,
           ),
+          style: const TextStyle(fontSize: 14),
         ),
       ],
     );
   }
 
   Widget _buildClassSelector() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Class *",
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: selectedClass,
-                items: classes.map((className) {
-                  return DropdownMenuItem(
-                    value: className,
-                    child: Text(className),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedClass = value!;
-                    if (selectedClass != "All Classes") {
-                      _loadSections(selectedClass);
-                    } else {
-                      sections = [];
-                      selectedSection = "All Sections";
-                    }
-                  });
-                },
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ],
-          ),
+        const Text(
+          "Class *",
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: selectedClass,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            prefixIcon: const Icon(Icons.class_, color: Colors.deepPurple),
+          ),
+          items:
+              classes.map((className) {
+                return DropdownMenuItem(
+                  value: className,
+                  child: Text(className, style: const TextStyle(fontSize: 14)),
+                );
+              }).toList(),
+          onChanged: (value) {
+            setState(() {
+              selectedClass = value!;
+              if (selectedClass != "All Classes") {
+                _loadSections(selectedClass);
+              } else {
+                sections = [];
+                selectedSection = "All Sections";
+              }
+            });
+          },
+        ),
         if (selectedClass != "All Classes" && sections.isNotEmpty)
-          Expanded(
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -230,15 +294,48 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
                   "Section",
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: selectedSection,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Colors.deepPurple,
+                        width: 2,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.group,
+                      color: Colors.deepPurple,
+                    ),
+                  ),
                   items: [
-                    const DropdownMenuItem(value: "All Sections", child: Text("All Sections")),
+                    const DropdownMenuItem(
+                      value: "All Sections",
+                      child: Text("All Sections"),
+                    ),
                     ...sections.map((section) {
                       return DropdownMenuItem(
                         value: section,
-                        child: Text(section),
+                        child: Text(
+                          section,
+                          style: const TextStyle(fontSize: 14),
+                        ),
                       );
                     }).toList(),
                   ],
@@ -247,14 +344,6 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
                       selectedSection = value!;
                     });
                   },
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -265,12 +354,13 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
 
   Future<void> _loadSections(String className) async {
     try {
-      final studentsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('students')
-          .where('class', isEqualTo: className)
-          .get();
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('class', isEqualTo: className)
+              .get();
 
       final sectionsSet = <String>{};
       for (var doc in studentsSnapshot.docs) {
@@ -299,20 +389,9 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
           "Subject *",
           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           value: selectedSubject,
-          items: subjects.map((subject) {
-            return DropdownMenuItem(
-              value: subject,
-              child: Text(subject),
-            );
-          }).toList(),
-          onChanged: (value) {
-            setState(() {
-              selectedSubject = value!;
-            });
-          },
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,
@@ -320,88 +399,124 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,
             ),
-            prefixIcon: const Icon(Icons.book),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
+            prefixIcon: const Icon(Icons.book, color: Colors.deepPurple),
           ),
+          items:
+              subjects.map((subject) {
+                return DropdownMenuItem(
+                  value: subject,
+                  child: Text(subject, style: const TextStyle(fontSize: 14)),
+                );
+              }).toList(),
+          onChanged: (value) {
+            setState(() {
+              selectedSubject = value!;
+            });
+          },
         ),
       ],
     );
   }
 
   Widget _buildDueDatePicker() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Due Date *",
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              const SizedBox(height: 6),
-              InkWell(
+        const Text(
+          "Due Date & Time *",
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: InkWell(
                 onTap: _pickDate,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_today, size: 18, color: Colors.deepPurple),
+                      const Icon(
+                        Icons.calendar_today,
+                        size: 20,
+                        color: Colors.deepPurple,
+                      ),
                       const SizedBox(width: 12),
-                      Text(
-                        dueDate == null
-                            ? "Select due date"
-                            : DateFormat("dd MMM yyyy").format(dueDate!),
-                        style: TextStyle(
-                          color: dueDate == null ? Colors.grey : Colors.black,
+                      Expanded(
+                        child: Text(
+                          dueDate == null
+                              ? "Select due date"
+                              : DateFormat("dd MMM yyyy").format(dueDate!),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: dueDate == null ? Colors.grey : Colors.black,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Due Time (Optional)",
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              const SizedBox(height: 6),
-              InkWell(
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: InkWell(
                 onTap: _pickTime,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.access_time, size: 18, color: Colors.deepPurple),
+                      const Icon(
+                        Icons.access_time,
+                        size: 20,
+                        color: Colors.deepPurple,
+                      ),
                       const SizedBox(width: 12),
-                      Text(
-                        dueTime == null
-                            ? "Select time"
-                            : dueTime!.format(context),
-                        style: TextStyle(
-                          color: dueTime == null ? Colors.grey : Colors.black,
+                      Expanded(
+                        child: Text(
+                          dueTime == null
+                              ? "Select time"
+                              : dueTime!.format(context),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: dueTime == null ? Colors.grey : Colors.black,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
@@ -409,18 +524,19 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
 
   Widget _buildUrgentToggle() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
       ),
       child: Row(
         children: [
-          const Icon(Icons.priority_high, color: Colors.orange),
+          const Icon(Icons.priority_high, color: Colors.orange, size: 22),
           const SizedBox(width: 12),
           const Text(
             "Mark as Urgent",
-            style: TextStyle(fontWeight: FontWeight.w500),
+            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
           ),
           const Spacer(),
           Switch(
@@ -430,8 +546,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
                 isUrgent = value;
               });
             },
-            activeThumbColor: Colors.red,
-            activeTrackColor: Colors.red.withValues(alpha: 0.5),
+            activeColor: Colors.red,
           ),
         ],
       ),
@@ -441,7 +556,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
   Widget _buildSubmitButton() {
     return SizedBox(
       width: double.infinity,
-      height: 50,
+      height: 52,
       child: ElevatedButton(
         onPressed: isLoading ? null : _publishHomework,
         style: ElevatedButton.styleFrom(
@@ -450,17 +565,25 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
+          elevation: 2,
         ),
-        child: isLoading
-            ? const SizedBox(
-          height: 20,
-          width: 20,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
-        )
-            : Text(isEditing ? "Update Homework" : "Publish Homework"),
+        child:
+            isLoading
+                ? const SizedBox(
+                  height: 22,
+                  width: 22,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+                : Text(
+                  isEditing ? "Update Homework" : "Publish Homework",
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
       ),
     );
   }
@@ -468,7 +591,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: dueDate ?? DateTime.now(),
+      initialDate: dueDate ?? DateTime.now().add(const Duration(days: 3)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
@@ -481,7 +604,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
   Future<void> _pickTime() async {
     final picked = await showTimePicker(
       context: context,
-      initialTime: dueTime ?? TimeOfDay.now(),
+      initialTime: dueTime ?? const TimeOfDay(hour: 16, minute: 0),
     );
 
     if (picked != null) {
@@ -490,15 +613,17 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
   }
 
   Future<void> _publishHomework() async {
-    if (_titleController.text.trim().isEmpty ||
-        _homeworkController.text.trim().isEmpty ||
-        dueDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please fill all required fields"),
-          backgroundColor: Colors.red,
-        ),
-      );
+    // Validation
+    if (_titleController.text.trim().isEmpty) {
+      _showError("Please enter homework title");
+      return;
+    }
+    if (_homeworkController.text.trim().isEmpty) {
+      _showError("Please enter homework description");
+      return;
+    }
+    if (dueDate == null) {
+      _showError("Please select due date");
       return;
     }
 
@@ -507,128 +632,102 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
     try {
       final teacherUid = FirebaseAuth.instance.currentUser!.uid;
 
-      // Get teacher name
-      final teacherDoc = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('teachers')
-          .where('uid', isEqualTo: teacherUid)
-          .limit(1)
-          .get();
+      // Get teacher details
+      final teacherDoc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('teachers')
+              .doc(teacherUid)
+              .get();
 
-      String teacherName = "Teacher";
-      if (teacherDoc.docs.isNotEmpty) {
-        teacherName = teacherDoc.docs.first['name'] ?? "Teacher";
-      }
+      String teacherName =
+          teacherDoc.exists ? (teacherDoc['name'] ?? "Teacher") : "Teacher";
 
-      // Prepare due date timestamp
-      DateTime dueDateTime = dueDate!;
-      if (dueTime != null) {
-        dueDateTime = DateTime(
-          dueDate!.year,
-          dueDate!.month,
-          dueDate!.day,
-          dueTime!.hour,
-          dueTime!.minute,
-        );
-      }
+      // Create due date time
+      final dueDateTime = DateTime(
+        dueDate!.year,
+        dueDate!.month,
+        dueDate!.day,
+        dueTime?.hour ?? 23,
+        dueTime?.minute ?? 59,
+      );
 
       final homeworkData = {
         "title": _titleController.text.trim(),
         "description": _homeworkController.text.trim(),
-        "class": selectedClass,
+        "className": selectedClass,
         "section": selectedSection,
         "subject": selectedSubject,
-        "dueDate": DateFormat("yyyy-MM-dd").format(dueDate!),
-        "dueTime": dueTime != null ? "${dueTime!.hour.toString().padLeft(2, '0')}:${dueTime!.minute.toString().padLeft(2, '0')}" : null,
-        "dueDateTime": Timestamp.fromDate(dueDateTime),
+        "dueDate": Timestamp.fromDate(dueDateTime),
+        "dueTime":
+            dueTime != null
+                ? "${dueTime!.hour.toString().padLeft(2, '0')}:${dueTime!.minute.toString().padLeft(2, '0')}"
+                : null,
         "isUrgent": isUrgent,
         "createdAt": FieldValue.serverTimestamp(),
         "updatedAt": FieldValue.serverTimestamp(),
         "teacherId": teacherUid,
         "teacherName": teacherName,
+        "submittedBy": [],
+        "attachments": attachments,
         "schoolId": AppConfig.schoolId,
       };
 
       if (isEditing && editingHomeworkId != null) {
-        // Update existing homework
         await FirebaseFirestore.instance
             .collection('schools')
             .doc(AppConfig.schoolId)
             .collection('homework')
             .doc(editingHomeworkId)
             .update(homeworkData);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Homework updated successfully"),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        _showSuccess("Homework updated successfully");
       } else {
-        // Create new homework
         await FirebaseFirestore.instance
             .collection('schools')
             .doc(AppConfig.schoolId)
             .collection('homework')
             .add(homeworkData);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Homework published successfully"),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+        _showSuccess("Homework published successfully");
       }
 
       _clearForm();
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      debugPrint('Error publishing homework: $e');
+      _showError("Error: $e");
     } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
   Future<void> _deleteHomework() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Delete Homework"),
-        content: const Text("Are you sure you want to delete this homework?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text("Delete Homework"),
+            content: const Text(
+              "Are you sure you want to delete this homework?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text("Delete"),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Delete"),
-          ),
-        ],
-      ),
     );
 
     if (confirm == true && editingHomeworkId != null) {
       setState(() => isLoading = true);
-
       try {
         await FirebaseFirestore.instance
             .collection('schools')
@@ -636,29 +735,12 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
             .collection('homework')
             .doc(editingHomeworkId)
             .delete();
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Homework deleted successfully"),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.pop(context);
-        }
+        _showSuccess("Homework deleted successfully");
+        if (mounted) Navigator.pop(context);
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Error deleting homework: $e"),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        _showError("Error deleting homework: $e");
       } finally {
-        if (mounted) {
-          setState(() => isLoading = false);
-        }
+        if (mounted) setState(() => isLoading = false);
       }
     }
   }
@@ -676,5 +758,17 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
       selectedSection = "All Sections";
       selectedSubject = "Mathematics";
     });
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
+    );
   }
 }

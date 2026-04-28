@@ -42,7 +42,8 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
     setState(() => _isLoading = true);
 
     try {
-      final attendanceSnapshot = await FirebaseFirestore.instance
+      final attendanceSnapshot =
+      await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('attendance')
@@ -54,13 +55,18 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
       Map<String, int> monthlyLate = {};
       List<Map<String, dynamic>> allRecords = [];
 
-      for (var doc in attendanceSnapshot.docs) {
-        final date = doc.id;
-        final records = doc.data() as Map<String, dynamic>;
+      for (var dateDoc in attendanceSnapshot.docs) {
+        final date = dateDoc.id;
 
-        // Check if this student exists in this date's attendance
-        if (records.containsKey(widget.studentId)) {
-          final studentRecord = records[widget.studentId] as Map<String, dynamic>;
+        // Get the student's record for this date
+        final recordDoc =
+        await dateDoc.reference
+            .collection('records')
+            .doc(widget.studentId)
+            .get();
+
+        if (recordDoc.exists) {
+          final studentRecord = recordDoc.data()!;
           final status = studentRecord['status'] ?? 'Absent';
           final month = date.substring(0, 7);
 
@@ -115,7 +121,10 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading attendance: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error loading attendance: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -130,9 +139,11 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
           widget.studentName.isNotEmpty
               ? 'Attendance - ${widget.studentName}'
               : 'Attendance History',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
+        centerTitle: false,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
@@ -147,22 +158,21 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadAttendanceData,
+            tooltip: "Refresh",
           ),
           PopupMenuButton<String>(
             onSelected: (value) async {
               if (value == 'export') {
-                // TODO: Export to PDF
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Export feature coming soon')),
-                );
+                await _exportToPDF();
               }
             },
-            itemBuilder: (context) => [
+            itemBuilder:
+                (context) => [
               const PopupMenuItem(
                 value: 'export',
                 child: Row(
                   children: [
-                    Icon(Icons.download),
+                    Icon(Icons.download, size: 18),
                     SizedBox(width: 12),
                     Text('Export Report'),
                   ],
@@ -172,14 +182,12 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
           ),
         ],
       ),
-      body: _isLoading
+      body:
+      _isLoading
           ? const Center(child: CircularProgressIndicator())
           : TabBarView(
         controller: _tabController,
-        children: [
-          _buildMonthlyView(),
-          _buildAllRecordsView(),
-        ],
+        children: [_buildMonthlyView(), _buildAllRecordsView()],
       ),
     );
   }
@@ -207,22 +215,37 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Overall Stats Card
-          _buildOverallStatsCard(totalPresent, totalAbsent, totalLate, overallRate),
+          _buildOverallStatsCard(
+            totalPresent,
+            totalAbsent,
+            totalLate,
+            overallRate,
+          ),
           const SizedBox(height: 20),
-
-          // Attendance Chart
-          _buildAttendanceChart(monthlyPresent, monthlyAbsent, monthlyLate, months),
+          _buildAttendanceChart(
+            monthlyPresent,
+            monthlyAbsent,
+            monthlyLate,
+            months,
+          ),
           const SizedBox(height: 20),
-
-          // Monthly Breakdown
-          _buildMonthlyBreakdown(months, monthlyPresent, monthlyAbsent, monthlyLate),
+          _buildMonthlyBreakdown(
+            months,
+            monthlyPresent,
+            monthlyAbsent,
+            monthlyLate,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildOverallStatsCard(int present, int absent, int late, double rate) {
+  Widget _buildOverallStatsCard(
+      int present,
+      int absent,
+      int late,
+      double rate,
+      ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -290,32 +313,50 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
       final month = months[i];
       final presentCount = present[month]?.toDouble() ?? 0;
       final absentCount = absent[month]?.toDouble() ?? 0;
+      final lateCount = late[month]?.toDouble() ?? 0;
 
-      barGroups.add(
-        BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: presentCount,
-              color: Colors.green,
-              width: 20,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            BarChartRodData(
-              toY: absentCount,
-              color: Colors.red,
-              width: 20,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ],
-          barsSpace: 4,
-        ),
-      );
+      List<BarChartRodData> rods = [];
+
+      if (presentCount > 0) {
+        rods.add(
+          BarChartRodData(
+            toY: presentCount,
+            color: Colors.green,
+            width: 18,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        );
+      }
+
+      if (absentCount > 0) {
+        rods.add(
+          BarChartRodData(
+            toY: absentCount,
+            color: Colors.red,
+            width: 18,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        );
+      }
+
+      if (lateCount > 0) {
+        rods.add(
+          BarChartRodData(
+            toY: lateCount,
+            color: Colors.orange,
+            width: 18,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        );
+      }
+
+      barGroups.add(BarChartGroupData(x: i, barRods: rods, barsSpace: 2));
     }
 
     double maxY = 0;
     for (var month in months) {
-      final total = (present[month] ?? 0) + (absent[month] ?? 0);
+      final total =
+          (present[month] ?? 0) + (absent[month] ?? 0) + (late[month] ?? 0);
       if (total > maxY) maxY = total.toDouble();
     }
     maxY = maxY > 0 ? maxY + 2 : 10;
@@ -328,12 +369,12 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
         children: [
           const Text(
             'Monthly Attendance',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           const Text(
-            'Green: Present | Red: Absent',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+            'Green: Present | Red: Absent | Orange: Late',
+            style: TextStyle(fontSize: 11, color: Colors.grey),
           ),
           const SizedBox(height: 20),
           SizedBox(
@@ -350,7 +391,10 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                       showTitles: true,
                       reservedSize: 35,
                       getTitlesWidget: (value, meta) {
-                        return Text(value.toInt().toString(), style: const TextStyle(fontSize: 10));
+                        return Text(
+                          value.toInt().toString(),
+                          style: const TextStyle(fontSize: 9),
+                        );
                       },
                     ),
                   ),
@@ -361,14 +405,21 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                         int index = value.toInt();
                         if (index >= 0 && index < months.length) {
                           DateTime date = DateTime.parse('${months[index]}-01');
-                          return Text(DateFormat('MMM').format(date), style: const TextStyle(fontSize: 10));
+                          return Text(
+                            DateFormat('MMM').format(date),
+                            style: const TextStyle(fontSize: 9),
+                          );
                         }
                         return const Text('');
                       },
                     ),
                   ),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 gridData: const FlGridData(show: true),
                 borderData: FlBorderData(show: true),
@@ -379,9 +430,10 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                       final month = months[groupIndex];
                       final presentCount = present[month] ?? 0;
                       final absentCount = absent[month] ?? 0;
+                      final lateCount = late[month] ?? 0;
                       return BarTooltipItem(
-                        '$month\nPresent: $presentCount\nAbsent: $absentCount',
-                        const TextStyle(color: Colors.white, fontSize: 11),
+                        '$month\nPresent: $presentCount\nAbsent: $absentCount\nLate: $lateCount',
+                        const TextStyle(color: Colors.white, fontSize: 10),
                       );
                     },
                   ),
@@ -408,7 +460,7 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
         children: [
           const Text(
             'Monthly Breakdown',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           ListView.separated(
@@ -428,18 +480,33 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
               String monthName = DateFormat('MMMM yyyy').format(date);
 
               return ListTile(
+                contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(
-                  backgroundColor: rate >= 75 ? Colors.green.shade100 : Colors.orange.shade100,
+                  radius: 18,
+                  backgroundColor:
+                  rate >= 75
+                      ? Colors.green.shade100
+                      : Colors.orange.shade100,
                   child: Text(
                     '${presentCount + absentCount}',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
+                      fontSize: 12,
                       color: rate >= 75 ? Colors.green : Colors.orange,
                     ),
                   ),
                 ),
-                title: Text(monthName),
-                subtitle: Text('Present: $presentCount | Absent: $absentCount'),
+                title: Text(
+                  monthName,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                subtitle: Text(
+                  'Present: $presentCount | Absent: $absentCount',
+                  style: const TextStyle(fontSize: 11),
+                ),
                 trailing: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -447,13 +514,17 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                       '${rate.toStringAsFixed(1)}%',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
+                        fontSize: 13,
                         color: rate >= 75 ? Colors.green : Colors.orange,
                       ),
                     ),
                     if (lateCount > 0)
                       Text(
                         '$lateCount late',
-                        style: const TextStyle(fontSize: 10, color: Colors.orange),
+                        style: const TextStyle(
+                          fontSize: 9,
+                          color: Colors.orange,
+                        ),
                       ),
                   ],
                 ),
@@ -466,7 +537,9 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
   }
 
   Widget _buildAllRecordsView() {
-    final allRecords = List<Map<String, dynamic>>.from(_attendanceData['allRecords'] ?? []);
+    final allRecords = List<Map<String, dynamic>>.from(
+      _attendanceData['allRecords'] ?? [],
+    );
 
     if (allRecords.isEmpty) {
       return _buildEmptyState();
@@ -483,41 +556,56 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
         final checkOutTime = record['checkOutTime'];
         final remark = record['remark'];
 
-        Color statusColor;
-        IconData statusIcon;
-        if (status == 'Present') {
-          statusColor = Colors.green;
-          statusIcon = Icons.check_circle;
-        } else if (status == 'Absent') {
-          statusColor = Colors.red;
-          statusIcon = Icons.cancel;
-        } else if (status == 'Late') {
-          statusColor = Colors.orange;
-          statusIcon = Icons.access_time;
-        } else {
-          statusColor = Colors.grey;
-          statusIcon = Icons.help_outline;
+        Color getStatusColor() {
+          switch (status) {
+            case 'Present':
+              return Colors.green;
+            case 'Absent':
+              return Colors.red;
+            case 'Late':
+              return Colors.orange;
+            default:
+              return Colors.grey;
+          }
+        }
+
+        IconData getStatusIcon() {
+          switch (status) {
+            case 'Present':
+              return Icons.check_circle;
+            case 'Absent':
+              return Icons.cancel;
+            case 'Late':
+              return Icons.access_time;
+            default:
+              return Icons.help_outline;
+          }
         }
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
-          elevation: 2,
+          elevation: 1,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: InkWell(
             onTap: () => _showRecordDetails(record),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       CircleAvatar(
-                        backgroundColor: statusColor.withValues(alpha: 0.1),
-                        child: Icon(statusIcon, color: statusColor),
+                        radius: 18,
+                        backgroundColor: getStatusColor().withOpacity(0.1),
+                        child: Icon(
+                          getStatusIcon(),
+                          color: getStatusColor(),
+                          size: 18,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -527,33 +615,37 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                             Text(
                               DateFormat('EEEE, dd MMMM yyyy').format(date),
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
                               status,
                               style: TextStyle(
-                                color: statusColor,
+                                color: getStatusColor(),
                                 fontWeight: FontWeight.w500,
+                                fontSize: 11,
                               ),
                             ),
                           ],
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
+                          color: getStatusColor().withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
                           status,
                           style: TextStyle(
-                            color: statusColor,
+                            color: getStatusColor(),
                             fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                            fontSize: 10,
                           ),
                         ),
                       ),
@@ -561,16 +653,26 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                   ),
                   if (checkInTime != null || checkOutTime != null)
                     Padding(
-                      padding: const EdgeInsets.only(top: 12),
+                      padding: const EdgeInsets.only(top: 10),
                       child: Row(
                         children: [
                           if (checkInTime != null)
                             Expanded(
                               child: Row(
                                 children: [
-                                  Icon(Icons.login, size: 14, color: Colors.grey),
+                                  Icon(
+                                    Icons.login,
+                                    size: 12,
+                                    color: Colors.grey,
+                                  ),
                                   const SizedBox(width: 4),
-                                  Text('In: $checkInTime', style: const TextStyle(fontSize: 12)),
+                                  Text(
+                                    'In: $checkInTime',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -578,9 +680,19 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                             Expanded(
                               child: Row(
                                 children: [
-                                  Icon(Icons.logout, size: 14, color: Colors.grey),
+                                  Icon(
+                                    Icons.logout,
+                                    size: 12,
+                                    color: Colors.grey,
+                                  ),
                                   const SizedBox(width: 4),
-                                  Text('Out: $checkOutTime', style: const TextStyle(fontSize: 12)),
+                                  Text(
+                                    'Out: $checkOutTime',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -589,7 +701,7 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                     ),
                   if (remark != null && remark.isNotEmpty)
                     Padding(
-                      padding: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.only(top: 10),
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
@@ -598,9 +710,14 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.comment, size: 14, color: Colors.orange),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text(remark, style: const TextStyle(fontSize: 12))),
+                            Icon(Icons.comment, size: 12, color: Colors.orange),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                remark,
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -626,7 +743,8 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
+      builder:
+          (context) => Container(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -648,13 +766,27 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: status == 'Present' ? Colors.green.shade100 : Colors.red.shade100,
+                    color:
+                    status == 'Present'
+                        ? Colors.green.shade100
+                        : (status == 'Late'
+                        ? Colors.orange.shade100
+                        : Colors.red.shade100),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
-                    status == 'Present' ? Icons.check_circle : Icons.cancel,
-                    color: status == 'Present' ? Colors.green : Colors.red,
-                    size: 30,
+                    status == 'Present'
+                        ? Icons.check_circle
+                        : (status == 'Late'
+                        ? Icons.access_time
+                        : Icons.cancel),
+                    color:
+                    status == 'Present'
+                        ? Colors.green
+                        : (status == 'Late'
+                        ? Colors.orange
+                        : Colors.red),
+                    size: 28,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -664,13 +796,21 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                     children: [
                       Text(
                         DateFormat('EEEE, dd MMMM yyyy').format(date),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
                         status,
                         style: TextStyle(
-                          fontSize: 14,
-                          color: status == 'Present' ? Colors.green : Colors.red,
+                          fontSize: 13,
+                          color:
+                          status == 'Present'
+                              ? Colors.green
+                              : (status == 'Late'
+                              ? Colors.orange
+                              : Colors.red),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -679,11 +819,14 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             const Divider(),
-            if (checkInTime != null) _DetailRow(label: 'Check In Time', value: checkInTime),
-            if (checkOutTime != null) _DetailRow(label: 'Check Out Time', value: checkOutTime),
-            if (remark != null && remark.isNotEmpty) _DetailRow(label: 'Remark', value: remark),
+            if (checkInTime != null && checkInTime.isNotEmpty)
+              _DetailRow(label: 'Check In Time', value: checkInTime),
+            if (checkOutTime != null && checkOutTime.isNotEmpty)
+              _DetailRow(label: 'Check Out Time', value: checkOutTime),
+            if (remark != null && remark.isNotEmpty)
+              _DetailRow(label: 'Remark', value: remark),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -715,14 +858,41 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
           const SizedBox(height: 16),
           Text(
             'No attendance records found',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Attendance history will appear here',
             style: TextStyle(color: Colors.grey.shade500),
           ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: _loadAttendanceData,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Refresh'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _exportToPDF() async {
+    // TODO: Implement PDF export
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('PDF Export feature coming soon'),
+        backgroundColor: Colors.orange,
       ),
     );
   }
@@ -730,11 +900,11 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
-          blurRadius: 8,
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 6,
           offset: const Offset(0, 2),
         ),
       ],
@@ -759,13 +929,13 @@ class _StatsItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, color: color, size: 20),
+        Icon(icon, color: color, size: 18),
         const SizedBox(height: 4),
         Text(
           value,
           style: TextStyle(
             color: Colors.white,
-            fontSize: 18,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -782,29 +952,26 @@ class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _DetailRow({
-    required this.label,
-    required this.value,
-  });
+  const _DetailRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 100,
+            width: 95,
             child: Text(
               label,
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(fontWeight: FontWeight.w500),
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
             ),
           ),
         ],
