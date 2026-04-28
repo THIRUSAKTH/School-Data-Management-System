@@ -12,7 +12,7 @@ class RoleSelectScreen extends StatelessWidget {
       "text": "Sign in as Admin",
     },
     {
-      "color": Colors.blueAccent,
+      "color": Colors.green,
       "role": "Teacher",
       "roleDescription": "Manage classes & student progress",
       "text": "Sign in as Teacher",
