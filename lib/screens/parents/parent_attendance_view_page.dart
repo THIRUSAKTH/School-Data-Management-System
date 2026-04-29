@@ -47,7 +47,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     setState(() => _isLoading = true);
 
     try {
-      // Get all attendance date documents
       final attendanceDates =
           await FirebaseFirestore.instance
               .collection('schools')
@@ -59,14 +58,10 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
 
       for (var dateDoc in attendanceDates.docs) {
         final date = dateDoc.id;
-
-        // Get the record for this student on this date using studentId as document ID
         final recordDoc =
             await dateDoc.reference
                 .collection('records')
-                .doc(
-                  widget.studentId,
-                ) // This must match the document ID in the records collection
+                .doc(widget.studentId)
                 .get();
 
         if (recordDoc.exists) {

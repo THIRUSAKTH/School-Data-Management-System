@@ -595,10 +595,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-
-    if (picked != null) {
-      setState(() => dueDate = picked);
-    }
+    if (picked != null) setState(() => dueDate = picked);
   }
 
   Future<void> _pickTime() async {
@@ -606,14 +603,10 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
       context: context,
       initialTime: dueTime ?? const TimeOfDay(hour: 16, minute: 0),
     );
-
-    if (picked != null) {
-      setState(() => dueTime = picked);
-    }
+    if (picked != null) setState(() => dueTime = picked);
   }
 
   Future<void> _publishHomework() async {
-    // Validation
     if (_titleController.text.trim().isEmpty) {
       _showError("Please enter homework title");
       return;
@@ -632,7 +625,6 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
     try {
       final teacherUid = FirebaseAuth.instance.currentUser!.uid;
 
-      // Get teacher details
       final teacherDoc =
           await FirebaseFirestore.instance
               .collection('schools')
@@ -644,7 +636,6 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
       String teacherName =
           teacherDoc.exists ? (teacherDoc['name'] ?? "Teacher") : "Teacher";
 
-      // Create due date time
       final dueDateTime = DateTime(
         dueDate!.year,
         dueDate!.month,

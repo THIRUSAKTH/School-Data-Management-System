@@ -76,7 +76,6 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
               _attendance[studentId] = true;
               _isLate[studentId] = true;
               _lateReasons[studentId] = data['remark'] ?? '';
-
               if (data['checkInTime'] != null) {
                 final timeParts = data['checkInTime'].split(':');
                 if (timeParts.length == 2) {

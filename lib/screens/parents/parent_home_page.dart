@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
-import 'package:schoolprojectjan/screens/parents/attendance_view_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_attendance_view_page.dart';
 import 'package:schoolprojectjan/screens/parents/fee_history_page.dart';
 import 'package:schoolprojectjan/screens/parents/fee_status_page.dart';
 import 'package:schoolprojectjan/screens/parents/homework_view_page.dart';

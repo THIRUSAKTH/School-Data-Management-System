@@ -38,12 +38,12 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
     final parentUid = FirebaseAuth.instance.currentUser!.uid;
 
     final studentsSnapshot =
-    await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(AppConfig.schoolId)
-        .collection('students')
-        .where('parentUid', isEqualTo: parentUid)
-        .get();
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('students')
+            .where('parentUid', isEqualTo: parentUid)
+            .get();
 
     _childrenList = studentsSnapshot.docs;
 
@@ -52,16 +52,14 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
       return;
     }
 
-    // Find the target student
     QueryDocumentSnapshot targetStudent;
 
     if (widget.studentId != null && widget.studentId!.isNotEmpty) {
       try {
         targetStudent = _childrenList.firstWhere(
-              (s) => s.id == widget.studentId!,
+          (s) => s.id == widget.studentId!,
         );
       } catch (e) {
-        // If specified student not found, use first child
         targetStudent = _childrenList.first;
       }
     } else {
@@ -107,16 +105,16 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
         ],
       ),
       body:
-      _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _selectedStudentId == null
-          ? _buildNoChildrenWidget()
-          : Column(
-        children: [
-          if (_childrenList.length > 1) _buildChildSelector(),
-          Expanded(child: _buildHomeworkList()),
-        ],
-      ),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _selectedStudentId == null
+              ? _buildNoChildrenWidget()
+              : Column(
+                children: [
+                  if (_childrenList.length > 1) _buildChildSelector(),
+                  Expanded(child: _buildHomeworkList()),
+                ],
+              ),
     );
   }
 
@@ -177,24 +175,24 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
                 isExpanded: true,
                 icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
                 items:
-                _childrenList.map((student) {
-                  final data = student.data() as Map<String, dynamic>;
-                  return DropdownMenuItem(
-                    value: student.id,
-                    child: Text(
-                      data['name'] ?? 'Student',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                    ),
-                  );
-                }).toList(),
+                    _childrenList.map((student) {
+                      final data = student.data() as Map<String, dynamic>;
+                      return DropdownMenuItem(
+                        value: student.id,
+                        child: Text(
+                          data['name'] ?? 'Student',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        ),
+                      );
+                    }).toList(),
                 onChanged: (value) async {
                   if (value == null) return;
                   setState(() => _isLoading = true);
                   final student = _childrenList.firstWhere(
-                        (s) => s.id == value,
+                    (s) => s.id == value,
                   );
                   final data = student.data() as Map<String, dynamic>;
                   setState(() {
@@ -220,14 +218,14 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
 
     return StreamBuilder<QuerySnapshot>(
       stream:
-      FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('homework')
-          .where('className', isEqualTo: _studentClass)
-          .where('section', isEqualTo: _studentSection)
-          .orderBy('dueDate', descending: false)
-          .snapshots(),
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('homework')
+              .where('className', isEqualTo: _studentClass)
+              .where('section', isEqualTo: _studentSection)
+              .orderBy('dueDate', descending: false)
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -305,17 +303,13 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
       DateTime dueDateTime;
       if (dueDate is Timestamp) {
         dueDateTime = dueDate.toDate();
-      } else if (dueDate is String) {
-        dueDateTime = DateTime.parse(dueDate);
       } else {
-        dueDateTime = DateTime.now().subtract(const Duration(days: 1));
+        dueDateTime = DateTime.parse(dueDate.toString());
       }
-
       if (dueDateTime.isBefore(DateTime.now())) {
         return "Overdue";
       }
     }
-
     return "Pending";
   }
 }
@@ -392,7 +386,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Urgent Banner
               if (widget.isUrgent)
                 Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -426,7 +419,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   ),
                 ),
 
-              // Subject + Status
               Row(
                 children: [
                   Container(
@@ -482,7 +474,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
 
               const SizedBox(height: 12),
 
-              // Description
               Text(
                 widget.description,
                 style: const TextStyle(
@@ -492,10 +483,9 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                 ),
                 maxLines: _isExpanded ? null : 3,
                 overflow:
-                _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                    _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
               ),
 
-              // Read More/Less
               if (widget.description.length > 120)
                 TextButton(
                   onPressed: () => setState(() => _isExpanded = !_isExpanded),
@@ -515,7 +505,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
 
               const SizedBox(height: 12),
 
-              // Due Date & Time
               Row(
                 children: [
                   Icon(
@@ -530,7 +519,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                       fontSize: 12,
                       color: isOverdue ? Colors.red : Colors.grey,
                       fontWeight:
-                      isOverdue ? FontWeight.w500 : FontWeight.normal,
+                          isOverdue ? FontWeight.w500 : FontWeight.normal,
                     ),
                   ),
                   if (widget.dueTime != null) ...[
@@ -547,7 +536,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
 
               const SizedBox(height: 8),
 
-              // Teacher Name
               Row(
                 children: [
                   Icon(Icons.person_outline, size: 12, color: Colors.grey),
@@ -559,7 +547,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                 ],
               ),
 
-              // Attachments
               if (widget.attachments.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 const Divider(),
@@ -568,31 +555,30 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   spacing: 8,
                   runSpacing: 8,
                   children:
-                  widget.attachments
-                      .map((attachment) => _buildAttachmentChip(attachment))
-                      .toList(),
+                      widget.attachments
+                          .map((attachment) => _buildAttachmentChip(attachment))
+                          .toList(),
                 ),
               ],
 
               const SizedBox(height: 16),
 
-              // Submit Button
               if (!isSubmitted && !isOverdue)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _isSubmitting ? null : _submitHomework,
                     icon:
-                    _isSubmitting
-                        ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                        : const Icon(Icons.check, size: 18),
+                        _isSubmitting
+                            ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                            : const Icon(Icons.check, size: 18),
                     label: Text(
                       _isSubmitting ? "Submitting..." : "Mark as Completed",
                     ),
@@ -607,7 +593,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   ),
                 ),
 
-              // Submitted Status
               if (isSubmitted)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -636,7 +621,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   ),
                 ),
 
-              // Overdue Status
               if (isOverdue && !isSubmitted)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -752,64 +736,61 @@ class _HomeworkCardState extends State<_HomeworkCard> {
       ),
       builder:
           (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.attach_file, size: 56, color: Colors.orange),
-            const SizedBox(height: 16),
-            Text(
-              attachment['name'] ?? 'Attachment',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              "Tap to download or view",
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 24),
-            Row(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                    label: const Text("Close"),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
+                const Icon(Icons.attach_file, size: 56, color: Colors.orange),
+                const SizedBox(height: 16),
+                Text(
+                  attachment['name'] ?? 'Attachment',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      // TODO: Implement download
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.download),
-                    label: const Text("Download"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                const SizedBox(height: 8),
+                const Text(
+                  "Tap to download or view",
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                        label: const Text("Close"),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.download),
+                        label: const Text("Download"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
