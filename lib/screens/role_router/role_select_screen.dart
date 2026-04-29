@@ -65,10 +65,10 @@ class RoleSelectScreen extends StatelessWidget {
                     ),
 
                     const SizedBox(height: 6),
+                const Text(
+                  "Select your role to continue",
 
-                    const Text(
-                      "Select your role to continue",
-                      style: TextStyle(color: Colors.white),
+                     style: TextStyle(color: Colors.white),
                     ),
 
                     const SizedBox(height: 30),
