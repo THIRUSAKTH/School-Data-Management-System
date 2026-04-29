@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:schoolprojectjan/app_config.dart';
@@ -48,7 +47,7 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     setState(() => _isLoading = true);
 
     try {
-      // CORRECTED PATH: Fetch from attendance/{date}/records/{studentId}
+      // Get all attendance date documents
       final attendanceDates =
           await FirebaseFirestore.instance
               .collection('schools')
@@ -59,13 +58,15 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
       List<Map<String, dynamic>> records = [];
 
       for (var dateDoc in attendanceDates.docs) {
-        final date = dateDoc.id; // Document ID is the date (YYYY-MM-DD)
+        final date = dateDoc.id;
 
-        // Get the record for this student on this date
+        // Get the record for this student on this date using studentId as document ID
         final recordDoc =
             await dateDoc.reference
                 .collection('records')
-                .doc(widget.studentId)
+                .doc(
+                  widget.studentId,
+                ) // This must match the document ID in the records collection
                 .get();
 
         if (recordDoc.exists) {
@@ -76,13 +77,10 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
             'remark': data['remark'] ?? '',
             'checkInTime': data['checkInTime'] ?? '',
             'checkOutTime': data['checkOutTime'] ?? '',
-            'markedAt': data['markedAt'],
-            'markedBy': data['markedBy'],
           });
         }
       }
 
-      // Sort by date (newest first)
       records.sort((a, b) => b['date'].compareTo(a['date']));
 
       setState(() {
@@ -92,15 +90,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     } catch (e) {
       debugPrint('Error fetching attendance: $e');
       setState(() => _isLoading = false);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error loading attendance: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
     }
   }
 
@@ -126,7 +115,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _fetchAttendance,
-            tooltip: "Refresh",
           ),
         ],
       ),
@@ -199,7 +187,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     return RefreshIndicator(
       onRefresh: _fetchAttendance,
       child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
@@ -236,8 +223,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Colors.orange, Colors.deepOrange],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
@@ -329,16 +314,18 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
                       ? _selectedMonth
                       : availableMonths.first,
               items:
-                  availableMonths.map((month) {
-                    return DropdownMenuItem(
-                      value: month,
-                      child: Text(
-                        DateFormat(
-                          'MMMM yyyy',
-                        ).format(DateTime.parse('$month-01')),
-                      ),
-                    );
-                  }).toList(),
+                  availableMonths
+                      .map(
+                        (month) => DropdownMenuItem(
+                          value: month,
+                          child: Text(
+                            DateFormat(
+                              'MMMM yyyy',
+                            ).format(DateTime.parse('$month-01')),
+                          ),
+                        ),
+                      )
+                      .toList(),
               onChanged: (value) => setState(() => _selectedMonth = value!),
               decoration: const InputDecoration(
                 border: InputBorder.none,
@@ -437,9 +424,8 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     }
 
     Map<String, String> statusMap = {};
-    for (var record in _attendanceRecords) {
+    for (var record in _attendanceRecords)
       statusMap[record['date']] = record['status'];
-    }
 
     List<BarChartGroupData> barGroups = [];
     for (int i = 0; i < last7Days.length; i++) {
@@ -492,14 +478,13 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         int index = value.toInt();
-                        if (index >= 0 && index < last7Days.length) {
+                        if (index >= 0 && index < last7Days.length)
                           return Text(
                             DateFormat(
                               'E',
                             ).format(DateTime.parse(last7Days[index])),
                             style: const TextStyle(fontSize: 8),
                           );
-                        }
                         return const Text('');
                       },
                     ),
