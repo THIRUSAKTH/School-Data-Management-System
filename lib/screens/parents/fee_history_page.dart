@@ -236,6 +236,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
     );
   }
 
+  // FIXED: Removed orderBy to avoid index requirement
   Widget _buildAllFeesTab() {
     if (_selectedStudentId == null) {
       return const Center(child: Text("Select a student to view fees"));
@@ -248,7 +249,6 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
               .doc(AppConfig.schoolId)
               .collection('student_fees')
               .where('studentId', isEqualTo: _selectedStudentId)
-              .orderBy('dueDate', descending: true)
               .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -268,8 +268,8 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  snapshot.error.toString(),
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  "Please create Firebase index or contact admin",
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -306,6 +306,17 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
         }
 
         final fees = snapshot.data!.docs;
+        // Sort client-side
+        fees.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aDate = aData['dueDate'] as Timestamp?;
+          final bDate = bData['dueDate'] as Timestamp?;
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return bDate.toDate().compareTo(aDate.toDate());
+        });
 
         return RefreshIndicator(
           onRefresh: () async => setState(() {}),
@@ -512,6 +523,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
     );
   }
 
+  // FIXED: Removed orderBy to avoid index requirement
   Widget _buildSummaryTab() {
     if (_selectedStudentId == null) {
       return const Center(child: Text("Select a student to view summary"));
@@ -590,7 +602,6 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
         final collectionRate =
             totalAmount > 0 ? (totalPaid / totalAmount) * 100 : 0.0;
 
-        // Manual search for student
         Map<String, dynamic>? student;
         for (var s in _students) {
           if (s['id'] == _selectedStudentId) {

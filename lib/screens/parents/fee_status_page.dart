@@ -19,6 +19,7 @@ class _FeeStatusPageState extends State<FeeStatusPage> {
   List<Map<String, dynamic>> _students = [];
   bool _isLoading = true;
   String _errorMessage = '';
+  bool _hasIndexError = false;
 
   @override
   void initState() {
@@ -30,6 +31,7 @@ class _FeeStatusPageState extends State<FeeStatusPage> {
     setState(() {
       _isLoading = true;
       _errorMessage = '';
+      _hasIndexError = false;
     });
 
     try {
@@ -215,6 +217,7 @@ class _FeeStatusPageState extends State<FeeStatusPage> {
     );
   }
 
+  // FIXED: Removed orderBy to avoid index requirement
   Widget _buildFeeContent() {
     if (_selectedStudentId == null) {
       return const Center(child: Text("Select a student to view fee status"));
@@ -227,7 +230,6 @@ class _FeeStatusPageState extends State<FeeStatusPage> {
               .doc(AppConfig.schoolId)
               .collection('student_fees')
               .where('studentId', isEqualTo: _selectedStudentId)
-              .orderBy('dueDate', descending: false)
               .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -235,6 +237,11 @@ class _FeeStatusPageState extends State<FeeStatusPage> {
         }
 
         if (snapshot.hasError) {
+          final errorMsg = snapshot.error.toString();
+          final isIndexError =
+              errorMsg.contains('index') ||
+              errorMsg.contains('FAILED_PRECONDITION');
+
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -247,15 +254,45 @@ class _FeeStatusPageState extends State<FeeStatusPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  snapshot.error.toString(),
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  isIndexError
+                      ? "Please create Firebase index or contact administrator"
+                      : errorMsg,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                   textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: 16),
+                if (isIndexError)
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Column(
+                      children: [
+                        Icon(Icons.build, color: Colors.blue),
+                        SizedBox(height: 8),
+                        Text(
+                          "Firestore index required.\nTap Retry and follow the link to create index.",
+                          style: TextStyle(fontSize: 11, color: Colors.blue),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: () => _loadStudents(),
                   icon: const Icon(Icons.refresh),
                   label: const Text("Retry"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -286,9 +323,9 @@ class _FeeStatusPageState extends State<FeeStatusPage> {
 
         final fees = snapshot.data!.docs;
 
+        // Calculate totals
         double totalAmount = 0;
         double totalPaid = 0;
-
         for (var doc in fees) {
           final data = doc.data() as Map<String, dynamic>;
           final amount = (data['amount'] ?? 0).toDouble();
@@ -297,6 +334,18 @@ class _FeeStatusPageState extends State<FeeStatusPage> {
           totalPaid += paidAmount;
         }
         final totalPending = totalAmount - totalPaid;
+
+        // Sort client-side by due date
+        fees.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aDate = aData['dueDate'] as Timestamp?;
+          final bDate = bData['dueDate'] as Timestamp?;
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return aDate.toDate().compareTo(bDate.toDate());
+        });
 
         return RefreshIndicator(
           onRefresh: () async => setState(() {}),
@@ -328,6 +377,7 @@ class _FeeStatusPageState extends State<FeeStatusPage> {
 
   Widget _buildSummaryCard(double total, double pending) {
     final isAllPaid = pending == 0;
+    final paid = total - pending;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -388,33 +438,60 @@ class _FeeStatusPageState extends State<FeeStatusPage> {
             ],
           ),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  isAllPaid ? Icons.check_circle : Icons.pending,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    isAllPaid
-                        ? "All fees cleared! 🎉"
-                        : "Pending Amount: ₹${pending.toStringAsFixed(0)}",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        "Paid",
+                        style: TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                      Text(
+                        "₹${paid.toStringAsFixed(0)}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        "Pending",
+                        style: TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                      Text(
+                        "₹${pending.toStringAsFixed(0)}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -737,11 +814,11 @@ class _FeeStatusPageState extends State<FeeStatusPage> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            title: Row(
+            title: const Row(
               children: [
-                const Icon(Icons.payment, color: Colors.deepPurple),
-                const SizedBox(width: 8),
-                const Text("Make Payment"),
+                Icon(Icons.payment, color: Colors.deepPurple),
+                SizedBox(width: 8),
+                Text("Make Payment"),
               ],
             ),
             content: Column(
