@@ -16,6 +16,9 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
   String _selectedFilter = "all";
   bool _isLoading = false;
 
+  // Store response text for each complaint
+  final Map<String, TextEditingController> _responseControllers = {};
+
   final List<String> _statusFilters = [
     "all",
     "pending",
@@ -33,7 +36,22 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
   @override
   void dispose() {
     _tabController.dispose();
+    for (var controller in _responseControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
+  }
+
+  TextEditingController _getResponseController(
+    String complaintId,
+    String? initialValue,
+  ) {
+    if (!_responseControllers.containsKey(complaintId)) {
+      _responseControllers[complaintId] = TextEditingController(
+        text: initialValue ?? '',
+      );
+    }
+    return _responseControllers[complaintId]!;
   }
 
   @override
@@ -228,7 +246,7 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
               selectedColor: filter['color'] as Color,
               checkmarkColor: Colors.white,
               side: BorderSide(
-                color: (filter['color'] as Color).withValues(alpha: 0.3),
+                color: (filter['color'] as Color).withOpacity(0.3),
               ),
               shape: const StadiumBorder(),
             ),
@@ -242,191 +260,223 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
     final status = data['status'] ?? 'pending';
     final createdAt = data['createdAt'] as Timestamp?;
     final statusConfig = _getStatusConfig(status);
+    final responseController = _getResponseController(
+      complaintId,
+      data['response'],
+    );
+    bool isProcessing = false;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side:
-            status == 'pending'
-                ? BorderSide(color: Colors.orange.shade300, width: 1.5)
-                : BorderSide.none,
-      ),
-      child: ExpansionTile(
-        leading: CircleAvatar(
-          backgroundColor: statusConfig['color'].withValues(alpha: 0.1),
-          child: Icon(
-            statusConfig['icon'],
-            color: statusConfig['color'],
-            size: 20,
+    return StatefulBuilder(
+      builder: (context, setStateCard) {
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side:
+                status == 'pending'
+                    ? BorderSide(color: Colors.orange.shade300, width: 1.5)
+                    : BorderSide.none,
           ),
-        ),
-        title: Text(
-          data['title'] ?? 'Complaint',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "${data['studentName']} (${data['studentClass']}-${data['studentSection']})",
-              style: const TextStyle(fontSize: 12),
+          child: ExpansionTile(
+            leading: CircleAvatar(
+              backgroundColor: statusConfig['color'].withOpacity(0.1),
+              child: Icon(
+                statusConfig['icon'],
+                color: statusConfig['color'],
+                size: 20,
+              ),
             ),
-            Text(
-              data['category'] ?? 'General',
-              style: TextStyle(fontSize: 10, color: Colors.orange.shade700),
+            title: Text(
+              data['title'] ?? 'Complaint',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
             ),
-          ],
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: statusConfig['color'].withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            statusConfig['label'],
-            style: TextStyle(
-              color: statusConfig['color'],
-              fontWeight: FontWeight.bold,
-              fontSize: 10,
-            ),
-          ),
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+            subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Complaint Details
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Complaint Details",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        data['description'] ?? 'No description',
-                        style: const TextStyle(fontSize: 13, height: 1.4),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "Submitted: ${createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(createdAt.toDate()) : 'Unknown'}",
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
+                Text(
+                  "${data['studentName']} (${data['studentClass'] ?? 'N/A'}-${data['studentSection'] ?? 'N/A'})",
+                  style: const TextStyle(fontSize: 12),
                 ),
-                const SizedBox(height: 16),
-
-                // Response Section
-                const Text(
-                  "Response",
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  initialValue: data['response'] ?? '',
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    hintText: "Type your response here...",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                  ),
-                  onChanged: (value) {
-                    // Store response temporarily
-                  },
-                ),
-                const SizedBox(height: 12),
-
-                // Status Dropdown
-                DropdownButtonFormField<String>(
-                  value: status,
-                  decoration: InputDecoration(
-                    labelText: "Update Status",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  items: [
-                    DropdownMenuItem(
-                      value: 'pending',
-                      child: Text(
-                        'Pending',
-                        style: TextStyle(color: Colors.orange),
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'in_progress',
-                      child: Text(
-                        'In Progress',
-                        style: TextStyle(color: Colors.blue),
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'resolved',
-                      child: Text(
-                        'Resolved',
-                        style: TextStyle(color: Colors.green),
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'rejected',
-                      child: Text(
-                        'Rejected',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                  onChanged: (newStatus) {
-                    if (newStatus != null) {
-                      _updateComplaintStatus(complaintId, newStatus);
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Submit Response Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _submitResponse(complaintId, data),
-                    icon: const Icon(Icons.send, size: 18),
-                    label: const Text("Send Response"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
+                Text(
+                  data['category'] ?? 'General',
+                  style: TextStyle(fontSize: 10, color: Colors.orange.shade700),
                 ),
               ],
             ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusConfig['color'].withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                statusConfig['label'],
+                style: TextStyle(
+                  color: statusConfig['color'],
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Complaint Details
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Complaint Details",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            data['description'] ?? 'No description',
+                            style: const TextStyle(fontSize: 13, height: 1.4),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Submitted: ${createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(createdAt.toDate()) : 'Unknown'}",
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Response Section
+                    const Text(
+                      "Response",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: responseController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: "Type your response here...",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Status Dropdown
+                    DropdownButtonFormField<String>(
+                      value: status,
+                      decoration: InputDecoration(
+                        labelText: "Update Status",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: 'pending',
+                          child: Text(
+                            'Pending',
+                            style: TextStyle(color: Colors.orange),
+                          ),
+                        ),
+                        const DropdownMenuItem(
+                          value: 'in_progress',
+                          child: Text(
+                            'In Progress',
+                            style: TextStyle(color: Colors.blue),
+                          ),
+                        ),
+                        const DropdownMenuItem(
+                          value: 'resolved',
+                          child: Text(
+                            'Resolved',
+                            style: TextStyle(color: Colors.green),
+                          ),
+                        ),
+                        const DropdownMenuItem(
+                          value: 'rejected',
+                          child: Text(
+                            'Rejected',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                      onChanged: (newStatus) {
+                        if (newStatus != null) {
+                          _updateComplaintStatus(complaintId, newStatus);
+                          setStateCard(() {});
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Submit Response Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed:
+                            isProcessing
+                                ? null
+                                : () async {
+                                  setStateCard(() => isProcessing = true);
+                                  await _submitResponse(
+                                    complaintId,
+                                    responseController.text.trim(),
+                                    status,
+                                  );
+                                  setStateCard(() => isProcessing = false);
+                                },
+                        icon:
+                            isProcessing
+                                ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Icon(Icons.send, size: 18),
+                        label: Text(
+                          isProcessing ? "Sending..." : "Send Response",
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -465,20 +515,34 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
 
   Future<void> _submitResponse(
     String complaintId,
-    Map<String, dynamic> currentData,
+    String response,
+    String currentStatus,
   ) async {
-    _isLoading = true;
-    setState(() {});
+    if (response.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please enter a response before sending"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     try {
+      // Determine new status (if resolved, set to resolved)
+      String newStatus = currentStatus;
+      if (currentStatus == 'pending' || currentStatus == 'in_progress') {
+        newStatus = 'resolved';
+      }
+
       await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('complaints')
           .doc(complaintId)
           .update({
-            'response': currentData['response'] ?? 'No response provided',
-            'status': 'resolved',
+            'response': response,
+            'status': newStatus,
             'respondedBy': 'Admin',
             'respondedAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
@@ -499,9 +563,6 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
           SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
         );
       }
-    } finally {
-      _isLoading = false;
-      setState(() {});
     }
   }
 
@@ -661,7 +722,7 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -704,7 +765,7 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
