@@ -57,7 +57,7 @@ class RoleSelectScreen extends StatelessWidget {
                       child: Text(
                         "School Management System",
                         style: TextStyle(
-                          fontSize: 25,
+                          fontSize: 26,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
