@@ -60,31 +60,34 @@ class _ParentHomePageState extends State<ParentHomePage>
 
     try {
       // Load unread notifications
-      final notifications = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(_schoolId)
-          .collection('notifications')
-          .where('studentId', isEqualTo: _selectedStudentId)
-          .where('isRead', isEqualTo: false)
-          .get();
+      final notifications =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(_schoolId)
+              .collection('notifications')
+              .where('studentId', isEqualTo: _selectedStudentId)
+              .where('isRead', isEqualTo: false)
+              .get();
 
       // Load pending complaints
-      final complaints = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(_schoolId)
-          .collection('complaints')
-          .where('studentId', isEqualTo: _selectedStudentId)
-          .where('status', isEqualTo: 'pending')
-          .get();
+      final complaints =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(_schoolId)
+              .collection('complaints')
+              .where('studentId', isEqualTo: _selectedStudentId)
+              .where('status', isEqualTo: 'pending')
+              .get();
 
       // Load pending homework
-      final homework = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(_schoolId)
-          .collection('homework')
-          .where('className', isEqualTo: _selectedClassName)
-          .where('section', isEqualTo: _selectedSection)
-          .get();
+      final homework =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(_schoolId)
+              .collection('homework')
+              .where('className', isEqualTo: _selectedClassName)
+              .where('section', isEqualTo: _selectedSection)
+              .get();
 
       setState(() {
         _unreadNotifications = notifications.docs.length;
@@ -111,43 +114,47 @@ class _ParentHomePageState extends State<ParentHomePage>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text("Logout"),
-        content: const Text("Are you sure you want to logout?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Logging out...")),
-              );
-              try {
-                await FirebaseAuth.instance.signOut();
-                if (mounted) {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (context) => const LoginPage(role: 'Parent'),
-                    ),
-                        (route) => false,
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
+      builder:
+          (context) => AlertDialog(
+            title: const Text("Logout"),
+            content: const Text("Are you sure you want to logout?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+                    const SnackBar(content: Text("Logging out...")),
                   );
-                }
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Logout"),
+                  try {
+                    await FirebaseAuth.instance.signOut();
+                    if (mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (context) => const LoginPage(role: 'Parent'),
+                        ),
+                        (route) => false,
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Error: $e"),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text("Logout"),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -164,31 +171,37 @@ class _ParentHomePageState extends State<ParentHomePage>
   void _showHelpDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Help & Support"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text("📞 Contact School:"),
-            SizedBox(height: 8),
-            Text("Phone: +91 98765 43210"),
-            Text("Email: support@school.com"),
-            SizedBox(height: 16),
-            Text("🕒 Support Hours:"),
-            SizedBox(height: 8),
-            Text("Monday - Friday: 9:00 AM - 5:00 PM"),
-            Divider(),
-            Text("For urgent issues, please contact the school office directly."),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close", style: TextStyle(color: Colors.orange)),
+      builder:
+          (context) => AlertDialog(
+            title: const Text("Help & Support"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text("📞 Contact School:"),
+                SizedBox(height: 8),
+                Text("Phone: +91 98765 43210"),
+                Text("Email: support@school.com"),
+                SizedBox(height: 16),
+                Text("🕒 Support Hours:"),
+                SizedBox(height: 8),
+                Text("Monday - Friday: 9:00 AM - 5:00 PM"),
+                Divider(),
+                Text(
+                  "For urgent issues, please contact the school office directly.",
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  "Close",
+                  style: TextStyle(color: Colors.orange),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -201,14 +214,14 @@ class _ParentHomePageState extends State<ParentHomePage>
       children: const [
         Text(
           "A complete school ERP solution for parents, teachers, and administrators.\n\n"
-              "Features:\n"
-              "• Real-time attendance tracking\n"
-              "• Homework management\n"
-              "• Exam results and report cards\n"
-              "• Fee payment and tracking\n"
-              "• Complaint management\n"
-              "• Notifications and announcements\n\n"
-              "© 2024 Smart School. All rights reserved.",
+          "Features:\n"
+          "• Real-time attendance tracking\n"
+          "• Homework management\n"
+          "• Exam results and report cards\n"
+          "• Fee payment and tracking\n"
+          "• Complaint management\n"
+          "• Notifications and announcements\n\n"
+          "© 2024 Smart School. All rights reserved.",
         ),
       ],
     );
@@ -220,200 +233,218 @@ class _ParentHomePageState extends State<ParentHomePage>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Wrap(
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                "Quick Actions",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+      builder:
+          (context) => Container(
+            padding: const EdgeInsets.all(16),
+            child: Wrap(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    "Quick Actions",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                _quickActionItem(
+                  icon: Icons.calendar_today,
+                  title: "Attendance",
+                  color: Colors.green,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null &&
+                        _selectedStudentName != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => ParentAttendanceViewPage(
+                                studentId: _selectedStudentId!,
+                                studentName: _selectedStudentName!,
+                                className: _selectedClassName!,
+                                section: _selectedSection!,
+                              ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _quickActionItem(
+                  icon: Icons.assignment,
+                  title: "Homework",
+                  color: Colors.blue,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => HomeworkViewPage(
+                                studentId: _selectedStudentId!,
+                                className: _selectedClassName!,
+                                section: _selectedSection!,
+                              ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _quickActionItem(
+                  icon: Icons.assessment,
+                  title: "Results",
+                  color: Colors.purple,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => ParentViewResultsPage(
+                                studentId: _selectedStudentId!,
+                                studentName: _selectedStudentName!,
+                              ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _quickActionItem(
+                  icon: Icons.calendar_month,
+                  title: "Exam Schedule",
+                  color: Colors.teal,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => ParentExamSchedulePage(
+                                className: _selectedClassName,
+                                section: _selectedSection,
+                              ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _quickActionItem(
+                  icon: Icons.receipt,
+                  title: "Fee Status",
+                  color: Colors.deepPurple,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) =>
+                                  FeeStatusPage(studentId: _selectedStudentId!),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _quickActionItem(
+                  icon: Icons.receipt_long,
+                  title: "Fee History",
+                  color: Colors.blue,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => FeeHistoryPage(
+                                studentId: _selectedStudentId!,
+                              ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _quickActionItem(
+                  icon: Icons.announcement,
+                  title: "Notices",
+                  color: Colors.orange,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => ParentNoticesPage(
+                                className: _selectedClassName,
+                                section: _selectedSection,
+                              ),
+                        ),
+                      );
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _quickActionItem(
+                  icon: Icons.feedback,
+                  title: "Complaint",
+                  color: Colors.red,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => ParentComplaintPage(
+                                studentId: _selectedStudentId!,
+                              ),
+                        ),
+                      ).then((_) => _loadUnreadCounts());
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+                _quickActionItem(
+                  icon: Icons.notifications,
+                  title: "Notifications",
+                  color: Colors.teal,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (_selectedStudentId != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (_) => ParentNotificationsPage(
+                                studentId: _selectedStudentId!,
+                              ),
+                        ),
+                      ).then((_) => _loadUnreadCounts());
+                    } else {
+                      _showSelectChildSnackbar();
+                    }
+                  },
+                ),
+              ],
             ),
-            _quickActionItem(
-              icon: Icons.calendar_today,
-              title: "Attendance",
-              color: Colors.green,
-              onTap: () {
-                Navigator.pop(context);
-                if (_selectedStudentId != null && _selectedStudentName != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ParentAttendanceViewPage(
-                        studentId: _selectedStudentId!,
-                        studentName: _selectedStudentName!,
-                        className: _selectedClassName!,
-                        section: _selectedSection!,
-                      ),
-                    ),
-                  );
-                } else {
-                  _showSelectChildSnackbar();
-                }
-              },
-            ),
-            _quickActionItem(
-              icon: Icons.assignment,
-              title: "Homework",
-              color: Colors.blue,
-              onTap: () {
-                Navigator.pop(context);
-                if (_selectedStudentId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => HomeworkViewPage(
-                        studentId: _selectedStudentId!,
-                        className: _selectedClassName!,
-                        section: _selectedSection!,
-                      ),
-                    ),
-                  );
-                } else {
-                  _showSelectChildSnackbar();
-                }
-              },
-            ),
-            _quickActionItem(
-              icon: Icons.assessment,
-              title: "Results",
-              color: Colors.purple,
-              onTap: () {
-                Navigator.pop(context);
-                if (_selectedStudentId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ParentViewResultsPage(
-                        studentId: _selectedStudentId!,
-                        studentName: _selectedStudentName!,
-                      ),
-                    ),
-                  );
-                } else {
-                  _showSelectChildSnackbar();
-                }
-              },
-            ),
-            _quickActionItem(
-              icon: Icons.calendar_month,
-              title: "Exam Schedule",
-              color: Colors.teal,
-              onTap: () {
-                Navigator.pop(context);
-                if (_selectedStudentId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ParentExamSchedulePage(
-                        className: _selectedClassName,
-                        section: _selectedSection,
-                      ),
-                    ),
-                  );
-                } else {
-                  _showSelectChildSnackbar();
-                }
-              },
-            ),
-            _quickActionItem(
-              icon: Icons.receipt,
-              title: "Fee Status",
-              color: Colors.deepPurple,
-              onTap: () {
-                Navigator.pop(context);
-                if (_selectedStudentId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FeeStatusPage(studentId: _selectedStudentId!),
-                    ),
-                  );
-                } else {
-                  _showSelectChildSnackbar();
-                }
-              },
-            ),
-            _quickActionItem(
-              icon: Icons.receipt_long,
-              title: "Fee History",
-              color: Colors.blue,
-              onTap: () {
-                Navigator.pop(context);
-                if (_selectedStudentId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => FeeHistoryPage(studentId: _selectedStudentId!),
-                    ),
-                  );
-                } else {
-                  _showSelectChildSnackbar();
-                }
-              },
-            ),
-            _quickActionItem(
-              icon: Icons.announcement,
-              title: "Notices",
-              color: Colors.orange,
-              onTap: () {
-                Navigator.pop(context);
-                if (_selectedStudentId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ParentNoticesPage(
-                        className: _selectedClassName,
-                        section: _selectedSection,
-                      ),
-                    ),
-                  );
-                } else {
-                  _showSelectChildSnackbar();
-                }
-              },
-            ),
-            _quickActionItem(
-              icon: Icons.feedback,
-              title: "Complaint",
-              color: Colors.red,
-              onTap: () {
-                Navigator.pop(context);
-                if (_selectedStudentId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ParentComplaintPage(studentId: _selectedStudentId!),
-                    ),
-                  ).then((_) => _loadUnreadCounts());
-                } else {
-                  _showSelectChildSnackbar();
-                }
-              },
-            ),
-            _quickActionItem(
-              icon: Icons.notifications,
-              title: "Notifications",
-              color: Colors.teal,
-              onTap: () {
-                Navigator.pop(context);
-                if (_selectedStudentId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ParentNotificationsPage(studentId: _selectedStudentId!),
-                    ),
-                  ).then((_) => _loadUnreadCounts());
-                } else {
-                  _showSelectChildSnackbar();
-                }
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -481,7 +512,10 @@ class _ParentHomePageState extends State<ParentHomePage>
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ParentNotificationsPage(studentId: _selectedStudentId!),
+                        builder:
+                            (_) => ParentNotificationsPage(
+                              studentId: _selectedStudentId!,
+                            ),
                       ),
                     ).then((_) => _loadUnreadCounts());
                   } else {
@@ -523,12 +557,13 @@ class _ParentHomePageState extends State<ParentHomePage>
       ),
       drawer: _buildDrawer(),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('schools')
-            .doc(_schoolId)
-            .collection('students')
-            .where('parentUid', isEqualTo: parentUid)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('schools')
+                .doc(_schoolId)
+                .collection('students')
+                .where('parentUid', isEqualTo: parentUid)
+                .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -583,10 +618,11 @@ class _ParentHomePageState extends State<ParentHomePage>
                 ),
                 const SizedBox(height: 10),
                 StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('schools')
-                      .doc(_schoolId)
-                      .snapshots(),
+                  stream:
+                      FirebaseFirestore.instance
+                          .collection('schools')
+                          .doc(_schoolId)
+                          .snapshots(),
                   builder: (context, snapshot) {
                     String schoolName = "School";
                     if (snapshot.hasData && snapshot.data!.exists) {
@@ -637,16 +673,18 @@ class _ParentHomePageState extends State<ParentHomePage>
                   title: "Attendance",
                   onTap: () {
                     Navigator.pop(context);
-                    if (_selectedStudentId != null && _selectedStudentName != null) {
+                    if (_selectedStudentId != null &&
+                        _selectedStudentName != null) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentAttendanceViewPage(
-                            studentId: _selectedStudentId!,
-                            studentName: _selectedStudentName!,
-                            className: _selectedClassName!,
-                            section: _selectedSection!,
-                          ),
+                          builder:
+                              (_) => ParentAttendanceViewPage(
+                                studentId: _selectedStudentId!,
+                                studentName: _selectedStudentName!,
+                                className: _selectedClassName!,
+                                section: _selectedSection!,
+                              ),
                         ),
                       );
                     } else {
@@ -657,18 +695,22 @@ class _ParentHomePageState extends State<ParentHomePage>
                 _drawerItem(
                   icon: Icons.assignment,
                   title: "Homework",
-                  badge: _pendingHomeworkCount > 0 ? _pendingHomeworkCount.toString() : null,
+                  badge:
+                      _pendingHomeworkCount > 0
+                          ? _pendingHomeworkCount.toString()
+                          : null,
                   onTap: () {
                     Navigator.pop(context);
                     if (_selectedStudentId != null) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => HomeworkViewPage(
-                            studentId: _selectedStudentId!,
-                            className: _selectedClassName!,
-                            section: _selectedSection!,
-                          ),
+                          builder:
+                              (_) => HomeworkViewPage(
+                                studentId: _selectedStudentId!,
+                                className: _selectedClassName!,
+                                section: _selectedSection!,
+                              ),
                         ),
                       );
                     } else {
@@ -685,10 +727,11 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentViewResultsPage(
-                            studentId: _selectedStudentId!,
-                            studentName: _selectedStudentName!,
-                          ),
+                          builder:
+                              (_) => ParentViewResultsPage(
+                                studentId: _selectedStudentId!,
+                                studentName: _selectedStudentName!,
+                              ),
                         ),
                       );
                     } else {
@@ -705,10 +748,11 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentExamSchedulePage(
-                            className: _selectedClassName,
-                            section: _selectedSection,
-                          ),
+                          builder:
+                              (_) => ParentExamSchedulePage(
+                                className: _selectedClassName,
+                                section: _selectedSection,
+                              ),
                         ),
                       );
                     } else {
@@ -725,7 +769,9 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => FeeStatusPage(studentId: _selectedStudentId!),
+                          builder:
+                              (_) =>
+                                  FeeStatusPage(studentId: _selectedStudentId!),
                         ),
                       );
                     } else {
@@ -742,7 +788,10 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => FeeHistoryPage(studentId: _selectedStudentId!),
+                          builder:
+                              (_) => FeeHistoryPage(
+                                studentId: _selectedStudentId!,
+                              ),
                         ),
                       );
                     } else {
@@ -760,10 +809,11 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentNoticesPage(
-                            className: _selectedClassName,
-                            section: _selectedSection,
-                          ),
+                          builder:
+                              (_) => ParentNoticesPage(
+                                className: _selectedClassName,
+                                section: _selectedSection,
+                              ),
                         ),
                       );
                     } else {
@@ -774,14 +824,20 @@ class _ParentHomePageState extends State<ParentHomePage>
                 _drawerItem(
                   icon: Icons.feedback,
                   title: "Complaints",
-                  badge: _unreadComplaints > 0 ? _unreadComplaints.toString() : null,
+                  badge:
+                      _unreadComplaints > 0
+                          ? _unreadComplaints.toString()
+                          : null,
                   onTap: () {
                     Navigator.pop(context);
                     if (_selectedStudentId != null) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentComplaintPage(studentId: _selectedStudentId!),
+                          builder:
+                              (_) => ParentComplaintPage(
+                                studentId: _selectedStudentId!,
+                              ),
                         ),
                       ).then((_) => _loadUnreadCounts());
                     } else {
@@ -792,14 +848,20 @@ class _ParentHomePageState extends State<ParentHomePage>
                 _drawerItem(
                   icon: Icons.notifications,
                   title: "Notifications",
-                  badge: _unreadNotifications > 0 ? _unreadNotifications.toString() : null,
+                  badge:
+                      _unreadNotifications > 0
+                          ? _unreadNotifications.toString()
+                          : null,
                   onTap: () {
                     Navigator.pop(context);
                     if (_selectedStudentId != null) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentNotificationsPage(studentId: _selectedStudentId!),
+                          builder:
+                              (_) => ParentNotificationsPage(
+                                studentId: _selectedStudentId!,
+                              ),
                         ),
                       ).then((_) => _loadUnreadCounts());
                     } else {
@@ -817,10 +879,11 @@ class _ParentHomePageState extends State<ParentHomePage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => ParentProfilePage(
-                            studentId: _selectedStudentId!,
-                            schoolId: _schoolId!,
-                          ),
+                          builder:
+                              (_) => ParentProfilePage(
+                                studentId: _selectedStudentId!,
+                                schoolId: _schoolId!,
+                              ),
                         ),
                       );
                     } else {
@@ -836,10 +899,11 @@ class _ParentHomePageState extends State<ParentHomePage>
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => ParentSettingsPage(
-                          schoolId: _schoolId!,
-                          parentUid: FirebaseAuth.instance.currentUser!.uid,
-                        ),
+                        builder:
+                            (_) => ParentSettingsPage(
+                              schoolId: _schoolId!,
+                              parentUid: FirebaseAuth.instance.currentUser!.uid,
+                            ),
                       ),
                     );
                   },
@@ -894,23 +958,24 @@ class _ParentHomePageState extends State<ParentHomePage>
           fontWeight: FontWeight.w500,
         ),
       ),
-      trailing: badge != null
-          ? Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.red,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          badge,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      )
-          : null,
+      trailing:
+          badge != null
+              ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  badge,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )
+              : null,
       onTap: onTap,
     );
   }
@@ -934,7 +999,11 @@ class _ParentHomePageState extends State<ParentHomePage>
           const SizedBox(height: 16),
           Text(
             "No Child Linked",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -977,25 +1046,28 @@ class _ParentHomePageState extends State<ParentHomePage>
             elevation: isSelected ? 4 : 2,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: isSelected
-                  ? BorderSide(color: Colors.orange, width: 2)
-                  : BorderSide.none,
+              side:
+                  isSelected
+                      ? BorderSide(color: Colors.orange, width: 2)
+                      : BorderSide.none,
             ),
             margin: const EdgeInsets.only(bottom: 12),
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                gradient: isSelected
-                    ? const LinearGradient(
-                  colors: [Colors.white, Colors.orange],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-                    : null,
+                gradient:
+                    isSelected
+                        ? const LinearGradient(
+                          colors: [Colors.white, Colors.orange],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                        : null,
               ),
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: isSelected ? Colors.orange : Colors.orange.shade100,
+                  backgroundColor:
+                      isSelected ? Colors.orange : Colors.orange.shade100,
                   child: Icon(
                     Icons.person,
                     color: isSelected ? Colors.white : Colors.orange,
@@ -1012,23 +1084,37 @@ class _ParentHomePageState extends State<ParentHomePage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 4),
-                    Text("Class: ${data['class'] ?? 'N/A'} ${data['section'] ?? ''}"),
+                    Text(
+                      "Class: ${data['class'] ?? 'N/A'} ${data['section'] ?? ''}",
+                    ),
                     Text("Roll No: ${data['rollNo'] ?? 'N/A'}"),
                   ],
                 ),
-                trailing: isSelected
-                    ? Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.orange,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'SELECTED',
-                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
-                )
-                    : const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                trailing:
+                    isSelected
+                        ? Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'SELECTED',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        )
+                        : const Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: Colors.grey,
+                        ),
               ),
             ),
           ),
@@ -1091,7 +1177,13 @@ class _ParentHomePageState extends State<ParentHomePage>
         physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
-            _buildStudentHeader(studentName, className, section, rollNo, admissionNo),
+            _buildStudentHeader(
+              studentName,
+              className,
+              section,
+              rollNo,
+              admissionNo,
+            ),
             const SizedBox(height: 16),
             _buildStatsRow(_selectedStudentId!),
             const SizedBox(height: 16),
@@ -1118,12 +1210,12 @@ class _ParentHomePageState extends State<ParentHomePage>
   // ================= ADDITIONAL WIDGETS =================
 
   Widget _buildStudentHeader(
-      String name,
-      String className,
-      String section,
-      String rollNo,
-      String admissionNo,
-      ) {
+    String name,
+    String className,
+    String section,
+    String rollNo,
+    String admissionNo,
+  ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1232,18 +1324,17 @@ class _ParentHomePageState extends State<ParentHomePage>
   }
 
   Future<int> _getPresentCount(String studentId) async {
-    final attendanceDates = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(_schoolId)
-        .collection('attendance')
-        .get();
+    final attendanceDates =
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(_schoolId)
+            .collection('attendance')
+            .get();
 
     int present = 0;
     for (var dateDoc in attendanceDates.docs) {
-      final record = await dateDoc.reference
-          .collection('records')
-          .doc(studentId)
-          .get();
+      final record =
+          await dateDoc.reference.collection('records').doc(studentId).get();
       if (record.exists && record.data()?['status'] == 'Present') {
         present++;
       }
@@ -1252,21 +1343,23 @@ class _ParentHomePageState extends State<ParentHomePage>
   }
 
   Future<int> _getTotalCount() async {
-    final attendanceDates = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(_schoolId)
-        .collection('attendance')
-        .get();
+    final attendanceDates =
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(_schoolId)
+            .collection('attendance')
+            .get();
     return attendanceDates.docs.length;
   }
 
   Future<Map<String, double>> _getFeeData(String studentId) async {
-    final fees = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(_schoolId)
-        .collection('student_fees')
-        .where('studentId', isEqualTo: studentId)
-        .get();
+    final fees =
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(_schoolId)
+            .collection('student_fees')
+            .where('studentId', isEqualTo: studentId)
+            .get();
 
     double paid = 0;
     double due = 0;
@@ -1310,7 +1403,9 @@ class _ParentHomePageState extends State<ParentHomePage>
         int late = records.where((r) => r['status'] == 'Late').length;
 
         return Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -1322,7 +1417,10 @@ class _ParentHomePageState extends State<ParentHomePage>
                     SizedBox(width: 8),
                     Text(
                       'Recent Attendance',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -1356,32 +1454,47 @@ class _ParentHomePageState extends State<ParentHomePage>
                 ...records.take(5).map((record) {
                   final date = DateTime.parse(record['date']);
                   final status = record['status'];
-                  Color statusColor = status == 'Present'
-                      ? Colors.green
-                      : (status == 'Late' ? Colors.orange : Colors.red);
+                  Color statusColor =
+                      status == 'Present'
+                          ? Colors.green
+                          : (status == 'Late' ? Colors.orange : Colors.red);
 
                   return ListTile(
                     leading: CircleAvatar(
                       backgroundColor: statusColor.withOpacity(0.1),
                       child: Icon(
-                        status == 'Present' ? Icons.check_circle : (status == 'Late' ? Icons.access_time : Icons.cancel),
+                        status == 'Present'
+                            ? Icons.check_circle
+                            : (status == 'Late'
+                                ? Icons.access_time
+                                : Icons.cancel),
                         color: statusColor,
                         size: 20,
                       ),
                     ),
                     title: Text(
                       DateFormat('EEEE, dd MMM yyyy').format(date),
-                      style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
                     ),
                     trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         status,
-                        style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   );
@@ -1394,19 +1507,20 @@ class _ParentHomePageState extends State<ParentHomePage>
     );
   }
 
-  Future<List<Map<String, dynamic>>> _getRecentAttendance(String studentId) async {
-    final attendanceDates = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(_schoolId)
-        .collection('attendance')
-        .get();
+  Future<List<Map<String, dynamic>>> _getRecentAttendance(
+    String studentId,
+  ) async {
+    final attendanceDates =
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(_schoolId)
+            .collection('attendance')
+            .get();
 
     List<Map<String, dynamic>> records = [];
     for (var dateDoc in attendanceDates.docs) {
-      final record = await dateDoc.reference
-          .collection('records')
-          .doc(studentId)
-          .get();
+      final record =
+          await dateDoc.reference.collection('records').doc(studentId).get();
 
       if (record.exists) {
         records.add({
@@ -1422,12 +1536,13 @@ class _ParentHomePageState extends State<ParentHomePage>
 
   Widget _buildFeeDetails(String studentId) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(_schoolId)
-          .collection('student_fees')
-          .where('studentId', isEqualTo: studentId)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(_schoolId)
+              .collection('student_fees')
+              .where('studentId', isEqualTo: studentId)
+              .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Card(
@@ -1448,7 +1563,9 @@ class _ParentHomePageState extends State<ParentHomePage>
         }
 
         return Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -1460,7 +1577,10 @@ class _ParentHomePageState extends State<ParentHomePage>
                     SizedBox(width: 8),
                     Text(
                       'Fee Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -1474,15 +1594,19 @@ class _ParentHomePageState extends State<ParentHomePage>
                     final doc = snapshot.data!.docs[index];
                     final data = doc.data() as Map<String, dynamic>;
                     final amount = (data['amount'] ?? 0).toDouble();
-                    final dueDate = data['dueDate'] != null
-                        ? (data['dueDate'] as Timestamp).toDate()
-                        : null;
+                    final dueDate =
+                        data['dueDate'] != null
+                            ? (data['dueDate'] as Timestamp).toDate()
+                            : null;
                     final status = data['status'] ?? 'pending';
                     final feeType = data['feeType'] ?? 'Fee';
 
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: status == 'paid' ? Colors.green.shade100 : Colors.red.shade100,
+                        backgroundColor:
+                            status == 'paid'
+                                ? Colors.green.shade100
+                                : Colors.red.shade100,
                         radius: 20,
                         child: Icon(
                           status == 'paid' ? Icons.check : Icons.pending,
@@ -1494,9 +1618,12 @@ class _ParentHomePageState extends State<ParentHomePage>
                         feeType,
                         style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
-                      subtitle: dueDate != null
-                          ? Text('Due: ${DateFormat('dd MMM yyyy').format(dueDate)}')
-                          : null,
+                      subtitle:
+                          dueDate != null
+                              ? Text(
+                                'Due: ${DateFormat('dd MMM yyyy').format(dueDate)}',
+                              )
+                              : null,
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,
@@ -1509,15 +1636,24 @@ class _ParentHomePageState extends State<ParentHomePage>
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: status == 'paid' ? Colors.green.shade100 : Colors.red.shade100,
+                              color:
+                                  status == 'paid'
+                                      ? Colors.green.shade100
+                                      : Colors.red.shade100,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               status.toUpperCase(),
                               style: TextStyle(
-                                color: status == 'paid' ? Colors.green : Colors.red,
+                                color:
+                                    status == 'paid'
+                                        ? Colors.green
+                                        : Colors.red,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1568,8 +1704,14 @@ class _ParentHomePageState extends State<ParentHomePage>
             _infoRow('Class & Section', '$className - $section'),
             _infoRow('Roll Number', rollNo),
             if (admissionNo.isNotEmpty) _infoRow('Admission No', admissionNo),
-            _infoRow('Father\'s Name', fatherName.isNotEmpty ? fatherName : 'Not provided'),
-            _infoRow('Mother\'s Name', motherName.isNotEmpty ? motherName : 'Not provided'),
+            _infoRow(
+              'Father\'s Name',
+              fatherName.isNotEmpty ? fatherName : 'Not provided',
+            ),
+            _infoRow(
+              'Mother\'s Name',
+              motherName.isNotEmpty ? motherName : 'Not provided',
+            ),
             if (phone.isNotEmpty) _infoRow('Phone', phone),
           ],
         ),
