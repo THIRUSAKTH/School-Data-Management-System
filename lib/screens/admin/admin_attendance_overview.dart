@@ -68,103 +68,160 @@ class _AdminAttendanceOverviewPageState
         children: [
           // Date Selector Card
           _buildDateSelector(),
-
           // Main Content
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream:
-                  FirebaseFirestore.instance
-                      .collection('schools')
-                      .doc(widget.schoolId)
-                      .collection('attendance')
-                      .doc(_formattedDate)
-                      .collection('records')
-                      .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: Colors.red.shade400,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          "Error loading attendance",
-                          style: TextStyle(color: Colors.grey.shade600),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () => setState(() {}),
-                          child: const Text("Retry"),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return _buildEmptyState();
-                }
-
-                _processRecords(snapshot.data!.docs);
-
-                return RefreshIndicator(
-                  onRefresh: () async => setState(() {}),
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Summary Card
-                        _buildSummaryCard(),
-                        const SizedBox(height: 20),
-
-                        // Attendance Chart
-                        _buildAttendanceChart(),
-                        const SizedBox(height: 20),
-
-                        // Class-wise Breakdown Header
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              "Class-wise Breakdown",
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              "Tap to view details",
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-
-                        // Class-wise List
-                        ..._buildClassWiseList(),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+          Expanded(child: _buildAttendanceContent()),
         ],
       ),
+    );
+  }
+
+  Widget _buildAttendanceContent() {
+    return StreamBuilder<QuerySnapshot>(
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('attendance')
+              .doc(_formattedDate)
+              .collection('records')
+              .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  "Error loading attendance",
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => setState(() {}),
+                  child: const Text("Retry"),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyState();
+        }
+
+        // Process records - FIXED: Reset stats before processing
+        _totalStudents = 0;
+        _totalPresent = 0;
+        _totalAbsent = 0;
+        _totalLate = 0;
+        _classStats.clear();
+
+        for (var doc in snapshot.data!.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final status = data['status'] ?? 'Absent';
+          _totalStudents++;
+
+          // Count status
+          if (status == 'Present') {
+            _totalPresent++;
+          } else if (status == 'Late') {
+            _totalLate++;
+          } else {
+            _totalAbsent++;
+          }
+
+          // Process class-wise statistics
+          final className = data['className'] ?? 'Unknown';
+          final section = data['section'] ?? '';
+          final classKey = '$className - $section';
+
+          if (!_classStats.containsKey(classKey)) {
+            _classStats[classKey] = {
+              'className': className,
+              'section': section,
+              'total': 0,
+              'present': 0,
+              'absent': 0,
+              'late': 0,
+              'students': [],
+            };
+          }
+
+          _classStats[classKey]!['total'] =
+              (_classStats[classKey]!['total'] as int) + 1;
+
+          if (status == 'Present') {
+            _classStats[classKey]!['present'] =
+                (_classStats[classKey]!['present'] as int) + 1;
+          } else if (status == 'Late') {
+            _classStats[classKey]!['late'] =
+                (_classStats[classKey]!['late'] as int) + 1;
+          } else {
+            _classStats[classKey]!['absent'] =
+                (_classStats[classKey]!['absent'] as int) + 1;
+          }
+
+          (_classStats[classKey]!['students'] as List).add({
+            'name': data['name'] ?? 'Unknown',
+            'rollNo': data['rollNo'] ?? '',
+            'status': status,
+            'checkInTime': data['checkInTime'],
+            'checkOutTime': data['checkOutTime'],
+            'remark': data['remark'],
+          });
+        }
+
+        _attendanceRate =
+            _totalStudents > 0 ? (_totalPresent / _totalStudents) * 100 : 0;
+
+        return RefreshIndicator(
+          onRefresh: () async => setState(() {}),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Summary Card
+                _buildSummaryCard(),
+                const SizedBox(height: 20),
+
+                // Attendance Chart
+                _buildAttendanceChart(),
+                const SizedBox(height: 20),
+
+                // Class-wise Breakdown Header
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Class-wise Breakdown",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      "Tap to view details",
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Class-wise List
+                ..._buildClassWiseList(),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -177,118 +234,61 @@ class _AdminAttendanceOverviewPageState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.calendar_today, color: Colors.blue, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Report Date",
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                Text(
-                  _displayDate,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_selectedDate != DateTime.now())
+      child: InkWell(
+        onTap: _selectDate,
+        borderRadius: BorderRadius.circular(16),
+        child: Row(
+          children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.orange.shade100,
-                borderRadius: BorderRadius.circular(20),
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
-                "Past Date",
-                style: TextStyle(fontSize: 10, color: Colors.orange.shade700),
+              child: Icon(Icons.calendar_today, color: Colors.blue, size: 20),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Report Date",
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  Text(
+                    _displayDate,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
-        ],
+            if (_selectedDate != DateTime.now())
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  "Past Date",
+                  style: TextStyle(fontSize: 10, color: Colors.orange.shade700),
+                ),
+              ),
+            const Icon(Icons.arrow_drop_down, color: Colors.grey),
+          ],
+        ),
       ),
     );
-  }
-
-  void _processRecords(List<QueryDocumentSnapshot> records) {
-    _totalStudents = records.length;
-    _totalPresent = 0;
-    _totalAbsent = 0;
-    _totalLate = 0;
-    _classStats.clear();
-
-    for (var doc in records) {
-      final data = doc.data() as Map<String, dynamic>;
-      final status = data['status'] ?? 'Absent';
-
-      if (status == 'Present')
-        _totalPresent++;
-      else if (status == 'Late')
-        _totalLate++;
-      else
-        _totalAbsent++;
-
-      // Process class-wise statistics
-      final className = data['className'] ?? 'Unknown';
-      final section = data['section'] ?? '';
-      final classKey = '$className - $section';
-
-      if (!_classStats.containsKey(classKey)) {
-        _classStats[classKey] = {
-          'className': className,
-          'section': section,
-          'total': 0,
-          'present': 0,
-          'absent': 0,
-          'late': 0,
-          'students': [],
-        };
-      }
-
-      _classStats[classKey]!['total'] =
-          (_classStats[classKey]!['total'] as int) + 1;
-
-      if (status == 'Present') {
-        _classStats[classKey]!['present'] =
-            (_classStats[classKey]!['present'] as int) + 1;
-      } else if (status == 'Late') {
-        _classStats[classKey]!['late'] =
-            (_classStats[classKey]!['late'] as int) + 1;
-      } else {
-        _classStats[classKey]!['absent'] =
-            (_classStats[classKey]!['absent'] as int) + 1;
-      }
-
-      (_classStats[classKey]!['students'] as List).add({
-        'name': data['name'] ?? 'Unknown',
-        'rollNo': data['rollNo'] ?? '',
-        'status': status,
-        'checkInTime': data['checkInTime'],
-        'checkOutTime': data['checkOutTime'],
-      });
-    }
-
-    _attendanceRate =
-        _totalStudents > 0 ? (_totalPresent / _totalStudents) * 100 : 0;
   }
 
   Widget _buildEmptyState() {
@@ -344,7 +344,7 @@ class _AdminAttendanceOverviewPageState
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withValues(alpha: 0.3),
+            color: Colors.blue.withOpacity(0.3),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -368,7 +368,7 @@ class _AdminAttendanceOverviewPageState
               Expanded(
                 child: LinearProgressIndicator(
                   value: (_attendanceRate / 100).toDouble(),
-                  backgroundColor: Colors.white.withValues(alpha: 0.3),
+                  backgroundColor: Colors.white.withOpacity(0.3),
                   valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                   minHeight: 8,
                   borderRadius: BorderRadius.circular(4),
@@ -545,7 +545,7 @@ class _AdminAttendanceOverviewPageState
                         width: 45,
                         height: 45,
                         decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.1),
+                          color: color.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(Icons.class_, color: color, size: 24),
@@ -579,7 +579,7 @@ class _AdminAttendanceOverviewPageState
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.1),
+                          color: color.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -679,7 +679,7 @@ class _AdminAttendanceOverviewPageState
                             color: Colors.blue.shade100,
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Icon(
+                          child: const Icon(
                             Icons.class_,
                             size: 30,
                             color: Colors.blue,
@@ -767,9 +767,7 @@ class _AdminAttendanceOverviewPageState
                             margin: const EdgeInsets.only(bottom: 8),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: statusColor.withValues(
-                                  alpha: 0.1,
-                                ),
+                                backgroundColor: statusColor.withOpacity(0.1),
                                 child: Text(
                                   student['rollNo'] ?? '?',
                                   style: TextStyle(
@@ -791,7 +789,7 @@ class _AdminAttendanceOverviewPageState
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: statusColor.withValues(alpha: 0.1),
+                                  color: statusColor.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
@@ -870,7 +868,7 @@ class _AdminAttendanceOverviewPageState
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -964,7 +962,7 @@ class _AdminAttendanceOverviewPageState
       borderRadius: BorderRadius.circular(16),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
+          color: Colors.black.withOpacity(0.05),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),

@@ -23,7 +23,6 @@ class _TeacherHomeState extends State<TeacherHome> {
     "Dashboard",
     "Attendance",
     "Homework",
-    "Marks",
     "Timetable",
   ];
 
@@ -37,7 +36,6 @@ class _TeacherHomeState extends State<TeacherHome> {
         schoolId: AppConfig.schoolId,
       ),
       HomeworkPostPage(),
-      TeacherUploadMarksPage(),
       TeacherViewTimetable(),
     ];
   }

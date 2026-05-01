@@ -43,48 +43,114 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     super.dispose();
   }
 
+  // FIXED: Properly fetch attendance from the correct Firestore path
   Future<void> _fetchAttendance() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
-      final attendanceDates =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('attendance')
-              .get();
+      final attendanceCollection = FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('attendance');
+
+      // Get all attendance documents (each is a date)
+      final attendanceDocs = await attendanceCollection.get();
 
       List<Map<String, dynamic>> records = [];
 
-      for (var dateDoc in attendanceDates.docs) {
+      for (var dateDoc in attendanceDocs.docs) {
         final date = dateDoc.id;
-        final recordDoc =
+
+        // Get the specific student's attendance record for this date
+        final recordSnapshot =
             await dateDoc.reference
                 .collection('records')
                 .doc(widget.studentId)
                 .get();
 
-        if (recordDoc.exists) {
-          final data = recordDoc.data()!;
+        if (recordSnapshot.exists) {
+          final data = recordSnapshot.data()!;
           records.add({
             'date': date,
             'status': data['status'] ?? 'Absent',
             'remark': data['remark'] ?? '',
             'checkInTime': data['checkInTime'] ?? '',
             'checkOutTime': data['checkOutTime'] ?? '',
+            'className': data['className'] ?? '',
+            'section': data['section'] ?? '',
+          });
+        }
+      }
+
+      // Sort by date (newest first)
+      records.sort((a, b) => b['date'].compareTo(a['date']));
+
+      if (mounted) {
+        setState(() {
+          _attendanceRecords = records;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching attendance: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading attendance: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Alternative: Use a more efficient query (if you have many students)
+  Future<void> _fetchAttendanceOptimized() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    try {
+      // This assumes you have a composite index on studentId and date
+      final recordsSnapshot =
+          await FirebaseFirestore.instance
+              .collectionGroup('records')
+              .where('studentId', isEqualTo: widget.studentId)
+              .get();
+
+      List<Map<String, dynamic>> records = [];
+
+      for (var doc in recordsSnapshot.docs) {
+        final data = doc.data();
+        final date =
+            doc.reference.parent.parent?.id; // Get date from parent document
+        if (date != null) {
+          records.add({
+            'date': date,
+            'status': data['status'] ?? 'Absent',
+            'remark': data['remark'] ?? '',
+            'checkInTime': data['checkInTime'] ?? '',
+            'checkOutTime': data['checkOutTime'] ?? '',
+            'className': data['className'] ?? '',
+            'section': data['section'] ?? '',
           });
         }
       }
 
       records.sort((a, b) => b['date'].compareTo(a['date']));
 
-      setState(() {
-        _attendanceRecords = records;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _attendanceRecords = records;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint('Error fetching attendance: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -283,8 +349,9 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
   Widget _buildMonthSelector() {
     Set<String> monthSet = {};
     for (var record in _attendanceRecords) {
-      if (record['date'].length >= 7)
+      if (record['date'].length >= 7) {
         monthSet.add(record['date'].substring(0, 7));
+      }
     }
     List<String> availableMonths =
         monthSet.toList()..sort((a, b) => b.compareTo(a));
@@ -309,19 +376,21 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
                       ? _selectedMonth
                       : availableMonths.first,
               items:
-                  availableMonths
-                      .map(
-                        (month) => DropdownMenuItem(
-                          value: month,
-                          child: Text(
-                            DateFormat(
-                              'MMMM yyyy',
-                            ).format(DateTime.parse('$month-01')),
-                          ),
-                        ),
-                      )
-                      .toList(),
-              onChanged: (value) => setState(() => _selectedMonth = value!),
+                  availableMonths.map((month) {
+                    return DropdownMenuItem(
+                      value: month,
+                      child: Text(
+                        DateFormat(
+                          'MMMM yyyy',
+                        ).format(DateTime.parse('$month-01')),
+                      ),
+                    );
+                  }).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _selectedMonth = value);
+                }
+              },
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
@@ -419,8 +488,9 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     }
 
     Map<String, String> statusMap = {};
-    for (var record in _attendanceRecords)
+    for (var record in _attendanceRecords) {
       statusMap[record['date']] = record['status'];
+    }
 
     List<BarChartGroupData> barGroups = [];
     for (int i = 0; i < last7Days.length; i++) {
@@ -473,13 +543,14 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         int index = value.toInt();
-                        if (index >= 0 && index < last7Days.length)
+                        if (index >= 0 && index < last7Days.length) {
                           return Text(
                             DateFormat(
                               'E',
                             ).format(DateTime.parse(last7Days[index])),
                             style: const TextStyle(fontSize: 8),
                           );
+                        }
                         return const Text('');
                       },
                     ),

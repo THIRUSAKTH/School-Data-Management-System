@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -53,20 +54,23 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
   }
 
   Future<void> _loadTeacherData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
       final teacherUid = FirebaseAuth.instance.currentUser!.uid;
-      final teacherDoc = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('teachers')
-          .where('uid', isEqualTo: teacherUid)
-          .limit(1)
-          .get();
+      final teacherDoc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('teachers')
+              .where('uid', isEqualTo: teacherUid)
+              .limit(1)
+              .get();
 
       if (teacherDoc.docs.isNotEmpty) {
-        final assignedClasses = teacherDoc.docs.first['assignedClasses'] as List? ?? [];
+        final assignedClasses =
+            teacherDoc.docs.first['assignedClasses'] as List? ?? [];
         for (var classInfo in assignedClasses) {
           if (classInfo is Map && classInfo.containsKey('className')) {
             _availableClasses.add(classInfo['className']);
@@ -103,9 +107,19 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       }
     } catch (e) {
       debugPrint('Error loading teacher data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
 
-    setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _loadExams() async {
@@ -114,40 +128,45 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
     setState(() => _isLoading = true);
 
     try {
-      final examsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('exams')
-          .where('className', isEqualTo: _selectedClass)
-          .get();
+      final examsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('exams')
+              .where('className', isEqualTo: _selectedClass)
+              .get();
 
-      _exams = examsSnapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['examName'] ?? data['name'] ?? 'Unknown Exam',
-          'type': data['examType'] ?? 'Regular',
-          'subjects': List<String>.from(data['subjects'] ?? []),
-          'maxMarks': List<int>.from(data['maxMarks'] ?? []),
-        };
-      }).toList();
+      _exams =
+          examsSnapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'id': doc.id,
+              'name': data['examName'] ?? data['name'] ?? 'Unknown Exam',
+              'type': data['examType'] ?? 'Regular',
+              'subjects': List<String>.from(data['subjects'] ?? []),
+              'maxMarks': List<int>.from(data['maxMarks'] ?? []),
+            };
+          }).toList();
     } catch (e) {
       debugPrint('Error loading exams: $e');
     }
 
-    setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _loadSections() async {
     if (_selectedClass == null) return;
 
     try {
-      final studentsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('students')
-          .where('class', isEqualTo: _selectedClass)
-          .get();
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('class', isEqualTo: _selectedClass)
+              .get();
 
       final sectionsSet = <String>{};
       for (var doc in studentsSnapshot.docs) {
@@ -163,10 +182,14 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
   }
 
   Future<void> _loadStudents() async {
-    if (_selectedClass == null || _selectedSection == null || _selectedExam == null || _selectedSubject == null) {
+    if (_selectedClass == null ||
+        _selectedSection == null ||
+        _selectedExam == null ||
+        _selectedSubject == null) {
       return;
     }
 
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     // Dispose old controllers
@@ -181,53 +204,59 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
 
     try {
       // Load students
-      final studentsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('students')
-          .where('class', isEqualTo: _selectedClass)
-          .where('section', isEqualTo: _selectedSection)
-          .get();
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('class', isEqualTo: _selectedClass)
+              .where('section', isEqualTo: _selectedSection)
+              .get();
 
-      // Load existing marks
-      final marksSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('exam_results')
-          .where('examId', isEqualTo: _selectedExam)
-          .where('subject', isEqualTo: _selectedSubject)
-          .get();
+      // Load existing marks - FIXED: Removed orderBy to avoid index requirement
+      final marksSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('exam_results')
+              .where('examId', isEqualTo: _selectedExam)
+              .where('subject', isEqualTo: _selectedSubject)
+              .get();
 
-      _students = studentsSnapshot.docs.map((doc) {
-        final data = doc.data();
-        final studentId = doc.id;
+      _students =
+          studentsSnapshot.docs.map((doc) {
+            final data = doc.data();
+            final studentId = doc.id;
 
-        // Find existing mark for this student
-        Map<String, dynamic>? existingMark;
-        for (var markDoc in marksSnapshot.docs) {
-          if (markDoc['studentId'] == studentId) {
-            existingMark = markDoc.data();
-            break;
-          }
-        }
+            // Find existing mark for this student
+            Map<String, dynamic>? existingMark;
+            for (var markDoc in marksSnapshot.docs) {
+              if (markDoc['studentId'] == studentId) {
+                existingMark = markDoc.data();
+                break;
+              }
+            }
 
-        _marksControllers[studentId] = TextEditingController(
-          text: existingMark != null ? existingMark['marksObtained']?.toString() ?? '' : '',
-        );
-        _remarksControllers[studentId] = TextEditingController(
-          text: existingMark != null ? existingMark['remarks'] ?? '' : '',
-        );
+            _marksControllers[studentId] = TextEditingController(
+              text:
+                  existingMark != null
+                      ? existingMark['marksObtained']?.toString() ?? ''
+                      : '',
+            );
+            _remarksControllers[studentId] = TextEditingController(
+              text: existingMark != null ? existingMark['remarks'] ?? '' : '',
+            );
 
-        return {
-          'id': studentId,
-          'name': data['name'] ?? 'Unknown',
-          'rollNo': data['rollNo']?.toString() ?? 'N/A',
-        };
-      }).toList();
+            return {
+              'id': studentId,
+              'name': data['name'] ?? 'Unknown',
+              'rollNo': data['rollNo']?.toString() ?? 'N/A',
+            };
+          }).toList();
 
       _students.sort((a, b) {
-        final rollA = int.tryParse(a['rollNo']) ?? 0;
-        final rollB = int.tryParse(b['rollNo']) ?? 0;
+        final rollA = int.tryParse(a['rollNo'].toString()) ?? 0;
+        final rollB = int.tryParse(b['rollNo'].toString()) ?? 0;
         return rollA.compareTo(rollB);
       });
     } catch (e) {
@@ -242,7 +271,9 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       }
     }
 
-    setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _saveMarks() async {
@@ -262,12 +293,13 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       final batch = FirebaseFirestore.instance.batch();
 
       // Get exam details for max marks
-      final examDoc = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('exams')
-          .doc(_selectedExam)
-          .get();
+      final examDoc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('exams')
+              .doc(_selectedExam)
+              .get();
 
       if (!examDoc.exists) {
         throw Exception('Exam not found');
@@ -277,9 +309,10 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       final subjects = List<String>.from(examData['subjects'] ?? []);
       final maxMarks = List<int>.from(examData['maxMarks'] ?? []);
       final subjectIndex = subjects.indexOf(_selectedSubject!);
-      final maxMark = subjectIndex >= 0 && subjectIndex < maxMarks.length
-          ? maxMarks[subjectIndex]
-          : 100;
+      final maxMark =
+          subjectIndex >= 0 && subjectIndex < maxMarks.length
+              ? maxMarks[subjectIndex]
+              : 100;
 
       // Get exam name
       String examName = '';
@@ -290,6 +323,24 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
         }
       }
 
+      // Get all existing results once to check for updates vs inserts
+      final existingResultsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('exam_results')
+              .where('examId', isEqualTo: _selectedExam)
+              .where('subject', isEqualTo: _selectedSubject)
+              .get();
+
+      final Map<String, QueryDocumentSnapshot> existingResultsMap = {};
+      for (var doc in existingResultsSnapshot.docs) {
+        if (doc['studentId'] != null) {
+          existingResultsMap[doc['studentId']] = doc;
+        }
+      }
+
+      int savedCount = 0;
       for (var student in _students) {
         final studentId = student['id'];
         final marksText = _marksControllers[studentId]?.text.trim() ?? '';
@@ -298,28 +349,35 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
 
         final marksObtained = int.tryParse(marksText);
         if (marksObtained == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Invalid marks for ${student['name']}'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Invalid marks for ${student['name']}'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          continue;
+        }
+
+        // Validate marks range
+        if (marksObtained < 0 || marksObtained > maxMark) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Marks must be between 0 and $maxMark for ${student['name']}',
+                ),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
           continue;
         }
 
         final remarks = _remarksControllers[studentId]?.text.trim() ?? '';
         final percentage = (marksObtained / maxMark) * 100;
         final grade = _calculateGrade(percentage);
-
-        // Check if result already exists
-        final existingResults = await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(AppConfig.schoolId)
-            .collection('exam_results')
-            .where('examId', isEqualTo: _selectedExam)
-            .where('studentId', isEqualTo: studentId)
-            .where('subject', isEqualTo: _selectedSubject)
-            .get();
 
         final resultData = {
           'examId': _selectedExam,
@@ -336,51 +394,50 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
           'grade': grade,
           'remarks': remarks,
           'uploadedBy': FirebaseAuth.instance.currentUser!.uid,
+          'uploadedByRole': 'teacher',
           'uploadedAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         };
 
-        if (existingResults.docs.isNotEmpty) {
+        if (existingResultsMap.containsKey(studentId)) {
           // Update existing result
-          batch.update(
-            existingResults.docs.first.reference,
-            resultData,
-          );
+          batch.update(existingResultsMap[studentId]!.reference, resultData);
         } else {
           // Create new result
-          final resultRef = FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('exam_results')
-              .doc();
+          final resultRef =
+              FirebaseFirestore.instance
+                  .collection('schools')
+                  .doc(AppConfig.schoolId)
+                  .collection('exam_results')
+                  .doc();
           batch.set(resultRef, resultData);
         }
+        savedCount++;
       }
 
       await batch.commit();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Marks saved successfully!'),
+          SnackBar(
+            content: Text('✅ $savedCount marks saved successfully!'),
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context);
+        Navigator.pop(context, true); // Return true to indicate data was saved
       }
     } catch (e) {
+      debugPrint('Error saving marks: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
-      debugPrint('Error saving marks: $e');
     }
 
-    setState(() => _isSaving = false);
+    if (mounted) {
+      setState(() => _isSaving = false);
+    }
   }
 
   String _calculateGrade(double percentage) {
@@ -405,7 +462,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              setState(() {});
               if (_selectedSubject != null) {
                 _loadStudents();
               }
@@ -413,29 +469,42 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildClassSelector(),
-            const SizedBox(height: 16),
-            if (_selectedClass != null) _buildSectionSelector(),
-            const SizedBox(height: 16),
-            if (_selectedSection != null) _buildExamSelector(),
-            const SizedBox(height: 16),
-            if (_selectedExam != null) _buildSubjectSelector(),
-            const SizedBox(height: 24),
-            if (_selectedSubject != null && _students.isNotEmpty)
-              _buildMarksTable(),
-            const SizedBox(height: 24),
-            if (_selectedSubject != null && _students.isNotEmpty)
-              _buildSaveButton(),
-          ],
-        ),
-      ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildClassSelector(),
+                    const SizedBox(height: 16),
+                    if (_selectedClass != null) _buildSectionSelector(),
+                    const SizedBox(height: 16),
+                    if (_selectedSection != null) _buildExamSelector(),
+                    const SizedBox(height: 16),
+                    if (_selectedExam != null) _buildSubjectSelector(),
+                    const SizedBox(height: 24),
+                    if (_selectedSubject != null && _students.isNotEmpty)
+                      _buildMarksTable(),
+                    const SizedBox(height: 24),
+                    if (_selectedSubject != null && _students.isNotEmpty)
+                      _buildSaveButton(),
+                    if (_selectedSubject != null &&
+                        _students.isEmpty &&
+                        !_isLoading)
+                      Container(
+                        padding: const EdgeInsets.all(32),
+                        decoration: _cardDecoration(),
+                        child: const Center(
+                          child: Text(
+                            'No students found in this class/section',
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
     );
   }
 
@@ -446,7 +515,10 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Select Class', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Select Class',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _selectedClass,
@@ -455,12 +527,13 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
               border: OutlineInputBorder(),
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
-            items: _availableClasses.map<DropdownMenuItem<String>>((className) {
-              return DropdownMenuItem<String>(
-                value: className,
-                child: Text(className),
-              );
-            }).toList(),
+            items:
+                _availableClasses.map<DropdownMenuItem<String>>((className) {
+                  return DropdownMenuItem<String>(
+                    value: className,
+                    child: Text(className),
+                  );
+                }).toList(),
             onChanged: (value) {
               setState(() {
                 _selectedClass = value;
@@ -482,23 +555,37 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
 
   Widget _buildSectionSelector() {
     return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('students')
-          .where('class', isEqualTo: _selectedClass)
-          .get(),
+      future:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('class', isEqualTo: _selectedClass)
+              .get(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: _cardDecoration(),
+            child: const Center(child: CircularProgressIndicator()),
+          );
         }
 
-        final sections = snapshot.data!.docs
-            .map((doc) => doc['section'] as String)
-            .where((section) => section.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort();
+        final sections =
+            snapshot.data!.docs
+                .map((doc) => doc['section'] as String)
+                .where((section) => section.isNotEmpty)
+                .toSet()
+                .toList()
+              ..sort();
+
+        if (sections.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: _cardDecoration(),
+            child: const Center(child: Text('No sections found')),
+          );
+        }
 
         return Container(
           padding: const EdgeInsets.all(16),
@@ -506,21 +593,28 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Select Section', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Select Section',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _selectedSection,
                 hint: const Text('Choose Section'),
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
-                items: sections.map<DropdownMenuItem<String>>((section) {
-                  return DropdownMenuItem<String>(
-                    value: section,
-                    child: Text(section),
-                  );
-                }).toList(),
+                items:
+                    sections.map<DropdownMenuItem<String>>((section) {
+                      return DropdownMenuItem<String>(
+                        value: section,
+                        child: Text(section),
+                      );
+                    }).toList(),
                 onChanged: (value) {
                   setState(() {
                     _selectedSection = value;
@@ -546,31 +640,44 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Select Exam', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            value: _selectedExam,
-            hint: const Text('Choose Exam'),
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            ),
-            items: _exams.map<DropdownMenuItem<String>>((exam) {
-              return DropdownMenuItem<String>(
-                value: exam['id'] as String,
-                child: Text('${exam['name']} (${exam['type']})'),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedExam = value;
-                _selectedSubject = null;
-                _students.clear();
-                _marksControllers.clear();
-                _remarksControllers.clear();
-              });
-            },
+          const Text(
+            'Select Exam',
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
+          const SizedBox(height: 8),
+          if (_exams.isEmpty)
+            const Text(
+              'No exams available for this class',
+              style: TextStyle(color: Colors.grey),
+            )
+          else
+            DropdownButtonFormField<String>(
+              value: _selectedExam,
+              hint: const Text('Choose Exam'),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+              items:
+                  _exams.map<DropdownMenuItem<String>>((exam) {
+                    return DropdownMenuItem<String>(
+                      value: exam['id'] as String,
+                      child: Text('${exam['name']} (${exam['type']})'),
+                    );
+                  }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  _selectedExam = value;
+                  _selectedSubject = null;
+                  _students.clear();
+                  _marksControllers.clear();
+                  _remarksControllers.clear();
+                });
+              },
+            ),
         ],
       ),
     );
@@ -593,9 +700,7 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: _cardDecoration(),
-        child: const Center(
-          child: Text('No subjects found for this exam'),
-        ),
+        child: const Center(child: Text('No subjects found for this exam')),
       );
     }
 
@@ -605,7 +710,10 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Select Subject', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Select Subject',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             value: _selectedSubject,
@@ -614,12 +722,13 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
               border: OutlineInputBorder(),
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
-            items: subjects.map<DropdownMenuItem<String>>((subject) {
-              return DropdownMenuItem<String>(
-                value: subject,
-                child: Text(subject),
-              );
-            }).toList(),
+            items:
+                subjects.map<DropdownMenuItem<String>>((subject) {
+                  return DropdownMenuItem<String>(
+                    value: subject,
+                    child: Text(subject),
+                  );
+                }).toList(),
             onChanged: (value) {
               setState(() {
                 _selectedSubject = value;
@@ -633,6 +742,20 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
   }
 
   Widget _buildMarksTable() {
+    // Get max marks for the selected subject
+    int maxMark = 100;
+    for (var exam in _exams) {
+      if (exam['id'] == _selectedExam) {
+        final subjects = exam['subjects'] as List<String>? ?? [];
+        final maxMarks = exam['maxMarks'] as List<int>? ?? [];
+        final subjectIndex = subjects.indexOf(_selectedSubject!);
+        if (subjectIndex >= 0 && subjectIndex < maxMarks.length) {
+          maxMark = maxMarks[subjectIndex];
+        }
+        break;
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
@@ -646,47 +769,89 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Max Marks: $maxMark',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               Text(
-                'Total Students: ${_students.length}',
+                'Total: ${_students.length}',
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
           ),
           const SizedBox(height: 16),
+
           // Table Header
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
               color: Colors.blue.shade50,
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Row(
               children: [
-                SizedBox(width: 60, child: Text('Roll No', style: TextStyle(fontWeight: FontWeight.bold))),
-                Expanded(flex: 2, child: Text('Student Name', style: TextStyle(fontWeight: FontWeight.bold))),
-                SizedBox(width: 100, child: Text('Marks', style: TextStyle(fontWeight: FontWeight.bold))),
+                SizedBox(
+                  width: 60,
+                  child: Text(
+                    'Roll No',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Student Name',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                SizedBox(
+                  width: 100,
+                  child: Text(
+                    'Marks',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
                 SizedBox(width: 8),
-                Expanded(flex: 2, child: Text('Remarks', style: TextStyle(fontWeight: FontWeight.bold))),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    'Remarks',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 8),
+
+          // Student List
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: _students.length,
-            separatorBuilder: (_, __) => const Divider(),
+            separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final student = _students[index];
               final studentId = student['id'];
               return Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                 child: Row(
                   children: [
                     SizedBox(
                       width: 60,
                       child: Text(
-                        student['rollNo'],
+                        student['rollNo'].toString(),
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -701,10 +866,13 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
                       width: 100,
                       child: TextField(
                         controller: _marksControllers[studentId],
-                        decoration: const InputDecoration(
-                          hintText: 'Marks',
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        decoration: InputDecoration(
+                          hintText: '0-$maxMark',
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 8,
+                          ),
                         ),
                         keyboardType: TextInputType.number,
                         style: const TextStyle(fontSize: 14),
@@ -716,9 +884,12 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
                       child: TextField(
                         controller: _remarksControllers[studentId],
                         decoration: const InputDecoration(
-                          hintText: 'Remarks',
+                          hintText: 'Optional',
                           border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 8,
+                          ),
                         ),
                         style: const TextStyle(fontSize: 14),
                       ),
@@ -727,6 +898,29 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
                 ),
               );
             },
+          ),
+
+          const SizedBox(height: 16),
+
+          // Instructions
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Enter marks for each student. Grades will be calculated automatically.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -746,19 +940,20 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: _isSaving
-            ? const SizedBox(
-          height: 20,
-          width: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Colors.white,
-          ),
-        )
-            : const Text(
-          'Save Marks',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
+        child:
+            _isSaving
+                ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+                : const Text(
+                  'Save Marks',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
       ),
     );
   }

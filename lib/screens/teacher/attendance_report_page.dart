@@ -4,8 +4,15 @@ import 'package:intl/intl.dart';
 
 class AttendanceReportPage extends StatefulWidget {
   final String schoolId;
+  final String? className;
+  final String? section;
 
-  const AttendanceReportPage({super.key, required this.schoolId});
+  const AttendanceReportPage({
+    super.key,
+    required this.schoolId,
+    this.className,
+    this.section,
+  });
 
   @override
   State<AttendanceReportPage> createState() => _AttendanceReportPageState();
@@ -25,9 +32,19 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
       appBar: AppBar(
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
-        title: const Text(
-          "Attendance Report",
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Attendance Report",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            if (widget.className != null && widget.section != null)
+              Text(
+                '${widget.className} - ${widget.section}',
+                style: const TextStyle(fontSize: 12),
+              ),
+          ],
         ),
         centerTitle: false,
         actions: [
@@ -40,6 +57,11 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
             icon: const Icon(Icons.refresh),
             onPressed: () => setState(() {}),
             tooltip: "Refresh",
+          ),
+          IconButton(
+            icon: const Icon(Icons.download),
+            onPressed: _exportReport,
+            tooltip: "Export",
           ),
         ],
       ),
@@ -68,34 +90,34 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.calendar_today, color: Colors.indigo, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Select Date",
-                  style: TextStyle(fontSize: 11, color: Colors.grey),
-                ),
-                Text(
-                  DateFormat('EEEE, dd MMMM yyyy').format(_selectedDate),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
+      child: InkWell(
+        onTap: _pickDate,
+        borderRadius: BorderRadius.circular(16),
+        child: Row(
+          children: [
+            const Icon(Icons.calendar_today, color: Colors.indigo, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Select Date",
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
                   ),
-                ),
-              ],
+                  Text(
+                    DateFormat('EEEE, dd MMMM yyyy').format(_selectedDate),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.arrow_drop_down, color: Colors.indigo),
-            onPressed: _pickDate,
-            tooltip: "Change Date",
-          ),
-        ],
+            const Icon(Icons.arrow_drop_down, color: Colors.indigo),
+          ],
+        ),
       ),
     );
   }
@@ -111,7 +133,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
               .collection('records')
               .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return Container(
             margin: const EdgeInsets.symmetric(horizontal: 12),
             padding: const EdgeInsets.all(16),
@@ -121,6 +143,26 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
                 height: 20,
                 width: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: _cardDecoration(),
+            child: const Center(
+              child: Column(
+                children: [
+                  Icon(Icons.error_outline, size: 40, color: Colors.red),
+                  SizedBox(height: 8),
+                  Text(
+                    "Error loading attendance",
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ],
               ),
             ),
           );
@@ -155,12 +197,23 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
         for (var doc in records) {
           final data = doc.data() as Map<String, dynamic>;
           final status = data['status'] ?? 'Absent';
-          if (status == 'Present')
+
+          // Apply class filter if specified
+          if (widget.className != null && widget.section != null) {
+            final className = data['className'] ?? '';
+            final section = data['section'] ?? '';
+            if (className != widget.className || section != widget.section) {
+              continue;
+            }
+          }
+
+          if (status == 'Present') {
             present++;
-          else if (status == 'Late')
+          } else if (status == 'Late') {
             late++;
-          else
+          } else {
             absent++;
+          }
         }
 
         int total = present + absent + late;
@@ -243,8 +296,29 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
               .collection('records')
               .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  "Error loading attendance",
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => setState(() {}),
+                  child: const Text("Retry"),
+                ),
+              ],
+            ),
+          );
         }
 
         var records = snapshot.data!.docs;
@@ -265,7 +339,19 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
           );
         }
 
-        // Apply filter
+        // Apply class filter
+        if (widget.className != null && widget.section != null) {
+          records =
+              records.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final className = data['className'] ?? '';
+                final section = data['section'] ?? '';
+                return className == widget.className &&
+                    section == widget.section;
+              }).toList();
+        }
+
+        // Apply status filter
         if (_selectedFilter != "All") {
           records =
               records.where((doc) {
@@ -282,14 +368,22 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
           final classB = dataB['className'] ?? '';
           final sectionA = dataA['section'] ?? '';
           final sectionB = dataB['section'] ?? '';
+          final rollA = dataA['rollNo']?.toString() ?? '';
+          final rollB = dataB['rollNo']?.toString() ?? '';
 
           if (classA == classB) {
+            if (sectionA == sectionB) {
+              // Sort by roll number if same class and section
+              final rollNumA = int.tryParse(rollA) ?? 0;
+              final rollNumB = int.tryParse(rollB) ?? 0;
+              return rollNumA.compareTo(rollNumB);
+            }
             return sectionA.compareTo(sectionB);
           }
           return classA.compareTo(classB);
         });
 
-        if (records.isEmpty && _selectedFilter != "All") {
+        if (records.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -301,7 +395,9 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  "No $_selectedFilter students found",
+                  _selectedFilter != "All"
+                      ? "No $_selectedFilter students found"
+                      : "No students found for selected class",
                   style: TextStyle(color: Colors.grey.shade600),
                 ),
               ],
@@ -324,7 +420,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
 
   Widget _buildAttendanceCard(Map<String, dynamic> data) {
     final name = data['name'] ?? 'Student';
-    final rollNo = data['rollNo'] ?? '';
+    final rollNo = data['rollNo']?.toString() ?? '';
     final className = data['className'] ?? '';
     final section = data['section'] ?? '';
     final status = data['status'] ?? 'Absent';
@@ -530,6 +626,109 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
                     );
                   }).toList(),
             ),
+          ),
+    );
+  }
+
+  void _exportReport() async {
+    // Get all records for the selected date
+    final recordsSnapshot =
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(widget.schoolId)
+            .collection('attendance')
+            .doc(_getDateKey())
+            .collection('records')
+            .get();
+
+    if (recordsSnapshot.docs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No data to export'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Calculate statistics
+    int present = 0, absent = 0, late = 0;
+    for (var doc in recordsSnapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final status = data['status'] ?? 'Absent';
+      if (status == 'Present')
+        present++;
+      else if (status == 'Late')
+        late++;
+      else
+        absent++;
+    }
+    int total = present + absent + late;
+    double rate = total > 0 ? (present / total) * 100 : 0;
+
+    // Show export dialog with summary
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Export Report'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Date: ${DateFormat('dd MMMM yyyy').format(_selectedDate)}',
+                ),
+                const SizedBox(height: 8),
+                if (widget.className != null)
+                  Text('Class: ${widget.className} - ${widget.section}'),
+                const Divider(),
+                Text('Total Students: $total'),
+                Text(
+                  'Present: $present',
+                  style: const TextStyle(color: Colors.green),
+                ),
+                Text(
+                  'Absent: $absent',
+                  style: const TextStyle(color: Colors.red),
+                ),
+                if (late > 0)
+                  Text(
+                    'Late: $late',
+                    style: const TextStyle(color: Colors.orange),
+                  ),
+                const Divider(),
+                Text(
+                  'Attendance Rate: ${rate.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: rate >= 75 ? Colors.green : Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Export feature coming soon'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+                child: const Text('Export'),
+              ),
+            ],
           ),
     );
   }

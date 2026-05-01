@@ -98,6 +98,7 @@ class _TeacherViewTimetableState extends State<TeacherViewTimetable> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text(
           "My Timetable",
           style: TextStyle(fontWeight: FontWeight.bold),

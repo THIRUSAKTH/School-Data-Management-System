@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -54,6 +55,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
   }
 
   Future<void> _loadStudents() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
@@ -97,9 +99,19 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
       }
     } catch (e) {
       debugPrint('Error loading students: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error loading students: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
 
-    setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -182,13 +194,42 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
         key: _formKey,
         child: Column(
           children: [
+            // Student selector (only shown if multiple children)
             if (_students.length > 1) _buildStudentSelector(),
+
+            // Show current student info even if single student
+            if (_students.length == 1)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: _cardDecoration(),
+                child: Row(
+                  children: [
+                    const Icon(Icons.person, color: Colors.orange, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      "Complaint for:",
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "$_selectedStudentName ($_selectedClass-$_selectedSection)",
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             const SizedBox(height: 16),
+
+            // Complaint Form Card
             Container(
               padding: const EdgeInsets.all(16),
               decoration: _cardDecoration(),
               child: Column(
                 children: [
+                  // Category Dropdown
                   DropdownButtonFormField<String>(
                     value: _selectedCategory,
                     decoration: const InputDecoration(
@@ -204,10 +245,14 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                           );
                         }).toList(),
                     onChanged: (value) {
-                      setState(() => _selectedCategory = value!);
+                      if (value != null) {
+                        setState(() => _selectedCategory = value);
+                      }
                     },
                   ),
                   const SizedBox(height: 16),
+
+                  // Title Field
                   TextFormField(
                     controller: _titleController,
                     decoration: const InputDecoration(
@@ -221,6 +266,8 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                             v?.isEmpty == true ? "Please enter a title" : null,
                   ),
                   const SizedBox(height: 16),
+
+                  // Description Field
                   TextFormField(
                     controller: _descriptionController,
                     maxLines: 6,
@@ -238,6 +285,8 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                                 : null,
                   ),
                   const SizedBox(height: 24),
+
+                  // Submit Button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -273,6 +322,8 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
               ),
             ),
             const SizedBox(height: 16),
+
+            // Info Card
             Container(
               padding: const EdgeInsets.all(12),
               decoration: _cardDecoration(),
@@ -345,12 +396,12 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
     );
   }
 
-  // FIXED: Removed orderBy to avoid index requirement
   Widget _buildMyComplaintsTab() {
     if (_selectedStudentId == null) {
       return const Center(child: Text("Select a child to view complaints"));
     }
 
+    // Fixed: Removed orderBy to avoid index requirement
     return StreamBuilder<QuerySnapshot>(
       stream:
           FirebaseFirestore.instance
@@ -456,9 +507,8 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
           );
         }
 
-        final complaints = snapshot.data!.docs;
-
         // Sort client-side by createdAt (newest first)
+        final complaints = snapshot.data!.docs.toList();
         complaints.sort((a, b) {
           final aData = a.data() as Map<String, dynamic>;
           final bData = b.data() as Map<String, dynamic>;
@@ -490,6 +540,8 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
     final status = data['status'] ?? 'pending';
     final createdAt = data['createdAt'] as Timestamp?;
     final statusConfig = _getStatusConfig(status);
+    final response = data['response'];
+    final hasResponse = response != null && response.toString().isNotEmpty;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -509,6 +561,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Status and Date Row
               Row(
                 children: [
                   Container(
@@ -550,6 +603,8 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                 ],
               ),
               const SizedBox(height: 10),
+
+              // Category Chip
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -562,6 +617,8 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                 ),
               ),
               const SizedBox(height: 8),
+
+              // Title
               Text(
                 data['title'] ?? 'Complaint',
                 style: const TextStyle(
@@ -570,14 +627,17 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                 ),
               ),
               const SizedBox(height: 6),
+
+              // Description Preview
               Text(
                 data['description'] ?? 'No description',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 13, color: Colors.grey),
               ),
-              if (data['response'] != null &&
-                  data['response'].toString().isNotEmpty) ...[
+
+              // Response Preview (if available)
+              if (hasResponse) ...[
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(10),
@@ -595,7 +655,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          data['response'],
+                          response,
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.green.shade700,
@@ -620,6 +680,8 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
     final createdAt = data['createdAt'] as Timestamp?;
     final respondedAt = data['respondedAt'] as Timestamp?;
     final statusConfig = _getStatusConfig(status);
+    final response = data['response'];
+    final hasResponse = response != null && response.toString().isNotEmpty;
 
     showModalBottomSheet(
       context: context,
@@ -641,6 +703,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Drag Handle
                         Center(
                           child: Container(
                             width: 40,
@@ -652,6 +715,8 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                           ),
                         ),
                         const SizedBox(height: 20),
+
+                        // Status Icon and Title
                         Row(
                           children: [
                             Container(
@@ -693,6 +758,8 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                         ),
                         const SizedBox(height: 20),
                         const Divider(),
+
+                        // Details
                         _detailRow("Category", data['category'] ?? 'General'),
                         _detailRow(
                           "Submitted On",
@@ -702,12 +769,15 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                               ).format(createdAt.toDate())
                               : 'Unknown',
                         ),
+                        const SizedBox(height: 8),
                         _detailRow(
                           "Description",
                           data['description'] ?? 'No description',
+                          isLongText: true,
                         ),
-                        if (data['response'] != null &&
-                            data['response'].toString().isNotEmpty) ...[
+
+                        // School Response (if available)
+                        if (hasResponse) ...[
                           const SizedBox(height: 8),
                           Container(
                             padding: const EdgeInsets.all(12),
@@ -727,7 +797,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  data['response'],
+                                  response,
                                   style: const TextStyle(fontSize: 13),
                                 ),
                                 if (respondedAt != null)
@@ -745,7 +815,10 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
                             ),
                           ),
                         ],
+
                         const SizedBox(height: 20),
+
+                        // Close Button
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
@@ -769,7 +842,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
     );
   }
 
-  Widget _detailRow(String label, String value) {
+  Widget _detailRow(String label, String value, {bool isLongText = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -782,7 +855,13 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
               style: const TextStyle(color: Colors.grey, fontSize: 13),
             ),
           ),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 13),
+              softWrap: true,
+            ),
+          ),
         ],
       ),
     );
@@ -873,7 +952,9 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
         );
       }
     } finally {
-      setState(() => _isSubmitting = false);
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 

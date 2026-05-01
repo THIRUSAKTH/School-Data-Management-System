@@ -7,11 +7,15 @@ import '../../app_config.dart';
 class AttendanceHistoryPage extends StatefulWidget {
   final String studentId;
   final String studentName;
+  final String? className;
+  final String? section;
 
   const AttendanceHistoryPage({
     super.key,
     required this.studentId,
     this.studentName = '',
+    this.className,
+    this.section,
   });
 
   @override
@@ -24,6 +28,7 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
   String _selectedMonth = DateFormat('yyyy-MM').format(DateTime.now());
   Map<String, dynamic> _attendanceData = {};
   bool _isLoading = true;
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -39,15 +44,16 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
   }
 
   Future<void> _loadAttendanceData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
       final attendanceSnapshot =
-      await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('attendance')
-          .get();
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('attendance')
+              .get();
 
       Map<String, List<Map<String, dynamic>>> monthlyRecords = {};
       Map<String, int> monthlyPresent = {};
@@ -58,12 +64,15 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
       for (var dateDoc in attendanceSnapshot.docs) {
         final date = dateDoc.id;
 
+        // Skip if date is invalid format
+        if (date.length < 7) continue;
+
         // Get the student's record for this date
         final recordDoc =
-        await dateDoc.reference
-            .collection('records')
-            .doc(widget.studentId)
-            .get();
+            await dateDoc.reference
+                .collection('records')
+                .doc(widget.studentId)
+                .get();
 
         if (recordDoc.exists) {
           final studentRecord = recordDoc.data()!;
@@ -77,21 +86,18 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
             monthlyLate[month] = 0;
           }
 
-          monthlyRecords[month]!.add({
+          final recordData = {
             'date': date,
             'status': status,
-            'checkInTime': studentRecord['checkInTime'],
-            'checkOutTime': studentRecord['checkOutTime'],
-            'remark': studentRecord['remark'],
-          });
+            'checkInTime': studentRecord['checkInTime'] ?? '',
+            'checkOutTime': studentRecord['checkOutTime'] ?? '',
+            'remark': studentRecord['remark'] ?? '',
+            'className': studentRecord['className'] ?? widget.className ?? '',
+            'section': studentRecord['section'] ?? widget.section ?? '',
+          };
 
-          allRecords.add({
-            'date': date,
-            'status': status,
-            'checkInTime': studentRecord['checkInTime'],
-            'checkOutTime': studentRecord['checkOutTime'],
-            'remark': studentRecord['remark'],
-          });
+          monthlyRecords[month]!.add(recordData);
+          allRecords.add(recordData);
 
           if (status == 'Present') {
             monthlyPresent[month] = (monthlyPresent[month] ?? 0) + 1;
@@ -106,20 +112,22 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
       // Sort records by date (newest first)
       allRecords.sort((a, b) => b['date'].compareTo(a['date']));
 
-      setState(() {
-        _attendanceData = {
-          'monthlyRecords': monthlyRecords,
-          'monthlyPresent': monthlyPresent,
-          'monthlyAbsent': monthlyAbsent,
-          'monthlyLate': monthlyLate,
-          'allRecords': allRecords,
-        };
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _attendanceData = {
+            'monthlyRecords': monthlyRecords,
+            'monthlyPresent': monthlyPresent,
+            'monthlyAbsent': monthlyAbsent,
+            'monthlyLate': monthlyLate,
+            'allRecords': allRecords,
+          };
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint('Error loading attendance: $e');
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error loading attendance: $e'),
@@ -135,11 +143,21 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
-        title: Text(
-          widget.studentName.isNotEmpty
-              ? 'Attendance - ${widget.studentName}'
-              : 'Attendance History',
-          style: const TextStyle(fontWeight: FontWeight.bold),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.studentName.isNotEmpty
+                  ? 'Attendance - ${widget.studentName}'
+                  : 'Attendance History',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            if (widget.className != null && widget.section != null)
+              Text(
+                '${widget.className} - ${widget.section}',
+                style: const TextStyle(fontSize: 12),
+              ),
+          ],
         ),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
@@ -168,27 +186,27 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
             },
             itemBuilder:
                 (context) => [
-              const PopupMenuItem(
-                value: 'export',
-                child: Row(
-                  children: [
-                    Icon(Icons.download, size: 18),
-                    SizedBox(width: 12),
-                    Text('Export Report'),
-                  ],
-                ),
-              ),
-            ],
+                  const PopupMenuItem(
+                    value: 'export',
+                    child: Row(
+                      children: [
+                        Icon(Icons.download, size: 18),
+                        SizedBox(width: 12),
+                        Text('Export Report'),
+                      ],
+                    ),
+                  ),
+                ],
           ),
         ],
       ),
       body:
-      _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-        controller: _tabController,
-        children: [_buildMonthlyView(), _buildAllRecordsView()],
-      ),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : TabBarView(
+                controller: _tabController,
+                children: [_buildMonthlyView(), _buildAllRecordsView()],
+              ),
     );
   }
 
@@ -241,11 +259,11 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
   }
 
   Widget _buildOverallStatsCard(
-      int present,
-      int absent,
-      int late,
-      double rate,
-      ) {
+    int present,
+    int absent,
+    int late,
+    double rate,
+  ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -302,11 +320,11 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
   }
 
   Widget _buildAttendanceChart(
-      Map<String, int> present,
-      Map<String, int> absent,
-      Map<String, int> late,
-      List<String> months,
-      ) {
+    Map<String, int> present,
+    Map<String, int> absent,
+    Map<String, int> late,
+    List<String> months,
+  ) {
     List<BarChartGroupData> barGroups = [];
 
     for (int i = 0; i < months.length; i++) {
@@ -447,11 +465,11 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
   }
 
   Widget _buildMonthlyBreakdown(
-      List<String> months,
-      Map<String, int> present,
-      Map<String, int> absent,
-      Map<String, int> late,
-      ) {
+    List<String> months,
+    Map<String, int> present,
+    Map<String, int> absent,
+    Map<String, int> late,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
@@ -484,9 +502,9 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
                 leading: CircleAvatar(
                   radius: 18,
                   backgroundColor:
-                  rate >= 75
-                      ? Colors.green.shade100
-                      : Colors.orange.shade100,
+                      rate >= 75
+                          ? Colors.green.shade100
+                          : Colors.orange.shade100,
                   child: Text(
                     '${presentCount + absentCount}',
                     style: TextStyle(
@@ -545,189 +563,215 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
       return _buildEmptyState();
     }
 
+    // Group by year for sections
+    Map<String, List<Map<String, dynamic>>> groupedByYear = {};
+    for (var record in allRecords) {
+      String year = record['date'].substring(0, 4);
+      if (!groupedByYear.containsKey(year)) {
+        groupedByYear[year] = [];
+      }
+      groupedByYear[year]!.add(record);
+    }
+
+    List<String> years =
+        groupedByYear.keys.toList()..sort((a, b) => b.compareTo(a));
+
     return ListView.builder(
       padding: const EdgeInsets.all(12),
-      itemCount: allRecords.length,
-      itemBuilder: (context, index) {
-        final record = allRecords[index];
-        final date = DateTime.parse(record['date']);
-        final status = record['status'];
-        final checkInTime = record['checkInTime'];
-        final checkOutTime = record['checkOutTime'];
-        final remark = record['remark'];
+      itemCount: years.length,
+      itemBuilder: (context, yearIndex) {
+        final year = years[yearIndex];
+        final records = groupedByYear[year]!;
 
-        Color getStatusColor() {
-          switch (status) {
-            case 'Present':
-              return Colors.green;
-            case 'Absent':
-              return Colors.red;
-            case 'Late':
-              return Colors.orange;
-            default:
-              return Colors.grey;
-          }
-        }
-
-        IconData getStatusIcon() {
-          switch (status) {
-            case 'Present':
-              return Icons.check_circle;
-            case 'Absent':
-              return Icons.cancel;
-            case 'Late':
-              return Icons.access_time;
-            default:
-              return Icons.help_outline;
-          }
-        }
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: InkWell(
-            onTap: () => _showRecordDetails(record),
-            borderRadius: BorderRadius.circular(14),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: getStatusColor().withOpacity(0.1),
-                        child: Icon(
-                          getStatusIcon(),
-                          color: getStatusColor(),
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              DateFormat('EEEE, dd MMMM yyyy').format(date),
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              status,
-                              style: TextStyle(
-                                color: getStatusColor(),
-                                fontWeight: FontWeight.w500,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: getStatusColor().withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          status,
-                          style: TextStyle(
-                            color: getStatusColor(),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (checkInTime != null || checkOutTime != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: Row(
-                        children: [
-                          if (checkInTime != null)
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.login,
-                                    size: 12,
-                                    color: Colors.grey,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'In: $checkInTime',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          if (checkOutTime != null)
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.logout,
-                                    size: 12,
-                                    color: Colors.grey,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Out: $checkOutTime',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  if (remark != null && remark.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.comment, size: 12, color: Colors.orange),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                remark,
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Year $year',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.deepPurple.shade700,
+                ),
               ),
             ),
-          ),
+            ...records.map((record) => _buildRecordCard(record)),
+            const SizedBox(height: 12),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildRecordCard(Map<String, dynamic> record) {
+    final date = DateTime.parse(record['date']);
+    final status = record['status'];
+    final checkInTime = record['checkInTime'];
+    final checkOutTime = record['checkOutTime'];
+    final remark = record['remark'];
+
+    Color getStatusColor() {
+      switch (status) {
+        case 'Present':
+          return Colors.green;
+        case 'Absent':
+          return Colors.red;
+        case 'Late':
+          return Colors.orange;
+        default:
+          return Colors.grey;
+      }
+    }
+
+    IconData getStatusIcon() {
+      switch (status) {
+        case 'Present':
+          return Icons.check_circle;
+        case 'Absent':
+          return Icons.cancel;
+        case 'Late':
+          return Icons.access_time;
+        default:
+          return Icons.help_outline;
+      }
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: () => _showRecordDetails(record),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: getStatusColor().withOpacity(0.1),
+                    child: Icon(
+                      getStatusIcon(),
+                      color: getStatusColor(),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          DateFormat('EEEE, dd MMMM yyyy').format(date),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: getStatusColor().withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                status,
+                                style: TextStyle(
+                                  color: getStatusColor(),
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (record['className'] != null &&
+                                record['className'].isNotEmpty)
+                              Text(
+                                '${record['className']} - ${record['section']}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                ],
+              ),
+              if (checkInTime != null && checkInTime.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.login, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Check In: $checkInTime',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      if (checkOutTime != null && checkOutTime.isNotEmpty) ...[
+                        const SizedBox(width: 16),
+                        Icon(Icons.logout, size: 14, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Check Out: $checkOutTime',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              if (remark != null && remark.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.comment,
+                          size: 14,
+                          color: Colors.orange.shade700,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            remark,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -740,112 +784,113 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder:
           (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color:
-                    status == 'Present'
-                        ? Colors.green.shade100
-                        : (status == 'Late'
-                        ? Colors.orange.shade100
-                        : Colors.red.shade100),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    status == 'Present'
-                        ? Icons.check_circle
-                        : (status == 'Late'
-                        ? Icons.access_time
-                        : Icons.cancel),
-                    color:
-                    status == 'Present'
-                        ? Colors.green
-                        : (status == 'Late'
-                        ? Colors.orange
-                        : Colors.red),
-                    size: 28,
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        DateFormat('EEEE, dd MMMM yyyy').format(date),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color:
+                            status == 'Present'
+                                ? Colors.green.shade100
+                                : (status == 'Late'
+                                    ? Colors.orange.shade100
+                                    : Colors.red.shade100),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      Text(
-                        status,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color:
-                          status == 'Present'
-                              ? Colors.green
-                              : (status == 'Late'
-                              ? Colors.orange
-                              : Colors.red),
-                          fontWeight: FontWeight.w500,
-                        ),
+                      child: Icon(
+                        status == 'Present'
+                            ? Icons.check_circle
+                            : (status == 'Late'
+                                ? Icons.access_time
+                                : Icons.cancel),
+                        color:
+                            status == 'Present'
+                                ? Colors.green
+                                : (status == 'Late'
+                                    ? Colors.orange
+                                    : Colors.red),
+                        size: 28,
                       ),
-                    ],
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            DateFormat('EEEE, dd MMMM yyyy').format(date),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            status,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  status == 'Present'
+                                      ? Colors.green
+                                      : (status == 'Late'
+                                          ? Colors.orange
+                                          : Colors.red),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(),
+                if (checkInTime != null && checkInTime.isNotEmpty)
+                  _DetailRow(label: 'Check In Time', value: checkInTime),
+                if (checkOutTime != null && checkOutTime.isNotEmpty)
+                  _DetailRow(label: 'Check Out Time', value: checkOutTime),
+                if (remark != null && remark.isNotEmpty)
+                  _DetailRow(label: 'Remark', value: remark),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepPurple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Close'),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            const Divider(),
-            if (checkInTime != null && checkInTime.isNotEmpty)
-              _DetailRow(label: 'Check In Time', value: checkInTime),
-            if (checkOutTime != null && checkOutTime.isNotEmpty)
-              _DetailRow(label: 'Check Out Time', value: checkOutTime),
-            if (remark != null && remark.isNotEmpty)
-              _DetailRow(label: 'Remark', value: remark),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text('Close'),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -866,8 +911,9 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
           ),
           const SizedBox(height: 8),
           Text(
-            'Attendance history will appear here',
+            'Attendance history will appear here once marked by teacher',
             style: TextStyle(color: Colors.grey.shade500),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
@@ -888,13 +934,94 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
   }
 
   Future<void> _exportToPDF() async {
-    // TODO: Implement PDF export
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('PDF Export feature coming soon'),
-        backgroundColor: Colors.orange,
-      ),
+    final allRecords = List<Map<String, dynamic>>.from(
+      _attendanceData['allRecords'] ?? [],
     );
+
+    if (allRecords.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No data to export'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isExporting = true);
+
+    // Calculate summary stats
+    int present = 0, absent = 0, late = 0;
+    for (var record in allRecords) {
+      switch (record['status']) {
+        case 'Present':
+          present++;
+          break;
+        case 'Absent':
+          absent++;
+          break;
+        case 'Late':
+          late++;
+          break;
+      }
+    }
+    int total = present + absent;
+    double percentage = total > 0 ? (present / total) * 100 : 0;
+
+    // Show summary dialog (PDF generation placeholder)
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Attendance Report Summary'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Student: ${widget.studentName}'),
+                const SizedBox(height: 8),
+                Text('Total Days: ${allRecords.length}'),
+                Text('Present: $present'),
+                Text('Absent: $absent'),
+                if (late > 0) Text('Late: $late'),
+                const Divider(),
+                Text(
+                  'Attendance Rate: ${percentage.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: percentage >= 75 ? Colors.green : Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('PDF export will be available soon'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                ),
+                child: const Text('Export PDF'),
+              ),
+            ],
+          ),
+    );
+
+    setState(() => _isExporting = false);
   }
 
   BoxDecoration _cardDecoration() {

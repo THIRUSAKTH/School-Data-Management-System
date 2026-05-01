@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../app_config.dart';
+import 'dart:async';
 
 class AdminComplaintsPage extends StatefulWidget {
   const AdminComplaintsPage({super.key});
@@ -15,6 +16,10 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
   late TabController _tabController;
   String _selectedFilter = "all";
   bool _isLoading = false;
+
+  // Auto-delete settings
+  static const int _autoDeleteDays = 7; // Delete after 7 days of resolution
+  Timer? _autoDeleteTimer;
 
   // Store response text for each complaint
   final Map<String, TextEditingController> _responseControllers = {};
@@ -31,15 +36,122 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _startAutoDeleteChecker();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _autoDeleteTimer?.cancel();
     for (var controller in _responseControllers.values) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  void _startAutoDeleteChecker() {
+    // Check every hour for complaints to delete
+    _autoDeleteTimer = Timer.periodic(const Duration(hours: 1), (timer) {
+      _autoDeleteResolvedComplaints();
+    });
+    // Also run once immediately
+    _autoDeleteResolvedComplaints();
+  }
+
+  Future<void> _autoDeleteResolvedComplaints() async {
+    try {
+      final cutoffDate = DateTime.now().subtract(
+        Duration(days: _autoDeleteDays),
+      );
+
+      final resolvedComplaints =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('complaints')
+              .where('status', whereIn: ['resolved', 'rejected'])
+              .where('updatedAt', isLessThan: Timestamp.fromDate(cutoffDate))
+              .get();
+
+      if (resolvedComplaints.docs.isNotEmpty) {
+        final batch = FirebaseFirestore.instance.batch();
+        for (var doc in resolvedComplaints.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Auto-deleted ${resolvedComplaints.docs.length} old complaints",
+              ),
+              backgroundColor: Colors.grey,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Error in auto-delete: $e");
+    }
+  }
+
+  Future<void> _deleteComplaint(String complaintId, String title) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text("Delete Complaint"),
+            content: Text(
+              "Are you sure you want to delete this complaint?\n\n\"$title\"\n\nThis action cannot be undone.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text("Delete"),
+              ),
+            ],
+          ),
+    );
+
+    if (shouldDelete == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('complaints')
+            .doc(complaintId)
+            .delete();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Complaint deleted successfully"),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   TextEditingController _getResponseController(
@@ -78,6 +190,11 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.delete_sweep),
+            onPressed: _showBulkDeleteDialog,
+            tooltip: "Bulk Delete",
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => setState(() {}),
             tooltip: "Refresh",
@@ -89,6 +206,167 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
         children: [_buildComplaintsList(), _buildStatisticsTab()],
       ),
     );
+  }
+
+  void _showBulkDeleteDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text("Bulk Delete"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.check_circle, color: Colors.green),
+                  title: const Text("Delete All Resolved"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _bulkDeleteByStatus('resolved');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.cancel, color: Colors.red),
+                  title: const Text("Delete All Rejected"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _bulkDeleteByStatus('rejected');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_forever, color: Colors.red),
+                  title: const Text("Delete All (Pending & Progress)"),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _bulkDeleteAll();
+                  },
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Future<void> _bulkDeleteByStatus(String status) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text("Confirm Bulk Delete"),
+            content: Text(
+              "Delete all $status complaints? This cannot be undone.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text("Delete All"),
+              ),
+            ],
+          ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        final complaints =
+            await FirebaseFirestore.instance
+                .collection('schools')
+                .doc(AppConfig.schoolId)
+                .collection('complaints')
+                .where('status', isEqualTo: status)
+                .get();
+
+        final batch = FirebaseFirestore.instance.batch();
+        for (var doc in complaints.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Deleted ${complaints.docs.length} complaints"),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _bulkDeleteAll() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text("⚠️ DANGER ZONE"),
+            content: const Text(
+              "Delete ALL complaints including pending? This action is IRREVERSIBLE!",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text("Delete Everything"),
+              ),
+            ],
+          ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        final complaints =
+            await FirebaseFirestore.instance
+                .collection('schools')
+                .doc(AppConfig.schoolId)
+                .collection('complaints')
+                .get();
+
+        final batch = FirebaseFirestore.instance.batch();
+        for (var doc in complaints.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Deleted ALL ${complaints.docs.length} complaints"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Widget _buildComplaintsList() {
@@ -195,7 +473,39 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                   itemBuilder: (context, index) {
                     final complaint = complaints[index];
                     final data = complaint.data() as Map<String, dynamic>;
-                    return _buildComplaintCard(complaint.id, data);
+                    return LongPressDraggable(
+                      data: complaint.id,
+                      feedback: Material(
+                        color: Colors.transparent,
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.delete, color: Colors.white),
+                              SizedBox(width: 8),
+                              Text(
+                                "Delete Complaint",
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      child: GestureDetector(
+                        onLongPress: () {
+                          _deleteComplaint(
+                            complaint.id,
+                            data['title'] ?? 'Complaint',
+                          );
+                        },
+                        child: _buildComplaintCard(complaint.id, data),
+                      ),
+                    );
                   },
                 ),
               );
@@ -259,12 +569,20 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
   Widget _buildComplaintCard(String complaintId, Map<String, dynamic> data) {
     final status = data['status'] ?? 'pending';
     final createdAt = data['createdAt'] as Timestamp?;
+    final resolvedAt = data['respondedAt'] as Timestamp?;
     final statusConfig = _getStatusConfig(status);
     final responseController = _getResponseController(
       complaintId,
       data['response'],
     );
     bool isProcessing = false;
+
+    // Calculate days since resolution
+    int? daysSinceResolution;
+    if (resolvedAt != null && (status == 'resolved' || status == 'rejected')) {
+      daysSinceResolution =
+          DateTime.now().difference(resolvedAt.toDate()).inDays;
+    }
 
     return StatefulBuilder(
       builder: (context, setStateCard) {
@@ -287,9 +605,37 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                 size: 20,
               ),
             ),
-            title: Text(
-              data['title'] ?? 'Complaint',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    data['title'] ?? 'Complaint',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                if (daysSinceResolution != null &&
+                    daysSinceResolution >= _autoDeleteDays - 1)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      "Expires in ${_autoDeleteDays - daysSinceResolution}d",
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,20 +650,39 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                 ),
               ],
             ),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: statusConfig['color'].withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                statusConfig['label'],
-                style: TextStyle(
-                  color: statusConfig['color'],
-                  fontWeight: FontWeight.bold,
-                  fontSize: 10,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (status == 'resolved' || status == 'rejected')
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    color: Colors.red,
+                    onPressed:
+                        () => _deleteComplaint(
+                          complaintId,
+                          data['title'] ?? 'Complaint',
+                        ),
+                    tooltip: "Delete",
+                  ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusConfig['color'].withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    statusConfig['label'],
+                    style: TextStyle(
+                      color: statusConfig['color'],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
             children: [
               Padding(
@@ -325,6 +690,55 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Auto-delete info banner
+                    if (daysSinceResolution != null && daysSinceResolution >= 0)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color:
+                              daysSinceResolution >= _autoDeleteDays - 2
+                                  ? Colors.red.shade50
+                                  : Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color:
+                                daysSinceResolution >= _autoDeleteDays - 2
+                                    ? Colors.red.shade200
+                                    : Colors.orange.shade200,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              daysSinceResolution >= _autoDeleteDays - 2
+                                  ? Icons.warning_amber
+                                  : Icons.info_outline,
+                              size: 20,
+                              color:
+                                  daysSinceResolution >= _autoDeleteDays - 2
+                                      ? Colors.red
+                                      : Colors.orange,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                daysSinceResolution >= _autoDeleteDays - 2
+                                    ? "⚠️ This complaint will be auto-deleted in ${_autoDeleteDays - daysSinceResolution} day(s)"
+                                    : "ℹ️ Auto-deletes in ${_autoDeleteDays - daysSinceResolution} day(s)",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color:
+                                      daysSinceResolution >= _autoDeleteDays - 2
+                                          ? Colors.red.shade700
+                                          : Colors.orange.shade700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
                     // Complaint Details
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -355,6 +769,14 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                               color: Colors.grey,
                             ),
                           ),
+                          if (resolvedAt != null)
+                            Text(
+                              "Resolved: ${DateFormat('dd MMM yyyy, hh:mm a').format(resolvedAt.toDate())}",
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -372,18 +794,25 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                     TextFormField(
                       controller: responseController,
                       maxLines: 3,
+                      readOnly: status == 'resolved' || status == 'rejected',
                       decoration: InputDecoration(
-                        hintText: "Type your response here...",
+                        hintText:
+                            status == 'resolved' || status == 'rejected'
+                                ? "Complaint is ${status}"
+                                : "Type your response here...",
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor:
+                            (status == 'resolved' || status == 'rejected')
+                                ? Colors.grey.shade50
+                                : Colors.white,
                       ),
                     ),
                     const SizedBox(height: 12),
 
-                    // Status Dropdown
+                    // Status Dropdown (disabled for resolved/rejected)
                     DropdownButtonFormField<String>(
                       value: status,
                       decoration: InputDecoration(
@@ -422,12 +851,18 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                           ),
                         ),
                       ],
-                      onChanged: (newStatus) {
-                        if (newStatus != null) {
-                          _updateComplaintStatus(complaintId, newStatus);
-                          setStateCard(() {});
-                        }
-                      },
+                      onChanged:
+                          (status == 'resolved' || status == 'rejected')
+                              ? null
+                              : (newStatus) {
+                                if (newStatus != null) {
+                                  _updateComplaintStatus(
+                                    complaintId,
+                                    newStatus,
+                                  );
+                                  setStateCard(() {});
+                                }
+                              },
                     ),
                     const SizedBox(height: 16),
 
@@ -436,7 +871,8 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed:
-                            isProcessing
+                            (status == 'resolved' || status == 'rejected') ||
+                                    isProcessing
                                 ? null
                                 : () async {
                                   setStateCard(() => isProcessing = true);
@@ -470,6 +906,31 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                         ),
                       ),
                     ),
+
+                    // Delete button for resolved/rejected complaints
+                    if (status == 'resolved' || status == 'rejected')
+                      const SizedBox(height: 12),
+                    if (status == 'resolved' || status == 'rejected')
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed:
+                              () => _deleteComplaint(
+                                complaintId,
+                                data['title'] ?? 'Complaint',
+                              ),
+                          icon: const Icon(Icons.delete, size: 18),
+                          label: const Text("Delete Complaint"),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -529,7 +990,6 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
     }
 
     try {
-      // Determine new status (if resolved, set to resolved)
       String newStatus = currentStatus;
       if (currentStatus == 'pending' || currentStatus == 'in_progress') {
         newStatus = 'resolved';
@@ -603,10 +1063,13 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
         int inProgress = 0;
         int resolved = 0;
         int rejected = 0;
+        int pendingDeletion = 0;
 
         for (var doc in snapshot.data!.docs) {
           final data = doc.data() as Map<String, dynamic>;
           final status = data['status'] ?? 'pending';
+          final respondedAt = data['respondedAt'] as Timestamp?;
+
           switch (status) {
             case 'pending':
               pending++;
@@ -616,9 +1079,19 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
               break;
             case 'resolved':
               resolved++;
+              if (respondedAt != null) {
+                final daysOld =
+                    DateTime.now().difference(respondedAt.toDate()).inDays;
+                if (daysOld >= _autoDeleteDays - 2) pendingDeletion++;
+              }
               break;
             case 'rejected':
               rejected++;
+              if (respondedAt != null) {
+                final daysOld =
+                    DateTime.now().difference(respondedAt.toDate()).inDays;
+                if (daysOld >= _autoDeleteDays - 2) pendingDeletion++;
+              }
               break;
           }
         }
@@ -664,6 +1137,17 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                         fontSize: 12,
                       ),
                     ),
+                    if (pendingDeletion > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          "⚠️ $pendingDeletion expiring soon",
+                          style: const TextStyle(
+                            color: Colors.orange,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -702,6 +1186,43 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                     Icons.cancel,
                   ),
                 ],
+              ),
+              const SizedBox(height: 20),
+
+              // Auto-delete info card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.timer, color: Colors.blue.shade700),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Auto-Delete Policy",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                          Text(
+                            "Resolved/Rejected complaints auto-delete after $_autoDeleteDays days",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
 
@@ -792,7 +1313,9 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
                     child: LinearProgressIndicator(
                       value: categoryCount[category]! / complaints.length,
                       backgroundColor: Colors.grey.shade200,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Colors.orange,
+                      ),
                       minHeight: 8,
                       borderRadius: BorderRadius.circular(4),
                     ),
