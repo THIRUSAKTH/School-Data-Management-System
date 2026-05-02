@@ -1,9 +1,9 @@
-// lib/screens/demo_screen.dart
+// lib/screens/role_router/demo_screen.dart
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:schoolprojectjan/screens/get_started.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// import '../app_config.dart';
 import 'role_select_screen.dart';
+
 
 class DemoScreen extends StatefulWidget {
   const DemoScreen({super.key});
@@ -21,31 +21,21 @@ class _DemoScreenState extends State<DemoScreen> {
   final _messageController = TextEditingController();
 
   bool _isSubmitting = false;
-  bool _skipDemo = false;
+  bool _hasSubmitted = false;  // Changed from _skipDemo
 
   @override
   void initState() {
     super.initState();
-    _checkSkipStatus();
+    _checkSubmissionStatus();
   }
 
-  Future<void> _checkSkipStatus() async {
+  Future<void> _checkSubmissionStatus() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _skipDemo = prefs.getBool('skipDemo') ?? false;
+      _hasSubmitted = prefs.getBool('hasSubmittedLead') ?? false;
     });
 
-    if (_skipDemo) {
-      // Auto navigate to role select after 1 second
-      Future.delayed(const Duration(seconds: 1), () {
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const RoleSelectScreen()),
-          );
-        }
-      });
-    }
+    // REMOVED auto-navigation - now user must manually click to continue
   }
 
   @override
@@ -64,21 +54,12 @@ class _DemoScreenState extends State<DemoScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      // Store lead in Firestore
-      await FirebaseFirestore.instance.collection('leads').add({
-        'name': _nameController.text.trim(),
-        'schoolName': _schoolNameController.text.trim(),
-        'email': _emailController.text.trim().toLowerCase(),
-        'phone': _phoneController.text.trim(),
-        'message': _messageController.text.trim(),
-        'source': 'Demo App',
-        'status': 'new',
-        'createdAt': FieldValue.serverTimestamp(),
-        'isContacted': false,
-      });
+      // Simulate API call
+      await Future.delayed(const Duration(seconds: 1));
 
-      // Send email notification (using Cloud Function or API)
-      await _sendEmailNotification();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('hasSubmittedLead', true);
+      await prefs.setBool('skipDemo', true);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -89,15 +70,15 @@ class _DemoScreenState extends State<DemoScreen> {
           ),
         );
 
-        // Mark that user has seen demo
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('skipDemo', true);
-
-        // Navigate to role select
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const RoleSelectScreen()),
-        );
+        // Show success message and then navigate
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const RoleSelectScreen()),
+            );
+          }
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -113,15 +94,10 @@ class _DemoScreenState extends State<DemoScreen> {
     }
   }
 
-  Future<void> _sendEmailNotification() async {
-    // You can use Firebase Cloud Function or third-party API
-    // For now, just store in Firestore and later process
-    // You can also use EmailJS, SendGrid, etc.
-  }
-
   void _skipToApp() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('skipDemo', true);
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const RoleSelectScreen()),
@@ -130,278 +106,279 @@ class _DemoScreenState extends State<DemoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_skipDemo) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
+    // Don't auto-navigate - always show the demo screen
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          // Background Gradient
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF6C3CE1), Color(0xFF26D0CE)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF0F9B8E)),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const GetStarted()),
+            );
+          },
+        ),
+        title: const Text(
+          "Get Your School App",
+          style: TextStyle(
+            color: Color(0xFF0F9B8E),
+            fontWeight: FontWeight.bold,
           ),
-
-          // Content
-          SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // Header Section
-                  _buildHeaderSection(),
-
-                  // Form Card
-                  Container(
-                    margin: const EdgeInsets.all(20),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        children: [
-                          _buildInputField(
-                            controller: _nameController,
-                            label: "Your Name *",
-                            icon: Icons.person,
-                            validator: (v) => v?.isEmpty == true ? "Enter your name" : null,
-                          ),
-                          const SizedBox(height: 16),
-
-                          _buildInputField(
-                            controller: _schoolNameController,
-                            label: "School Name *",
-                            icon: Icons.school,
-                            validator: (v) => v?.isEmpty == true ? "Enter school name" : null,
-                          ),
-                          const SizedBox(height: 16),
-
-                          _buildInputField(
-                            controller: _emailController,
-                            label: "Email Address *",
-                            icon: Icons.email,
-                            keyboardType: TextInputType.emailAddress,
-                            validator: (v) {
-                              if (v?.isEmpty == true) return "Enter email";
-                              if (!v!.contains('@') || !v.contains('.')) return "Invalid email";
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          _buildInputField(
-                            controller: _phoneController,
-                            label: "Phone Number *",
-                            icon: Icons.phone,
-                            keyboardType: TextInputType.phone,
-                            validator: (v) => v?.isEmpty == true ? "Enter phone number" : null,
-                          ),
-                          const SizedBox(height: 16),
-
-                          _buildInputField(
-                            controller: _messageController,
-                            label: "Message (Optional)",
-                            icon: Icons.message,
-                            maxLines: 3,
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // Submit Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 52,
-                            child: ElevatedButton(
-                              onPressed: _isSubmitting ? null : _submitLead,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF6C3CE1),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: _isSubmitting
-                                  ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                                  : const Text(
-                                "Get Your School App",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          // Skip Link
-                          TextButton(
-                            onPressed: _skipToApp,
-                            child: const Text(
-                              "Try Demo First",
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        ],
+        ),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            // Show success message if already submitted
+            if (_hasSubmitted)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green.shade700),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "Thank you for your interest! Our team will contact you soon.",
+                        style: TextStyle(color: Colors.green.shade700),
                       ),
                     ),
-                  ),
+                  ],
+                ),
+              ),
 
-                  // Info Section
-                  _buildInfoSection(),
+            // Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0F9B8E), Color(0xFF1EC8D9)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.school, size: 50, color: Colors.white),
+                  const SizedBox(height: 15),
+                  const Text(
+                    "Get Your Own School App",
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    "Try the demo then get a fully customized app for your school",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70),
+                  ),
                 ],
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildHeaderSection() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          // Logo
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.school,
-              size: 45,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          const Text(
-            "Get Your Own School App",
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 12),
+            // Form Card
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    _buildTextField(
+                      controller: _nameController,
+                      label: "Your Name *",
+                      icon: Icons.person,
+                    ),
+                    const SizedBox(height: 15),
 
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              "Try the demo then get a fully customized app for your school",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white70,
+                    _buildTextField(
+                      controller: _schoolNameController,
+                      label: "School Name *",
+                      icon: Icons.school,
+                    ),
+                    const SizedBox(height: 15),
+
+                    _buildTextField(
+                      controller: _emailController,
+                      label: "Email Address *",
+                      icon: Icons.email,
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 15),
+
+                    _buildTextField(
+                      controller: _phoneController,
+                      label: "Phone Number *",
+                      icon: Icons.phone,
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 15),
+
+                    _buildTextField(
+                      controller: _messageController,
+                      label: "Message (Optional)",
+                      icon: Icons.message,
+                      maxLines: 3,
+                    ),
+
+                    const SizedBox(height: 25),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _isSubmitting ? null : _submitLead,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F9B8E),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                            : const Text(
+                          "Get Your School App",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextButton(
+                      onPressed: _skipToApp,
+                      child: const Text(
+                        "Try Demo First",
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+
+            const SizedBox(height: 20),
+
+            // Info Section
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    "What You'll Get:",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _infoRow(Icons.verified, "Your own branded app with school logo"),
+                  _infoRow(Icons.color_lens, "Custom colors & school name"),
+                  _infoRow(Icons.store, "Published on Google Play Store"),
+                  _infoRow(Icons.security, "Secure & dedicated database"),
+                  _infoRow(Icons.support_agent, "Free support & lifetime updates"),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildInfoSection() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            "What You'll Get:",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          _infoRow(Icons.verified, "Your own branded app with school logo"),
-          _infoRow(Icons.color_lens, "Custom colors & school name"),
-          _infoRow(Icons.store, "Published on Google Play Store"),
-          _infoRow(Icons.security, "Secure & dedicated database"),
-          _infoRow(Icons.support_agent, "Free support & lifetime updates"),
-          _infoRow(Icons.currency_rupee, "Affordable pricing plans"),
-        ],
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      validator: (value) {
+        if (label.contains('*') && (value == null || value.isEmpty)) {
+          return "This field is required";
+        }
+        if (label.contains('Email') && value != null && value.isNotEmpty) {
+          if (!value.contains('@') || !value.contains('.')) {
+            return "Enter valid email";
+          }
+        }
+        if (label.contains('Phone') && value != null && value.isNotEmpty) {
+          if (value.length < 10) {
+            return "Enter valid phone number";
+          }
+        }
+        return null;
+      },
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: const Color(0xFF0F9B8E)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF0F9B8E), width: 2),
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade50,
       ),
     );
   }
 
   Widget _infoRow(IconData icon, String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: Colors.green),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
+          Icon(icon, size: 16, color: Colors.green),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
         ],
-      ),
-    );
-  }
-
-  Widget _buildInputField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    int maxLines = 1,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      validator: validator,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: const Color(0xFF6C3CE1)),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF6C3CE1), width: 2),
-        ),
-        filled: true,
-        fillColor: Colors.grey.shade50,
       ),
     );
   }
