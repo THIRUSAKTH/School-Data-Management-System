@@ -1,19 +1,28 @@
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/services/file_picker_service.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class TeacherHomeworkPostPage extends StatefulWidget {
   final String? editHomeworkId;
   final Map<String, dynamic>? editData;
 
-  const TeacherHomeworkPostPage({super.key, this.editHomeworkId, this.editData});
+  const TeacherHomeworkPostPage({
+    super.key,
+    this.editHomeworkId,
+    this.editData,
+  });
 
   @override
-  State<TeacherHomeworkPostPage> createState() => _TeacherHomeworkPostPageState();
+  State<TeacherHomeworkPostPage> createState() =>
+      _TeacherHomeworkPostPageState();
 }
 
 class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
@@ -29,7 +38,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
 
   // File attachments
   List<Map<String, dynamic>> _attachments = [];
-  List<File> _localFiles = [];
+  List<dynamic> _localFiles = []; // Changed to dynamic for web support
   bool _isUploading = false;
 
   bool isLoading = false;
@@ -115,10 +124,8 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
     }
   }
 
-  // FIXED: Load classes from students collection instead of classes collection
   Future<void> _loadClasses() async {
     try {
-      // Get unique classes from students collection
       final studentsSnapshot =
           await FirebaseFirestore.instance
               .collection('schools')
@@ -140,7 +147,6 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         });
       }
 
-      // If no classes found, use default list
       if (classes.isEmpty && mounted) {
         setState(() {
           classes = [
@@ -271,10 +277,48 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
     }
   }
 
+  // Helper methods for cross-platform file handling
+  String _getFileName(dynamic fileItem) {
+    if (fileItem is FilePickerResult) {
+      return fileItem.files.first.name;
+    } else if (fileItem is XFile) {
+      return fileItem.name;
+    }
+    return 'file';
+  }
+
+  String _getOriginalName(dynamic fileItem) {
+    if (fileItem is FilePickerResult) {
+      return fileItem.files.first.name;
+    } else if (fileItem is XFile) {
+      return fileItem.name;
+    }
+    return 'file';
+  }
+
+  Future<int> _getFileSize(dynamic fileItem) async {
+    if (fileItem is FilePickerResult) {
+      return fileItem.files.first.size;
+    } else if (fileItem is XFile) {
+      return await fileItem.length();
+    }
+    return 0;
+  }
+
+  String _getFileType(String fileName) {
+    final extension = fileName.toLowerCase().split('.').last;
+    const images = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const pdfs = ['pdf'];
+
+    if (images.contains(extension)) return 'image';
+    if (pdfs.contains(extension)) return 'pdf';
+    return 'document';
+  }
+
   // File attachment methods
   Future<void> _pickFiles() async {
     final files = await FilePickerService.pickFiles(allowMultiple: true);
-    if (files.isNotEmpty && mounted) {
+    if (files != null && files.isNotEmpty && mounted) {
       setState(() {
         _localFiles.addAll(files);
       });
@@ -289,7 +333,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
 
   Future<void> _pickImages() async {
     final images = await FilePickerService.pickImages(allowMultiple: true);
-    if (images.isNotEmpty && mounted) {
+    if (images != null && images.isNotEmpty && mounted) {
       setState(() {
         _localFiles.addAll(images);
       });
@@ -320,12 +364,85 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
     setState(() => _isUploading = true);
 
     try {
-      final uploadedFiles = await FilePickerService.uploadMultipleFiles(
-        files: _localFiles,
-        folder: 'homework',
+      // Show progress dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text("Uploading ${_localFiles.length} files..."),
+                ],
+              ),
+            ),
       );
 
-      if (mounted) {
+      List<Map<String, dynamic>> uploadedFiles = [];
+
+      // Handle different file types based on platform
+      for (var fileItem in _localFiles) {
+        try {
+          final fileName =
+              '${DateTime.now().millisecondsSinceEpoch}_${_getFileName(fileItem)}';
+          final storageRef = FirebaseStorage.instance.ref().child(
+            'homework/$fileName',
+          );
+
+          UploadTask uploadTask;
+
+          if (kIsWeb) {
+            // Web platform - handle XFile or FilePickerResult
+            if (fileItem is FilePickerResult) {
+              final file = fileItem.files.first;
+              if (file.bytes != null) {
+                uploadTask = storageRef.putData(file.bytes!);
+              } else {
+                continue;
+              }
+            } else if (fileItem is XFile) {
+              final bytes = await fileItem.readAsBytes();
+              uploadTask = storageRef.putData(bytes);
+            } else {
+              continue;
+            }
+          } else {
+            // Android platform - handle File objects
+            if (fileItem is FilePickerResult) {
+              final file = fileItem.files.first;
+              if (file.path != null) {
+                uploadTask = storageRef.putFile(File(file.path!));
+              } else {
+                continue;
+              }
+            } else if (fileItem is XFile) {
+              uploadTask = storageRef.putFile(File(fileItem.path));
+            } else {
+              continue;
+            }
+          }
+
+          final snapshot = await uploadTask;
+          final downloadUrl = await snapshot.ref.getDownloadURL();
+
+          uploadedFiles.add({
+            'name': fileName,
+            'originalName': _getOriginalName(fileItem),
+            'url': downloadUrl,
+            'type': _getFileType(_getOriginalName(fileItem)),
+            'size': await _getFileSize(fileItem),
+          });
+        } catch (e) {
+          debugPrint('Error uploading file: $e');
+        }
+      }
+
+      Navigator.pop(context); // Close progress dialog
+
+      if (mounted && uploadedFiles.isNotEmpty) {
         setState(() {
           _attachments.addAll(uploadedFiles);
           _localFiles.clear();
@@ -339,9 +456,17 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             backgroundColor: Colors.green,
           ),
         );
+      } else if (uploadedFiles.isEmpty && _localFiles.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Failed to upload files. Please try again."),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
+        Navigator.pop(context); // Close dialog if open
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Error uploading files: $e"),
@@ -476,8 +601,8 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             const SizedBox(height: 8),
             ..._localFiles.asMap().entries.map((entry) {
               final index = entry.key;
-              final file = entry.value;
-              final fileName = file.path.split('/').last;
+              final fileItem = entry.value;
+              final fileName = _getFileName(fileItem);
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(
