@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:schoolprojectjan/screens/role_router/demo_screen.dart';
 import 'package:schoolprojectjan/screens/role_router/role_select_screen.dart';
 
 class GetStarted extends StatelessWidget {
@@ -95,7 +96,7 @@ class GetStarted extends StatelessWidget {
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const RoleSelectScreen(),
+                            builder: (_) => const DemoScreen(),
                           ),
                         );
                       },
