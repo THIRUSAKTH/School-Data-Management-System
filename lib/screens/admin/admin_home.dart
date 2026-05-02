@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:schoolprojectjan/screens/admin/class_section_page.dart';
-import 'package:schoolprojectjan/screens/admin/notice_post_page.dart';
+import 'package:schoolprojectjan/screens/admin/admin_notice_post_page.dart';
 import 'admin_dashboard.dart';
 
 class AdminHome extends StatefulWidget {
@@ -27,7 +27,7 @@ class _AdminHomeState extends State<AdminHome> {
     _pages = [
       AdminDashboard(),
       const ClassSectionPage(),
-      const NoticePostPage(),
+      const AdminNoticePostPage(),
     ];
   }
 
