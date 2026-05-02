@@ -5,31 +5,54 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:schoolprojectjan/app_config.dart';
 
 class FilePickerService {
   static final FirebaseStorage _storage = FirebaseStorage.instance;
 
-  // Allowed file types
   static const List<String> allowedImageTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
   static const List<String> allowedDocumentTypes = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'];
 
   static const int maxFileSize = 10 * 1024 * 1024; // 10MB
 
+  static Future<bool> _checkPermission() async {
+    if (Platform.isAndroid) {
+      final status = await Permission.storage.status;
+      if (!status.isGranted) {
+        final result = await Permission.storage.request();
+        return result.isGranted;
+      }
+      return true;
+    }
+    return true;
+  }
+
   // Pick multiple files
-  static Future<List<File>> pickFiles({
-    bool allowMultiple = true,
-    List<String>? allowedExtensions,
-  }) async {
+  static Future<List<File>> pickFiles({bool allowMultiple = true}) async {
+    final hasPermission = await _checkPermission();
+    if (!hasPermission) {
+      debugPrint('Storage permission denied');
+      return [];
+    }
+
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         allowMultiple: allowMultiple,
         type: FileType.custom,
-        allowedExtensions: allowedExtensions ?? [...allowedImageTypes, ...allowedDocumentTypes],
+        allowedExtensions: [...allowedImageTypes, ...allowedDocumentTypes],
       );
 
       if (result != null) {
-        return result.paths.map((path) => File(path!)).toList();
+        List<File> files = [];
+        for (var path in result.paths) {
+          if (path != null) {
+            files.add(File(path));
+          }
+        }
+        return files;
       }
     } catch (e) {
       debugPrint('Error picking files: $e');
@@ -39,14 +62,18 @@ class FilePickerService {
 
   // Pick images from gallery
   static Future<List<File>> pickImages({bool allowMultiple = true}) async {
-    try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        allowMultiple: allowMultiple,
-        type: FileType.image,
-      );
+    final hasPermission = await _checkPermission();
+    if (!hasPermission) {
+      debugPrint('Storage permission denied');
+      return [];
+    }
 
-      if (result != null) {
-        return result.paths.map((path) => File(path!)).toList();
+    try {
+      final ImagePicker picker = ImagePicker();
+      final List<XFile> images = await picker.pickMultiImage();
+
+      if (images.isNotEmpty) {
+        return images.map((xfile) => File(xfile.path)).toList();
       }
     } catch (e) {
       debugPrint('Error picking images: $e');
@@ -54,17 +81,27 @@ class FilePickerService {
     return [];
   }
 
-  // Upload file to Firebase Storage
+  // Upload single file to Firebase Storage
   static Future<Map<String, dynamic>?> uploadFile({
     required File file,
-    required String folder, // 'notices' or 'homework'
-    String? fileName,
+    required String folder,
   }) async {
     try {
-      final extension = file.path.split('.').last;
-      final uniqueFileName = fileName ??
-          '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
+      // Get file info
+      final fileName = file.path.split('/').last;
+      final extension = fileName.split('.').last.toLowerCase();
+      final fileSize = await file.length();
 
+      // Check file size
+      if (fileSize > maxFileSize) {
+        debugPrint('File too large: ${fileSize} bytes');
+        return null;
+      }
+
+      // Create unique file name
+      final uniqueFileName = '${DateTime.now().millisecondsSinceEpoch}_$fileName';
+
+      // Create storage reference
       final ref = _storage
           .ref()
           .child('schools')
@@ -72,7 +109,7 @@ class FilePickerService {
           .child(folder)
           .child(uniqueFileName);
 
-      // Upload with progress tracking
+      // Upload file
       UploadTask uploadTask = ref.putFile(file);
       TaskSnapshot snapshot = await uploadTask;
 
@@ -81,19 +118,19 @@ class FilePickerService {
 
       // Determine file type
       String fileType = 'other';
-      if (allowedImageTypes.contains(extension.toLowerCase())) {
+      if (allowedImageTypes.contains(extension)) {
         fileType = 'image';
-      } else if (allowedDocumentTypes.contains(extension.toLowerCase())) {
+      } else if (allowedDocumentTypes.contains(extension)) {
         fileType = 'document';
       }
 
       return {
         'name': uniqueFileName,
-        'originalName': file.path.split('/').last,
+        'originalName': fileName,
         'url': downloadUrl,
         'type': fileType,
         'extension': extension,
-        'size': await file.length(),
+        'size': fileSize,
         'uploadedAt': FieldValue.serverTimestamp(),
       };
     } catch (e) {
@@ -114,6 +151,8 @@ class FilePickerService {
       if (result != null) {
         uploadedFiles.add(result);
       }
+      // Add small delay between uploads
+      await Future.delayed(const Duration(milliseconds: 500));
     }
 
     return uploadedFiles;
@@ -129,11 +168,9 @@ class FilePickerService {
     }
   }
 
-  // Get file size in readable format
   static String getReadableSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 }

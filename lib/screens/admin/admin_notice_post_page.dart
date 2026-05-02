@@ -67,18 +67,20 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
               .collection('classes')
               .get();
 
-      setState(() {
-        _availableClasses =
-            classesSnapshot.docs
-                .map(
-                  (doc) =>
-                      doc['className'] as String? ??
-                      doc['class'] as String? ??
-                      '',
-                )
-                .where((name) => name.isNotEmpty)
-                .toList();
-      });
+      if (mounted) {
+        setState(() {
+          _availableClasses =
+              classesSnapshot.docs
+                  .map(
+                    (doc) =>
+                        doc['className'] as String? ??
+                        doc['class'] as String? ??
+                        '',
+                  )
+                  .where((name) => name.isNotEmpty)
+                  .toList();
+        });
+      }
     } catch (e) {
       debugPrint('Error loading classes: $e');
     }
@@ -86,7 +88,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
 
   Future<void> _pickFiles() async {
     final files = await FilePickerService.pickFiles(allowMultiple: true);
-    if (files.isNotEmpty) {
+    if (files.isNotEmpty && mounted) {
       setState(() {
         _localFiles.addAll(files);
       });
@@ -101,7 +103,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
 
   Future<void> _pickImages() async {
     final images = await FilePickerService.pickImages(allowMultiple: true);
-    if (images.isNotEmpty) {
+    if (images.isNotEmpty && mounted) {
       setState(() {
         _localFiles.addAll(images);
       });
@@ -126,39 +128,64 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
     });
   }
 
+// Add this method to track upload progress
   Future<void> _uploadFiles() async {
     if (_localFiles.isEmpty) return;
 
     setState(() => _isUploading = true);
 
     try {
+      // Show progress dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text("Uploading ${_localFiles.length} files..."),
+            ],
+          ),
+        ),
+      );
+
       final uploadedFiles = await FilePickerService.uploadMultipleFiles(
         files: _localFiles,
         folder: 'notices',
       );
 
-      setState(() {
-        _attachments.addAll(uploadedFiles);
-        _localFiles.clear();
-      });
+      Navigator.pop(context); // Close progress dialog
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "${uploadedFiles.length} file(s) uploaded successfully",
+      if (mounted && uploadedFiles.isNotEmpty) {
+        setState(() {
+          _attachments.addAll(uploadedFiles);
+          _localFiles.clear();
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("${uploadedFiles.length} file(s) uploaded successfully"),
+            backgroundColor: Colors.green,
           ),
-          backgroundColor: Colors.green,
-        ),
-      );
+        );
+      } else if (uploadedFiles.isEmpty && _localFiles.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Failed to upload files. Please try again."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error uploading files: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error uploading files: $e"), backgroundColor: Colors.red),
+        );
+      }
     } finally {
-      setState(() => _isUploading = false);
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -352,7 +379,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
           ),
           const SizedBox(height: 12),
 
-          // Upload buttons
           Row(
             children: [
               Expanded(
@@ -385,7 +411,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
             ],
           ),
 
-          // Local files (not yet uploaded)
           if (_localFiles.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Divider(),
@@ -399,7 +424,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
               final index = entry.key;
               final file = entry.value;
               final fileName = file.path.split('/').last;
-              final extension = fileName.split('.').last;
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(
@@ -460,7 +484,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
             ),
           ],
 
-          // Uploaded files
           if (_attachments.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Divider(),
@@ -675,7 +698,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (picked != null) setState(() => _expiryDate = picked);
+    if (picked != null && mounted) setState(() => _expiryDate = picked);
   }
 
   Widget _buildSubmitButton() {
@@ -747,7 +770,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
         "updatedAt": FieldValue.serverTimestamp(),
         "isActive": true,
         "viewCount": 0,
-        "attachments": _attachments, // Save attachments
+        "attachments": _attachments,
       };
 
       await FirebaseFirestore.instance
@@ -778,7 +801,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
     } catch (e) {
       _showError("Error: $e");
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

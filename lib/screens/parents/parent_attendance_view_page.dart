@@ -43,26 +43,35 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     super.dispose();
   }
 
+  // ALTERNATIVE: Fetch without collection group index
   Future<void> _fetchAttendance() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
-      // Get all attendance records for this student using collection group query
-      final recordsSnapshot =
+      // Get all attendance date documents
+      final attendanceDocs =
           await FirebaseFirestore.instance
-              .collectionGroup('records')
-              .where('studentId', isEqualTo: widget.studentId)
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('attendance')
               .get();
 
       List<Map<String, dynamic>> records = [];
 
-      for (var doc in recordsSnapshot.docs) {
-        final data = doc.data();
-        final date =
-            doc.reference.parent.parent?.id; // Get date from parent document
+      // Iterate through each date to find records for this student
+      for (var dateDoc in attendanceDocs.docs) {
+        final date = dateDoc.id;
 
-        if (date != null && date.isNotEmpty) {
+        // Try to get the student's record for this date
+        final recordSnapshot =
+            await dateDoc.reference
+                .collection('records')
+                .doc(widget.studentId)
+                .get();
+
+        if (recordSnapshot.exists) {
+          final data = recordSnapshot.data()!;
           records.add({
             'date': date,
             'status': data['status'] ?? 'Absent',
@@ -90,7 +99,9 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading attendance: $e'),
+            content: Text(
+              'Error loading attendance: ${e.toString().substring(0, 100)}',
+            ),
             backgroundColor: Colors.red,
           ),
         );

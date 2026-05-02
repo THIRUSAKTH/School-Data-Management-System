@@ -7,7 +7,7 @@ import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_attendance_view_page.dart';
 import 'package:schoolprojectjan/screens/parents/fee_history_page.dart';
 import 'package:schoolprojectjan/screens/parents/fee_status_page.dart';
-import 'package:schoolprojectjan/screens/parents/homework_view_page.dart';
+import 'package:schoolprojectjan/screens/parents/parent_homework_view_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_complaint_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_exam_schedule.dart';
 import 'package:schoolprojectjan/screens/parents/parent_notices_page.dart';
@@ -478,7 +478,7 @@ class _ParentDashboardState extends State<ParentDashboard>
                         context,
                         MaterialPageRoute(
                           builder:
-                              (_) => HomeworkViewPage(
+                              (_) => ParentHomeworkViewPage(
                             studentId: selectedStudentId!,
                             className: _currentClassName,
                             section: _currentSection,
@@ -1015,7 +1015,7 @@ class _ParentDashboardState extends State<ParentDashboard>
                             context,
                             MaterialPageRoute(
                               builder:
-                                  (_) => HomeworkViewPage(
+                                  (_) => ParentHomeworkViewPage(
                                 studentId: studentId,
                                 className: _currentClassName,
                                 section: _currentSection,
@@ -1328,7 +1328,7 @@ class _ParentDashboardState extends State<ParentDashboard>
                     context,
                     MaterialPageRoute(
                       builder:
-                          (_) => HomeworkViewPage(
+                          (_) => ParentHomeworkViewPage(
                         studentId: selectedStudentId!,
                         className: _currentClassName,
                         section: _currentSection,

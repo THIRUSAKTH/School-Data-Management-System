@@ -360,27 +360,15 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
               }).toList();
         }
 
-        // Sort by Class and Section
+        // Sort by roll number
         records.sort((a, b) {
           final dataA = a.data() as Map<String, dynamic>;
           final dataB = b.data() as Map<String, dynamic>;
-          final classA = dataA['className'] ?? '';
-          final classB = dataB['className'] ?? '';
-          final sectionA = dataA['section'] ?? '';
-          final sectionB = dataB['section'] ?? '';
           final rollA = dataA['rollNo']?.toString() ?? '';
           final rollB = dataB['rollNo']?.toString() ?? '';
-
-          if (classA == classB) {
-            if (sectionA == sectionB) {
-              // Sort by roll number if same class and section
-              final rollNumA = int.tryParse(rollA) ?? 0;
-              final rollNumB = int.tryParse(rollB) ?? 0;
-              return rollNumA.compareTo(rollNumB);
-            }
-            return sectionA.compareTo(sectionB);
-          }
-          return classA.compareTo(classB);
+          final rollNumA = int.tryParse(rollA) ?? 0;
+          final rollNumB = int.tryParse(rollB) ?? 0;
+          return rollNumA.compareTo(rollNumB);
         });
 
         if (records.isEmpty) {
@@ -420,6 +408,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
 
   Widget _buildAttendanceCard(Map<String, dynamic> data) {
     final name = data['name'] ?? 'Student';
+    final studentName = data['studentName'] ?? name;
     final rollNo = data['rollNo']?.toString() ?? '';
     final className = data['className'] ?? '';
     final section = data['section'] ?? '';
@@ -427,6 +416,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
     final remark = data['remark'] ?? '';
     final checkInTime = data['checkInTime'] ?? '';
     final checkOutTime = data['checkOutTime'] ?? '';
+    final updatedByName = data['updatedByName'] ?? 'Teacher';
 
     Color getStatusColor() {
       switch (status) {
@@ -447,6 +437,17 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
           return Icons.access_time;
         default:
           return Icons.cancel;
+      }
+    }
+
+    String getStatusText() {
+      switch (status) {
+        case 'Present':
+          return 'Present';
+        case 'Late':
+          return 'Late';
+        default:
+          return 'Absent';
       }
     }
 
@@ -473,7 +474,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
           ),
         ),
         title: Text(
-          name,
+          studentName,
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
         subtitle: Column(
@@ -486,7 +487,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
                 Icon(getStatusIcon(), size: 12, color: getStatusColor()),
                 const SizedBox(width: 4),
                 Text(
-                  status,
+                  getStatusText(),
                   style: TextStyle(
                     color: getStatusColor(),
                     fontSize: 11,
@@ -504,7 +505,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            status,
+            getStatusText(),
             style: TextStyle(
               color: getStatusColor(),
               fontSize: 11,
@@ -523,6 +524,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
                 if (checkOutTime.isNotEmpty)
                   _infoRow("Check Out Time", checkOutTime),
                 if (remark.isNotEmpty) _infoRow("Remark", remark),
+                _infoRow("Marked By", updatedByName),
               ],
             ),
           ),
@@ -651,9 +653,34 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
       return;
     }
 
+    var records = recordsSnapshot.docs;
+
+    // Apply class filter if specified
+    if (widget.className != null && widget.section != null) {
+      records =
+          records.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final className = data['className'] ?? '';
+            final section = data['section'] ?? '';
+            return className == widget.className && section == widget.section;
+          }).toList();
+    }
+
+    if (records.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No data for selected class'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     // Calculate statistics
     int present = 0, absent = 0, late = 0;
-    for (var doc in recordsSnapshot.docs) {
+    List<Map<String, dynamic>> studentData = [];
+
+    for (var doc in records) {
       final data = doc.data() as Map<String, dynamic>;
       final status = data['status'] ?? 'Absent';
       if (status == 'Present')
@@ -662,11 +689,28 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
         late++;
       else
         absent++;
+
+      studentData.add({
+        'rollNo': data['rollNo'] ?? '',
+        'name': data['name'] ?? data['studentName'] ?? 'Student',
+        'status': status,
+        'checkInTime': data['checkInTime'] ?? '',
+        'checkOutTime': data['checkOutTime'] ?? '',
+        'remark': data['remark'] ?? '',
+      });
     }
+
+    // Sort by roll number
+    studentData.sort((a, b) {
+      final rollA = int.tryParse(a['rollNo'].toString()) ?? 0;
+      final rollB = int.tryParse(b['rollNo'].toString()) ?? 0;
+      return rollA.compareTo(rollB);
+    });
+
     int total = present + absent + late;
     double rate = total > 0 ? (present / total) * 100 : 0;
 
-    // Show export dialog with summary
+    // Show export dialog with summary and data preview
     showDialog(
       context: context,
       builder:
@@ -675,40 +719,115 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
               borderRadius: BorderRadius.circular(16),
             ),
             title: const Text('Export Report'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Date: ${DateFormat('dd MMMM yyyy').format(_selectedDate)}',
-                ),
-                const SizedBox(height: 8),
-                if (widget.className != null)
-                  Text('Class: ${widget.className} - ${widget.section}'),
-                const Divider(),
-                Text('Total Students: $total'),
-                Text(
-                  'Present: $present',
-                  style: const TextStyle(color: Colors.green),
-                ),
-                Text(
-                  'Absent: $absent',
-                  style: const TextStyle(color: Colors.red),
-                ),
-                if (late > 0)
+            content: Container(
+              width: double.maxFinite,
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.7,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    'Late: $late',
-                    style: const TextStyle(color: Colors.orange),
+                    'Date: ${DateFormat('dd MMMM yyyy').format(_selectedDate)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                const Divider(),
-                Text(
-                  'Attendance Rate: ${rate.toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: rate >= 75 ? Colors.green : Colors.orange,
+                  const SizedBox(height: 8),
+                  if (widget.className != null)
+                    Text('Class: ${widget.className} - ${widget.section}'),
+                  const Divider(),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _summaryItemExport(
+                          "Present",
+                          present.toString(),
+                          Colors.green,
+                        ),
+                      ),
+                      Expanded(
+                        child: _summaryItemExport(
+                          "Absent",
+                          absent.toString(),
+                          Colors.red,
+                        ),
+                      ),
+                      if (late > 0)
+                        Expanded(
+                          child: _summaryItemExport(
+                            "Late",
+                            late.toString(),
+                            Colors.orange,
+                          ),
+                        ),
+                      Expanded(
+                        child: _summaryItemExport(
+                          "Rate",
+                          "${rate.toStringAsFixed(1)}%",
+                          Colors.indigo,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const Divider(),
+                  const Text(
+                    'Student Details:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount:
+                          studentData.length > 10 ? 10 : studentData.length,
+                      itemBuilder: (context, index) {
+                        final student = studentData[index];
+                        Color getColor() {
+                          if (student['status'] == 'Present')
+                            return Colors.green;
+                          if (student['status'] == 'Late') return Colors.orange;
+                          return Colors.red;
+                        }
+
+                        return ListTile(
+                          dense: true,
+                          leading: CircleAvatar(
+                            radius: 12,
+                            backgroundColor: getColor().withOpacity(0.1),
+                            child: Text(
+                              student['rollNo'],
+                              style: TextStyle(fontSize: 10, color: getColor()),
+                            ),
+                          ),
+                          title: Text(
+                            student['name'],
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          trailing: Text(
+                            student['status'],
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: getColor(),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  if (studentData.length > 10)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        '... and ${studentData.length - 10} more students',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -720,16 +839,42 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Export feature coming soon'),
+                      content: Text('PDF export will be available soon'),
                       backgroundColor: Colors.orange,
                     ),
                   );
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigo,
+                  foregroundColor: Colors.white,
+                ),
                 child: const Text('Export'),
               ),
             ],
           ),
+    );
+  }
+
+  Widget _summaryItemExport(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        ],
+      ),
     );
   }
 

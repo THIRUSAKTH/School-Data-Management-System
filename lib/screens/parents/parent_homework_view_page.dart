@@ -5,12 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
 
-class HomeworkViewPage extends StatefulWidget {
+class ParentHomeworkViewPage extends StatefulWidget {
   final String? studentId;
   final String? className;
   final String? section;
 
-  const HomeworkViewPage({
+  const ParentHomeworkViewPage({
     super.key,
     this.studentId,
     this.className,
@@ -18,10 +18,10 @@ class HomeworkViewPage extends StatefulWidget {
   });
 
   @override
-  State<HomeworkViewPage> createState() => _HomeworkViewPageState();
+  State<ParentHomeworkViewPage> createState() => _ParentHomeworkViewPageState();
 }
 
-class _HomeworkViewPageState extends State<HomeworkViewPage> {
+class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
   String? _selectedStudentId;
   String? _studentClass;
   String? _studentSection;
@@ -235,8 +235,6 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
               .where('className', isEqualTo: _studentClass)
               .where('section', isEqualTo: _studentSection)
               .where('isActive', isEqualTo: true)
-              .orderBy('isUrgent', descending: true)
-              .orderBy('dueDate', descending: false)
               .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -290,12 +288,15 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
         }
 
         final homeworkList = snapshot.data!.docs;
+
+        // Client-side sorting: Urgent first, then by due date
         homeworkList.sort((a, b) {
           final aData = a.data() as Map<String, dynamic>;
           final bData = b.data() as Map<String, dynamic>;
           final aUrgent = aData['isUrgent'] ?? false;
           final bUrgent = bData['isUrgent'] ?? false;
           if (aUrgent != bUrgent) return aUrgent ? -1 : 1;
+
           final aDate = aData['dueDate'] as Timestamp?;
           final bDate = bData['dueDate'] as Timestamp?;
           if (aDate == null && bDate == null) return 0;
@@ -578,7 +579,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   ),
                 ],
               ),
-              // Attachments section
               if (widget.attachments.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 const Divider(),
@@ -592,9 +592,9 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   spacing: 8,
                   runSpacing: 8,
                   children:
-                      widget.attachments.map((attachment) {
-                        return _buildAttachmentChip(attachment);
-                      }).toList(),
+                      widget.attachments
+                          .map((attachment) => _buildAttachmentChip(attachment))
+                          .toList(),
                 ),
               ],
               const SizedBox(height: 16),
@@ -686,8 +686,8 @@ class _HomeworkCardState extends State<_HomeworkCard> {
 
   Widget _buildAttachmentChip(Map<String, dynamic> attachment) {
     final isImage = attachment['type'] == 'image';
+    final url = attachment['url'];
     final fileName = attachment['originalName'] ?? attachment['name'];
-    final fileSize = attachment['size'] ?? 0;
 
     return GestureDetector(
       onTap: () => _showAttachmentPreview(attachment),
@@ -718,13 +718,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                 color: isImage ? Colors.green.shade700 : Colors.blue.shade700,
               ),
             ),
-            if (fileSize > 0) ...[
-              const SizedBox(width: 4),
-              Text(
-                _formatFileSize(fileSize),
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-              ),
-            ],
             const SizedBox(width: 4),
             Icon(
               Icons.visibility,
@@ -741,7 +734,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
     final isImage = attachment['type'] == 'image';
     final url = attachment['url'];
     final fileName = attachment['originalName'] ?? attachment['name'];
-    final fileSize = attachment['size'] ?? 0;
 
     showDialog(
       context: context,
@@ -807,14 +799,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                             textAlign: TextAlign.center,
                             style: const TextStyle(fontSize: 14),
                           ),
-                          if (fileSize > 0)
-                            Text(
-                              _formatFileSize(fileSize),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
                         ],
                       ),
                     ),
@@ -830,13 +814,12 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Download feature coming soon"),
+                          onPressed:
+                              () => ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Download feature coming soon"),
+                                ),
                               ),
-                            );
-                          },
                           icon: const Icon(Icons.download),
                           label: const Text("Download"),
                           style: ElevatedButton.styleFrom(
@@ -852,12 +835,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
             ),
           ),
     );
-  }
-
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   Future<void> _submitHomework() async {
@@ -878,7 +855,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
         setState(() => _isCompleted = true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Homework marked as completed!"),
+            content: Text("Homework marked as completed! 🎉"),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),

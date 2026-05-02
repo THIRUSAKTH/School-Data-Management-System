@@ -6,17 +6,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/services/file_picker_service.dart';
 
-class HomeworkPostPage extends StatefulWidget {
+class TeacherHomeworkPostPage extends StatefulWidget {
   final String? editHomeworkId;
   final Map<String, dynamic>? editData;
 
-  const HomeworkPostPage({super.key, this.editHomeworkId, this.editData});
+  const TeacherHomeworkPostPage({super.key, this.editHomeworkId, this.editData});
 
   @override
-  State<HomeworkPostPage> createState() => _HomeworkPostPageState();
+  State<TeacherHomeworkPostPage> createState() => _TeacherHomeworkPostPageState();
 }
 
-class _HomeworkPostPageState extends State<HomeworkPostPage> {
+class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
   final TextEditingController _homeworkController = TextEditingController();
   final TextEditingController _titleController = TextEditingController();
 
@@ -66,7 +66,6 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
     selectedSubject = data['subject'] ?? 'Mathematics';
     isUrgent = data['isUrgent'] ?? false;
 
-    // Load existing attachments
     if (data['attachments'] != null) {
       _attachments = List<Map<String, dynamic>>.from(data['attachments']);
     }
@@ -105,38 +104,85 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
               .get();
 
       if (doc.exists && doc.data()?['customSubjects'] != null) {
-        setState(() {
-          _customSubjects = List<String>.from(doc.data()!['customSubjects']);
-        });
+        if (mounted) {
+          setState(() {
+            _customSubjects = List<String>.from(doc.data()!['customSubjects']);
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error loading custom subjects: $e');
     }
   }
 
+  // FIXED: Load classes from students collection instead of classes collection
   Future<void> _loadClasses() async {
     try {
-      final classesSnapshot =
+      // Get unique classes from students collection
+      final studentsSnapshot =
           await FirebaseFirestore.instance
               .collection('schools')
               .doc(AppConfig.schoolId)
-              .collection('classes')
+              .collection('students')
               .get();
 
-      setState(() {
-        classes =
-            classesSnapshot.docs
-                .map(
-                  (doc) =>
-                      doc['className'] as String? ??
-                      doc['class'] as String? ??
-                      '',
-                )
-                .where((name) => name.isNotEmpty)
-                .toList();
-      });
+      final classesSet = <String>{};
+      for (var doc in studentsSnapshot.docs) {
+        final className = doc['class'] as String?;
+        if (className != null && className.isNotEmpty) {
+          classesSet.add(className);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          classes = classesSet.toList()..sort();
+        });
+      }
+
+      // If no classes found, use default list
+      if (classes.isEmpty && mounted) {
+        setState(() {
+          classes = [
+            'LKG',
+            'UKG',
+            '1',
+            '2',
+            '3',
+            '4',
+            '5',
+            '6',
+            '7',
+            '8',
+            '9',
+            '10',
+            '11',
+            '12',
+          ];
+        });
+      }
     } catch (e) {
       debugPrint('Error loading classes: $e');
+      if (mounted) {
+        setState(() {
+          classes = [
+            'LKG',
+            'UKG',
+            '1',
+            '2',
+            '3',
+            '4',
+            '5',
+            '6',
+            '7',
+            '8',
+            '9',
+            '10',
+            '11',
+            '12',
+          ];
+        });
+      }
     }
   }
 
@@ -149,31 +195,51 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
               .collection('subjects')
               .get();
 
-      if (subjectsSnapshot.docs.isNotEmpty) {
+      if (subjectsSnapshot.docs.isNotEmpty && mounted) {
         setState(() {
           subjects =
               subjectsSnapshot.docs
                   .map((doc) => doc['name'] as String)
                   .toList();
         });
-      } else {
-        subjects = [
-          'Mathematics',
-          'Physics',
-          'Chemistry',
-          'Biology',
-          'English',
-          'History',
-          'Geography',
-          'Computer Science',
-          'Tamil',
-          'Hindi',
-          'Physical Education',
-          'Art',
-        ];
+      } else if (mounted) {
+        setState(() {
+          subjects = [
+            'Mathematics',
+            'Physics',
+            'Chemistry',
+            'Biology',
+            'English',
+            'Tamil',
+            'Social Science',
+            'Computer Science',
+            'Physical Education',
+            'Art',
+            'Music',
+            'Hindi',
+          ];
+        });
       }
     } catch (e) {
       debugPrint('Error loading subjects: $e');
+      if (mounted) {
+        setState(() {
+          subjects = [
+            'Mathematics',
+            'Physics',
+            'Chemistry',
+            'Biology',
+            'English',
+            'Tamil',
+            'Social Science',
+            'Computer Science',
+            'Physical Education',
+            'Art',
+            'Music',
+            'Hindi',
+          ];
+        });
+      }
     }
   }
 
@@ -195,9 +261,11 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
         }
       }
 
-      setState(() {
-        sections = sectionsSet.toList()..sort();
-      });
+      if (mounted) {
+        setState(() {
+          sections = sectionsSet.toList()..sort();
+        });
+      }
     } catch (e) {
       debugPrint('Error loading sections: $e');
     }
@@ -206,7 +274,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
   // File attachment methods
   Future<void> _pickFiles() async {
     final files = await FilePickerService.pickFiles(allowMultiple: true);
-    if (files.isNotEmpty) {
+    if (files.isNotEmpty && mounted) {
       setState(() {
         _localFiles.addAll(files);
       });
@@ -221,7 +289,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
 
   Future<void> _pickImages() async {
     final images = await FilePickerService.pickImages(allowMultiple: true);
-    if (images.isNotEmpty) {
+    if (images.isNotEmpty && mounted) {
       setState(() {
         _localFiles.addAll(images);
       });
@@ -257,28 +325,32 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
         folder: 'homework',
       );
 
-      setState(() {
-        _attachments.addAll(uploadedFiles);
-        _localFiles.clear();
-      });
+      if (mounted) {
+        setState(() {
+          _attachments.addAll(uploadedFiles);
+          _localFiles.clear();
+        });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "${uploadedFiles.length} file(s) uploaded successfully",
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "${uploadedFiles.length} file(s) uploaded successfully",
+            ),
+            backgroundColor: Colors.green,
           ),
-          backgroundColor: Colors.green,
-        ),
-      );
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error uploading files: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error uploading files: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() => _isUploading = false);
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -362,8 +434,6 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-
-          // Upload buttons
           Row(
             children: [
               Expanded(
@@ -395,8 +465,6 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
               ),
             ],
           ),
-
-          // Local files (not yet uploaded)
           if (_localFiles.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Divider(),
@@ -469,8 +537,6 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
               ),
             ),
           ],
-
-          // Uploaded files
           if (_attachments.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Divider(),
@@ -534,7 +600,6 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
               );
             }).toList(),
           ],
-
           if (_localFiles.isEmpty && _attachments.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16),
@@ -647,6 +712,8 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           value: selectedClass.isEmpty ? null : selectedClass,
+          hint: const Text("Select Class"),
+          isExpanded: true,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,
@@ -668,21 +735,21 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
             ),
             prefixIcon: const Icon(Icons.class_, color: Colors.deepPurple),
           ),
-          items:
-              classes
-                  .map(
-                    (className) => DropdownMenuItem(
-                      value: className,
-                      child: Text(className),
-                    ),
-                  )
-                  .toList(),
+          items: [
+            const DropdownMenuItem(value: null, child: Text("Select Class")),
+            ...classes.map(
+              (className) =>
+                  DropdownMenuItem(value: className, child: Text(className)),
+            ),
+          ],
           onChanged: (value) {
-            setState(() {
-              selectedClass = value!;
-              selectedSection = "";
-              _loadSections(selectedClass);
-            });
+            if (value != null) {
+              setState(() {
+                selectedClass = value;
+                selectedSection = "";
+                _loadSections(selectedClass);
+              });
+            }
           },
         ),
         if (selectedClass.isNotEmpty && sections.isNotEmpty)
@@ -698,6 +765,8 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: selectedSection.isEmpty ? null : selectedSection,
+                  hint: const Text("Select Section"),
+                  isExpanded: true,
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: Colors.white,
@@ -725,17 +794,21 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
                       color: Colors.deepPurple,
                     ),
                   ),
-                  items:
-                      sections
-                          .map(
-                            (section) => DropdownMenuItem(
-                              value: section,
-                              child: Text("Section $section"),
-                            ),
-                          )
-                          .toList(),
-                  onChanged:
-                      (value) => setState(() => selectedSection = value!),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text("Select Section"),
+                    ),
+                    ...sections.map(
+                      (section) => DropdownMenuItem(
+                        value: section,
+                        child: Text("Section $section"),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) setState(() => selectedSection = value);
+                  },
                 ),
               ],
             ),
@@ -763,6 +836,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           value: selectedSubject,
+          isExpanded: true,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,
@@ -965,7 +1039,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (picked != null) setState(() => dueDate = picked);
+    if (picked != null && mounted) setState(() => dueDate = picked);
   }
 
   Future<void> _pickTime() async {
@@ -973,7 +1047,7 @@ class _HomeworkPostPageState extends State<HomeworkPostPage> {
       context: context,
       initialTime: dueTime ?? const TimeOfDay(hour: 16, minute: 0),
     );
-    if (picked != null) setState(() => dueTime = picked);
+    if (picked != null && mounted) setState(() => dueTime = picked);
   }
 
   Future<void> _publishHomework() async {

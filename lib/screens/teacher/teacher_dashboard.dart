@@ -8,7 +8,7 @@ import 'package:schoolprojectjan/screens/teacher/teacher_notice_view_page.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_upload_marks.dart';
 import 'select_class_attendance_page.dart';
 import 'attendance_report_page.dart';
-import 'homework_post_page.dart';
+import 'teacher_homework_post_page.dart';
 
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({super.key});
@@ -431,7 +431,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const HomeworkPostPage()),
+              MaterialPageRoute(builder: (_) => const TeacherHomeworkPostPage()),
             );
           },
         ),

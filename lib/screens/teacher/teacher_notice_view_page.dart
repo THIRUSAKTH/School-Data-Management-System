@@ -32,6 +32,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
     super.dispose();
   }
 
+  // FIXED: Removed orderBy to avoid index requirement
   Future<void> _loadNotices() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -43,9 +44,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
               .doc(AppConfig.schoolId)
               .collection('notices')
               .where('isActive', isEqualTo: true)
-              .orderBy('isPinned', descending: true)
-              .orderBy('createdAt', descending: true)
-              .get();
+              .get(); // NO orderBy here - will sort client-side
 
       final now = DateTime.now();
       List<Map<String, dynamic>> validNotices = [];
@@ -54,17 +53,50 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
         final data = doc.data();
         final expiryDate = data['expiryDate'] as Timestamp?;
 
-        // Check target audience - Teachers can see notices for 'All', 'Teachers'
+        // Check target audience
         final targetAudience = data['targetAudience'] ?? 'All';
         if (targetAudience != 'All' && targetAudience != 'Teachers') {
           continue;
         }
 
-        // Check if notice is not expired
+        // Check if not expired
         if (expiryDate == null || expiryDate.toDate().isAfter(now)) {
-          validNotices.add({'id': doc.id, ...data});
+          validNotices.add({
+            'id': doc.id,
+            'title': data['title'] ?? 'Notice',
+            'description': data['description'] ?? 'No description',
+            'priority': data['priority'] ?? 'Normal',
+            'isPinned': data['isPinned'] ?? false,
+            'createdAt': data['createdAt'],
+            'expiryDate': data['expiryDate'],
+            'viewCount': data['viewCount'] ?? 0,
+            'createdBy': data['createdBy'] ?? 'Admin',
+            'attachments': data['attachments'] ?? [],
+            'targetAudience': targetAudience,
+          });
         }
       }
+
+      // CLIENT-SIDE SORTING: Pinned first, then by createdAt (newest first)
+      validNotices.sort((a, b) {
+        final aPinned = a['isPinned'] ?? false;
+        final bPinned = b['isPinned'] ?? false;
+
+        // Pinned notices come first
+        if (aPinned != bPinned) {
+          return bPinned ? 1 : -1;
+        }
+
+        // Then sort by createdAt (newest first)
+        final aDate = a['createdAt'] as Timestamp?;
+        final bDate = b['createdAt'] as Timestamp?;
+
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+
+        return bDate.toDate().compareTo(aDate.toDate());
+      });
 
       if (mounted) {
         setState(() {
@@ -76,6 +108,12 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
       debugPrint('Error loading notices: $e');
       if (mounted) {
         setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error loading notices: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -352,7 +390,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    notice['title'] ?? 'Notice',
+                    notice['title'],
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -362,7 +400,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    notice['description'] ?? 'No description',
+                    notice['description'],
                     style: TextStyle(
                       color: Colors.grey.shade700,
                       fontSize: 13,
@@ -461,6 +499,8 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
     final viewCount = notice['viewCount'] ?? 0;
     final createdBy = notice['createdBy'] ?? 'Admin';
     final attachments = notice['attachments'] as List? ?? [];
+    final description = notice['description'] ?? 'No description';
+    final title = notice['title'] ?? 'Notice';
 
     Color getPriorityColor() {
       switch (priority) {
@@ -547,7 +587,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          notice['title'] ?? 'Notice',
+                          title,
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -625,11 +665,9 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                         ),
                         const Divider(height: 32),
                         Text(
-                          notice['description'] ?? 'No description',
+                          description,
                           style: const TextStyle(fontSize: 16, height: 1.5),
                         ),
-
-                        // Attachments section
                         if (attachments.isNotEmpty) ...[
                           const SizedBox(height: 20),
                           const Text(
@@ -644,7 +682,6 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                             (attachment) => _buildAttachmentTile(attachment),
                           ),
                         ],
-
                         const SizedBox(height: 30),
                         SizedBox(
                           width: double.infinity,
@@ -710,7 +747,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                   ),
                   if (fileSize > 0)
                     Text(
-                      _formatFileSize(fileSize),
+                      FilePickerService.getReadableSize(fileSize),
                       style: const TextStyle(fontSize: 11, color: Colors.grey),
                     ),
                 ],
@@ -773,6 +810,16 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                                 ),
                               ),
                             ),
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            height: 200,
+                            color: Colors.grey.shade100,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        },
                       ),
                     )
                   else
@@ -791,14 +838,6 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                           ),
                           const SizedBox(height: 12),
                           Text(fileName, textAlign: TextAlign.center),
-                          if (attachment['size'] != null)
-                            Text(
-                              _formatFileSize(attachment['size']),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
                         ],
                       ),
                     ),
@@ -814,13 +853,12 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Download feature coming soon"),
+                          onPressed:
+                              () => ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Download feature coming soon"),
+                                ),
                               ),
-                            );
-                          },
                           icon: const Icon(Icons.download),
                           label: const Text("Download"),
                           style: ElevatedButton.styleFrom(
@@ -836,12 +874,6 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
             ),
           ),
     );
-  }
-
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   void _showFilterDialog() {
@@ -890,5 +922,14 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
             ),
           ),
     );
+  }
+}
+
+// Add this helper class for file size formatting if not already present
+class FilePickerService {
+  static String getReadableSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 }

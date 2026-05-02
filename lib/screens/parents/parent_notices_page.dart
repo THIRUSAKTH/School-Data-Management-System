@@ -90,9 +90,7 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
       debugPrint('Error loading students: $e');
     }
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
+    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
@@ -228,6 +226,7 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                       );
                     }).toList(),
                 onChanged: (value) async {
+                  if (value == null) return;
                   setState(() {
                     _selectedStudentId = value;
                     final selected = _children.firstWhere(
@@ -295,6 +294,7 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
     );
   }
 
+  // FIXED: Removed orderBy to avoid index requirement
   Widget _buildNoticesList() {
     return StreamBuilder<QuerySnapshot>(
       stream:
@@ -303,9 +303,7 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
               .doc(AppConfig.schoolId)
               .collection('notices')
               .where('isActive', isEqualTo: true)
-              .orderBy('isPinned', descending: true)
-              .orderBy('createdAt', descending: true)
-              .snapshots(),
+              .snapshots(), // NO orderBy here - will sort client-side
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -348,64 +346,52 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                   'Check back later for announcements',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                 ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: () => setState(() {}),
-                  icon: const Icon(Icons.refresh),
-                  label: const Text("Refresh"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
               ],
             ),
           );
         }
 
-        var notices = snapshot.data!.docs;
+        // Get all notices
+        var notices = snapshot.data!.docs.toList();
 
-        // Apply filters based on parent's child class
+        // Apply target audience and expiry filters first
         notices =
             notices.where((notice) {
               final data = notice.data() as Map<String, dynamic>;
 
-              // Check if notice is active
               if (data['isActive'] != true) return false;
 
-              // Check if notice is expired
               final expiryDate = data['expiryDate'] as Timestamp?;
               if (expiryDate != null &&
                   expiryDate.toDate().isBefore(DateTime.now()))
                 return false;
 
-              // Check target audience
               final targetAudience = data['targetAudience'] ?? 'All';
-
-              // If target is Teachers, skip for parents
               if (targetAudience == 'Teachers') return false;
 
-              // If target is Specific Class, check if student's class is selected
               if (targetAudience == 'Specific Class') {
                 final selectedClasses =
                     data['selectedClasses'] as List<dynamic>? ?? [];
                 if (_studentClass != null &&
-                    !selectedClasses.contains(_studentClass)) {
+                    !selectedClasses.contains(_studentClass))
                   return false;
-                }
-              }
-
-              // If target is Parents or All, proceed
-              // Also if target is Specific Class and class matches, proceed
-
-              // Apply priority filter
-              if (_selectedFilter != "All") {
-                final priority = data['priority'] ?? 'Normal';
-                if (priority != _selectedFilter) return false;
+              } else if (targetAudience != 'All' &&
+                  targetAudience != 'Parents') {
+                return false;
               }
 
               return true;
             }).toList();
+
+        // Apply priority filter
+        if (_selectedFilter != "All") {
+          notices =
+              notices.where((notice) {
+                final data = notice.data() as Map<String, dynamic>;
+                final priority = data['priority'] ?? 'Normal';
+                return priority == _selectedFilter;
+              }).toList();
+        }
 
         if (notices.isEmpty) {
           return Center(
@@ -427,6 +413,30 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
           );
         }
 
+        // CLIENT-SIDE SORTING: Pinned first, then by createdAt (newest first)
+        notices.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+
+          final aPinned = aData['isPinned'] ?? false;
+          final bPinned = bData['isPinned'] ?? false;
+
+          // Pinned notices come first
+          if (aPinned != bPinned) {
+            return bPinned ? 1 : -1;
+          }
+
+          // Then sort by createdAt (newest first)
+          final aDate = aData['createdAt'] as Timestamp?;
+          final bDate = bData['createdAt'] as Timestamp?;
+
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+
+          return bDate.toDate().compareTo(aDate.toDate());
+        });
+
         return RefreshIndicator(
           onRefresh: () async => setState(() {}),
           child: ListView.builder(
@@ -443,6 +453,7 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
     );
   }
 
+  // Rest of the methods remain the same...
   Widget _buildNoticeCard(String noticeId, Map<String, dynamic> data) {
     final priority = data['priority'] ?? 'Normal';
     final isPinned = data['isPinned'] ?? false;
@@ -580,55 +591,6 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.person_outline,
-                          size: 10,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          createdBy,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey.shade400,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.remove_red_eye,
-                          size: 10,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          "$viewCount views",
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey.shade400,
-                          ),
-                        ),
-                        if (expiryDate != null) ...[
-                          const SizedBox(width: 12),
-                          Icon(
-                            Icons.timer_outlined,
-                            size: 10,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            "Expires: ${DateFormat('dd MMM').format(expiryDate.toDate())}",
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey.shade400,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    // Attachment indicator
                     if (attachments.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
@@ -810,47 +772,11 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.visibility,
-                              size: 14,
-                              color: Colors.grey.shade500,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              "$viewCount views",
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                            if (expiryDate != null) ...[
-                              const SizedBox(width: 16),
-                              Icon(
-                                Icons.timer_outlined,
-                                size: 14,
-                                color: Colors.grey.shade500,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                "Expires: ${DateFormat('dd MMM yyyy').format(expiryDate.toDate())}",
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade500,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
                         const SizedBox(height: 16),
                         Text(
                           data['description'] ?? 'No description',
                           style: const TextStyle(fontSize: 14, height: 1.5),
                         ),
-
-                        // Attachments section
                         if (attachments.isNotEmpty) ...[
                           const SizedBox(height: 20),
                           const Text(
@@ -865,7 +791,6 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                             (attachment) => _buildAttachmentTile(attachment),
                           ),
                         ],
-
                         const SizedBox(height: 24),
                         SizedBox(
                           width: double.infinity,
@@ -897,7 +822,6 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
     final isImage = attachment['type'] == 'image';
     final url = attachment['url'];
     final fileName = attachment['originalName'] ?? attachment['name'];
-    final fileSize = attachment['size'] ?? 0;
 
     return GestureDetector(
       onTap: () => _showAttachmentPreview(attachment),
@@ -925,22 +849,12 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    fileName,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (fileSize > 0)
-                    Text(
-                      _formatFileSize(fileSize),
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                ],
+              child: Text(
+                fileName,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
             Container(
@@ -1018,14 +932,6 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                           ),
                           const SizedBox(height: 12),
                           Text(fileName, textAlign: TextAlign.center),
-                          if (attachment['size'] != null)
-                            Text(
-                              _formatFileSize(attachment['size']),
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
                         ],
                       ),
                     ),
@@ -1041,13 +947,12 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Download feature coming soon"),
+                          onPressed:
+                              () => ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Download feature coming soon"),
+                                ),
                               ),
-                            );
-                          },
                           icon: const Icon(Icons.download),
                           label: const Text("Download"),
                           style: ElevatedButton.styleFrom(
@@ -1063,12 +968,6 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
             ),
           ),
     );
-  }
-
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   void _showFilterDialog() {

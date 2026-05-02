@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:schoolprojectjan/app_config.dart';
-import 'package:schoolprojectjan/screens/teacher/homework_post_page.dart';
+import 'package:schoolprojectjan/screens/teacher/teacher_homework_post_page.dart';
 import 'package:schoolprojectjan/screens/teacher/mark_attendance_page.dart';
 import 'package:schoolprojectjan/screens/teacher/select_class_attendance_page.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_view_timetable_page.dart';
@@ -35,7 +35,7 @@ class _TeacherHomeState extends State<TeacherHome> {
       SelectClassAttendancePage(
         schoolId: AppConfig.schoolId,
       ),
-      HomeworkPostPage(),
+      TeacherHomeworkPostPage(),
       TeacherViewTimetable(),
     ];
   }
