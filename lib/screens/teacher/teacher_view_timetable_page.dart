@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/date_symbol_data_local.dart';
 import 'package:schoolprojectjan/app_config.dart';
 
 class TeacherViewTimetable extends StatefulWidget {
@@ -14,36 +13,83 @@ class TeacherViewTimetable extends StatefulWidget {
 class _TeacherViewTimetableState extends State<TeacherViewTimetable> {
   String _selectedDay = _getCurrentDay();
   String? _teacherId;
+  String? _teacherName;
   Map<String, List<Map<String, dynamic>>> _timetable = {};
   bool _isLoading = true;
+  Map<int, Map<String, String>> _periodTimings = {};
 
-  final List<String> _days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  final List<String> _days = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
 
   static String _getCurrentDay() {
     final now = DateTime.now();
-    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const days = [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ];
     return days[now.weekday - 1];
   }
 
   @override
   void initState() {
     super.initState();
-    _loadTeacherId();
+    _loadTeacherData();
+    _loadPeriodTimings();
   }
 
-  Future<void> _loadTeacherId() async {
+  Future<void> _loadPeriodTimings() async {
+    try {
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('settings')
+              .doc('timetable_settings')
+              .get();
+
+      if (doc.exists && doc.data()?['periodTimings'] != null) {
+        final data = doc.data()!['periodTimings'] as Map<String, dynamic>;
+        for (var entry in data.entries) {
+          final period = int.parse(entry.key);
+          final timings = entry.value as Map<String, dynamic>;
+          _periodTimings[period] = {
+            'start': timings['start'] ?? 'N/A',
+            'end': timings['end'] ?? 'N/A',
+          };
+        }
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error loading period timings: $e');
+    }
+  }
+
+  Future<void> _loadTeacherData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final teacherDoc = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('teachers')
-          .doc(user.uid)
-          .get();
+      final teacherQuery =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('teachers')
+              .where('uid', isEqualTo: user.uid)
+              .get();
 
-      if (teacherDoc.exists) {
+      if (teacherQuery.docs.isNotEmpty) {
         setState(() {
-          _teacherId = user.uid;
+          _teacherId = teacherQuery.docs.first.id;
+          _teacherName = teacherQuery.docs.first.data()['name'];
         });
         _loadTimetable();
       }
@@ -52,45 +98,54 @@ class _TeacherViewTimetableState extends State<TeacherViewTimetable> {
 
   Future<void> _loadTimetable() async {
     if (_teacherId == null) return;
-
     setState(() => _isLoading = true);
 
-    final entries = await FirebaseFirestore.instance
-        .collection('schools')
-        .doc(AppConfig.schoolId)
-        .collection('timetable')
-        .where('teacherId', isEqualTo: _teacherId)
-        .get();
+    try {
+      // Query from teacher_timetable collection
+      final entriesSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('teacher_timetable')
+              .doc(_teacherId)
+              .collection('entries')
+              .get();
 
-    Map<String, List<Map<String, dynamic>>> timetable = {};
+      Map<String, List<Map<String, dynamic>>> timetable = {};
 
-    for (var entry in entries.docs) {
-      final data = entry.data();
-      final day = data['day'] as String;
-      final period = data['period'] as int;
+      for (var doc in entriesSnapshot.docs) {
+        final data = doc.data();
+        final day = data['day'] as String;
+        final period = data['period'] as int;
 
-      if (!timetable.containsKey(day)) {
-        timetable[day] = [];
+        if (!timetable.containsKey(day)) {
+          timetable[day] = [];
+        }
+
+        timetable[day]!.add({
+          'period': period,
+          'class': data['class'],
+          'section': data['section'],
+          'subject': data['subject'],
+          'startTime': data['startTime'],
+          'endTime': data['endTime'],
+          'docId': doc.id,
+        });
       }
 
-      timetable[day]!.add({
-        'period': period,
-        'class': data['class'],
-        'section': data['section'],
-        'subject': data['subject'],
-        'id': entry.id,
+      // Sort periods
+      for (var day in timetable.keys) {
+        timetable[day]!.sort((a, b) => a['period'].compareTo(b['period']));
+      }
+
+      setState(() {
+        _timetable = timetable;
+        _isLoading = false;
       });
+    } catch (e) {
+      debugPrint('Error loading timetable: $e');
+      setState(() => _isLoading = false);
     }
-
-    // Sort periods
-    for (var day in timetable.keys) {
-      timetable[day]!.sort((a, b) => a['period'].compareTo(b['period']));
-    }
-
-    setState(() {
-      _timetable = timetable;
-      _isLoading = false;
-    });
   }
 
   @override
@@ -99,29 +154,35 @@ class _TeacherViewTimetableState extends State<TeacherViewTimetable> {
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text(
-          "My Timetable",
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "My Timetable",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            if (_teacherName != null)
+              Text(_teacherName!, style: const TextStyle(fontSize: 12)),
+          ],
         ),
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
-        centerTitle: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadTimetable,
-            tooltip: "Refresh",
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-        children: [
-          _buildDaySelector(),
-          Expanded(child: _buildTimetableContent()),
-        ],
-      ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                children: [
+                  _buildDaySelector(),
+                  Expanded(child: _buildTimetableContent()),
+                ],
+              ),
     );
   }
 
@@ -135,7 +196,8 @@ class _TeacherViewTimetableState extends State<TeacherViewTimetable> {
         itemBuilder: (context, index) {
           final day = _days[index];
           final isSelected = _selectedDay == day;
-          final hasClasses = _timetable.containsKey(day) && _timetable[day]!.isNotEmpty;
+          final hasClasses =
+              _timetable.containsKey(day) && _timetable[day]!.isNotEmpty;
 
           return GestureDetector(
             onTap: () => setState(() => _selectedDay = day),
@@ -148,15 +210,6 @@ class _TeacherViewTimetableState extends State<TeacherViewTimetable> {
                 border: Border.all(
                   color: isSelected ? Colors.orange : Colors.grey.shade300,
                 ),
-                boxShadow: isSelected
-                    ? [
-                  BoxShadow(
-                    color: Colors.orange.withOpacity(0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-                    : null,
               ),
               child: Row(
                 children: [
@@ -164,7 +217,7 @@ class _TeacherViewTimetableState extends State<TeacherViewTimetable> {
                     Container(
                       width: 8,
                       height: 8,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: Colors.green,
                         shape: BoxShape.circle,
                       ),
@@ -174,7 +227,6 @@ class _TeacherViewTimetableState extends State<TeacherViewTimetable> {
                     day,
                     style: TextStyle(
                       color: isSelected ? Colors.white : Colors.black87,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -200,11 +252,6 @@ class _TeacherViewTimetableState extends State<TeacherViewTimetable> {
               "No classes scheduled for $_selectedDay",
               style: TextStyle(color: Colors.grey.shade600),
             ),
-            const SizedBox(height: 8),
-            Text(
-              "You have no classes on this day",
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-            ),
           ],
         ),
       );
@@ -212,56 +259,53 @@ class _TeacherViewTimetableState extends State<TeacherViewTimetable> {
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: 8, // Max 8 periods
-      itemBuilder: (context, period) {
-        final periodNumber = period + 1;
-        final entry = dayEntries.firstWhere(
-              (e) => e['period'] == periodNumber,
-          orElse: () => {},
-        );
-
-        return _buildPeriodCard(periodNumber, entry.isNotEmpty ? entry : null);
+      itemCount: dayEntries.length,
+      itemBuilder: (context, index) {
+        final entry = dayEntries[index];
+        return _buildPeriodCard(entry);
       },
     );
   }
 
-  Widget _buildPeriodCard(int period, Map<String, dynamic>? entry) {
+  Widget _buildPeriodCard(Map<String, dynamic> entry) {
+    final period = entry['period'];
+    final startTime =
+        entry['startTime'] ?? _periodTimings[period]?['start'] ?? 'N/A';
+    final endTime = entry['endTime'] ?? _periodTimings[period]?['end'] ?? 'N/A';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
         ],
       ),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: entry != null ? Colors.orange : Colors.grey.shade200,
+          backgroundColor: Colors.orange,
           child: Text(
             period.toString(),
-            style: TextStyle(
-              color: entry != null ? Colors.white : Colors.grey,
+            style: const TextStyle(
+              color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
           ),
         ),
         title: Text(
-          entry != null ? "Period $period" : "Period $period - Free Period",
-          style: TextStyle(
-            fontWeight: entry != null ? FontWeight.bold : FontWeight.normal,
-            color: entry != null ? Colors.black87 : Colors.grey,
-          ),
+          "Period $period - ${entry['subject']}",
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: entry != null
-            ? Text("${entry['subject']} | Class ${entry['class']}-${entry['section']}")
-            : null,
-        trailing: entry != null
-            ? Container(
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Time: $startTime - $endTime"),
+            const SizedBox(height: 4),
+            Text("Class: ${entry['class']} - ${entry['section']}"),
+          ],
+        ),
+        trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
             color: Colors.orange.shade100,
@@ -272,11 +316,9 @@ class _TeacherViewTimetableState extends State<TeacherViewTimetable> {
             style: TextStyle(
               color: Colors.orange.shade700,
               fontWeight: FontWeight.bold,
-              fontSize: 12,
             ),
           ),
-        )
-            : null,
+        ),
       ),
     );
   }

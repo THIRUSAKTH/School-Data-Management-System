@@ -9,7 +9,7 @@ import 'package:schoolprojectjan/screens/admin/admin_academic_year_page.dart';
 import 'package:schoolprojectjan/screens/admin/admin_complaints_page.dart';
 import 'package:schoolprojectjan/screens/admin/admin_create_timetable_page.dart';
 import 'package:schoolprojectjan/screens/admin/exam_management_page.dart';
-import 'package:schoolprojectjan/screens/admin/notice_post_page.dart';
+import 'package:schoolprojectjan/screens/admin/admin_notice_post_page.dart';
 import 'package:schoolprojectjan/screens/admin/school_settings_page.dart';
 import 'package:schoolprojectjan/screens/admin/select_class_for_attendance_page.dart';
 import 'admin_analytics_page.dart';
@@ -884,7 +884,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             context,
             Icons.announcement,
             "Upload Notice",
-            const NoticePostPage(),
+            const AdminNoticePostPage(),
           ),
           _drawerItem(
             context,

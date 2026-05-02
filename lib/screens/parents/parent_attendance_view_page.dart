@@ -43,42 +43,34 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     super.dispose();
   }
 
-  // FIXED: Properly fetch attendance from the correct Firestore path
   Future<void> _fetchAttendance() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
-      final attendanceCollection = FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('attendance');
-
-      // Get all attendance documents (each is a date)
-      final attendanceDocs = await attendanceCollection.get();
+      // Get all attendance records for this student using collection group query
+      final recordsSnapshot =
+          await FirebaseFirestore.instance
+              .collectionGroup('records')
+              .where('studentId', isEqualTo: widget.studentId)
+              .get();
 
       List<Map<String, dynamic>> records = [];
 
-      for (var dateDoc in attendanceDocs.docs) {
-        final date = dateDoc.id;
+      for (var doc in recordsSnapshot.docs) {
+        final data = doc.data();
+        final date =
+            doc.reference.parent.parent?.id; // Get date from parent document
 
-        // Get the specific student's attendance record for this date
-        final recordSnapshot =
-            await dateDoc.reference
-                .collection('records')
-                .doc(widget.studentId)
-                .get();
-
-        if (recordSnapshot.exists) {
-          final data = recordSnapshot.data()!;
+        if (date != null && date.isNotEmpty) {
           records.add({
             'date': date,
             'status': data['status'] ?? 'Absent',
             'remark': data['remark'] ?? '',
             'checkInTime': data['checkInTime'] ?? '',
             'checkOutTime': data['checkOutTime'] ?? '',
-            'className': data['className'] ?? '',
-            'section': data['section'] ?? '',
+            'className': data['className'] ?? widget.className,
+            'section': data['section'] ?? widget.section,
           });
         }
       }
@@ -102,54 +94,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
             backgroundColor: Colors.red,
           ),
         );
-      }
-    }
-  }
-
-  // Alternative: Use a more efficient query (if you have many students)
-  Future<void> _fetchAttendanceOptimized() async {
-    if (!mounted) return;
-    setState(() => _isLoading = true);
-
-    try {
-      // This assumes you have a composite index on studentId and date
-      final recordsSnapshot =
-          await FirebaseFirestore.instance
-              .collectionGroup('records')
-              .where('studentId', isEqualTo: widget.studentId)
-              .get();
-
-      List<Map<String, dynamic>> records = [];
-
-      for (var doc in recordsSnapshot.docs) {
-        final data = doc.data();
-        final date =
-            doc.reference.parent.parent?.id; // Get date from parent document
-        if (date != null) {
-          records.add({
-            'date': date,
-            'status': data['status'] ?? 'Absent',
-            'remark': data['remark'] ?? '',
-            'checkInTime': data['checkInTime'] ?? '',
-            'checkOutTime': data['checkOutTime'] ?? '',
-            'className': data['className'] ?? '',
-            'section': data['section'] ?? '',
-          });
-        }
-      }
-
-      records.sort((a, b) => b['date'].compareTo(a['date']));
-
-      if (mounted) {
-        setState(() {
-          _attendanceRecords = records;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching attendance: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
       }
     }
   }
@@ -387,9 +331,7 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
                     );
                   }).toList(),
               onChanged: (value) {
-                if (value != null) {
-                  setState(() => _selectedMonth = value);
-                }
+                if (value != null) setState(() => _selectedMonth = value);
               },
               decoration: const InputDecoration(
                 border: InputBorder.none,

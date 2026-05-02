@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -35,46 +36,55 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
   }
 
   Future<void> _loadStudentData() async {
-    final parentUid = FirebaseAuth.instance.currentUser!.uid;
+    if (!mounted) return;
 
-    final studentsSnapshot =
-        await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(AppConfig.schoolId)
-            .collection('students')
-            .where('parentUid', isEqualTo: parentUid)
-            .get();
+    try {
+      final parentUid = FirebaseAuth.instance.currentUser!.uid;
 
-    _childrenList = studentsSnapshot.docs;
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('parentUid', isEqualTo: parentUid)
+              .get();
 
-    if (_childrenList.isEmpty) {
-      setState(() => _isLoading = false);
-      return;
-    }
+      _childrenList = studentsSnapshot.docs;
 
-    QueryDocumentSnapshot targetStudent;
+      if (_childrenList.isEmpty) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
 
-    if (widget.studentId != null && widget.studentId!.isNotEmpty) {
-      try {
-        targetStudent = _childrenList.firstWhere(
-          (s) => s.id == widget.studentId!,
-        );
-      } catch (e) {
+      QueryDocumentSnapshot targetStudent;
+
+      if (widget.studentId != null && widget.studentId!.isNotEmpty) {
+        try {
+          targetStudent = _childrenList.firstWhere(
+            (s) => s.id == widget.studentId!,
+          );
+        } catch (e) {
+          targetStudent = _childrenList.first;
+        }
+      } else {
         targetStudent = _childrenList.first;
       }
-    } else {
-      targetStudent = _childrenList.first;
+
+      final data = targetStudent.data() as Map<String, dynamic>;
+
+      if (mounted) {
+        setState(() {
+          _selectedStudentId = targetStudent.id;
+          _studentClass = widget.className ?? data['class'];
+          _studentSection = widget.section ?? data['section'];
+          _studentName = data['name'];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading student data: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    final data = targetStudent.data() as Map<String, dynamic>;
-
-    setState(() {
-      _selectedStudentId = targetStudent.id;
-      _studentClass = widget.className ?? data['class'];
-      _studentSection = widget.section ?? data['section'];
-      _studentName = data['name'];
-      _isLoading = false;
-    });
   }
 
   @override
@@ -224,11 +234,34 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
               .collection('homework')
               .where('className', isEqualTo: _studentClass)
               .where('section', isEqualTo: _studentSection)
+              .where('isActive', isEqualTo: true)
+              .orderBy('isUrgent', descending: true)
               .orderBy('dueDate', descending: false)
               .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  "Error: ${snapshot.error}",
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => setState(() {}),
+                  child: const Text("Retry"),
+                ),
+              ],
+            ),
+          );
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -257,6 +290,19 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
         }
 
         final homeworkList = snapshot.data!.docs;
+        homeworkList.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aUrgent = aData['isUrgent'] ?? false;
+          final bUrgent = bData['isUrgent'] ?? false;
+          if (aUrgent != bUrgent) return aUrgent ? -1 : 1;
+          final aDate = aData['dueDate'] as Timestamp?;
+          final bDate = bData['dueDate'] as Timestamp?;
+          if (aDate == null && bDate == null) return 0;
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return aDate.toDate().compareTo(bDate.toDate());
+        });
 
         return RefreshIndicator(
           onRefresh: () async => setState(() {}),
@@ -266,23 +312,17 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
             itemBuilder: (context, index) {
               final doc = homeworkList[index];
               final data = doc.data() as Map<String, dynamic>;
-
-              Timestamp? dueTimestamp;
-              if (data['dueDate'] is Timestamp) {
-                dueTimestamp = data['dueDate'] as Timestamp;
-              }
-
+              final attachments = data['attachments'] as List? ?? [];
               return _HomeworkCard(
                 homeworkId: doc.id,
                 subject: data['subject'] ?? 'General',
                 description: data['description'] ?? 'No description',
-                dueDate: dueTimestamp,
+                dueDate: data['dueDate'] as Timestamp?,
                 dueTime: data['dueTime'],
                 isUrgent: data['isUrgent'] ?? false,
-                status: _getHomeworkStatus(data),
                 studentId: _selectedStudentId!,
-                attachments: data['attachments'] ?? [],
                 teacherName: data['teacherName'] ?? 'Teacher',
+                attachments: attachments,
               );
             },
           ),
@@ -290,34 +330,9 @@ class _HomeworkViewPageState extends State<HomeworkViewPage> {
       },
     );
   }
-
-  String _getHomeworkStatus(Map<String, dynamic> data) {
-    final submittedBy = data['submittedBy'] as List<dynamic>? ?? [];
-    if (_selectedStudentId != null &&
-        submittedBy.contains(_selectedStudentId)) {
-      return "Submitted";
-    }
-
-    final dueDate = data['dueDate'];
-    if (dueDate != null) {
-      DateTime dueDateTime;
-      if (dueDate is Timestamp) {
-        dueDateTime = dueDate.toDate();
-      } else {
-        dueDateTime = DateTime.parse(dueDate.toString());
-      }
-      if (dueDateTime.isBefore(DateTime.now())) {
-        return "Overdue";
-      }
-    }
-    return "Pending";
-  }
 }
 
-// ============================================================
-// HOMEWORK CARD
-// ============================================================
-
+// Homework Card Widget
 class _HomeworkCard extends StatefulWidget {
   final String homeworkId;
   final String subject;
@@ -325,10 +340,9 @@ class _HomeworkCard extends StatefulWidget {
   final Timestamp? dueDate;
   final String? dueTime;
   final bool isUrgent;
-  final String status;
   final String studentId;
-  final List<dynamic> attachments;
   final String teacherName;
+  final List<dynamic> attachments;
 
   const _HomeworkCard({
     required this.homeworkId,
@@ -337,10 +351,9 @@ class _HomeworkCard extends StatefulWidget {
     required this.dueDate,
     required this.dueTime,
     required this.isUrgent,
-    required this.status,
     required this.studentId,
-    required this.attachments,
     required this.teacherName,
+    required this.attachments,
   });
 
   @override
@@ -350,26 +363,53 @@ class _HomeworkCard extends StatefulWidget {
 class _HomeworkCardState extends State<_HomeworkCard> {
   bool _isSubmitting = false;
   bool _isExpanded = false;
+  bool _isCompleted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSubmissionStatus();
+  }
+
+  Future<void> _checkSubmissionStatus() async {
+    try {
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('homework')
+              .doc(widget.homeworkId)
+              .get();
+
+      if (doc.exists) {
+        final submittedBy = doc.data()?['submittedBy'] as List<dynamic>? ?? [];
+        if (mounted) {
+          setState(() {
+            _isCompleted = submittedBy.contains(widget.studentId);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking submission: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isSubmitted = widget.status == "Submitted";
-    final isOverdue = widget.status == "Overdue";
+    final isOverdue =
+        widget.dueDate != null &&
+        widget.dueDate!.toDate().isBefore(DateTime.now());
+    final status =
+        _isCompleted ? "Completed" : (isOverdue ? "Overdue" : "Pending");
 
     Color getStatusColor() {
-      if (isSubmitted) return Colors.green;
+      if (_isCompleted) return Colors.green;
       if (isOverdue) return Colors.red;
       return Colors.orange;
     }
 
-    String getStatusText() {
-      if (isSubmitted) return "Submitted";
-      if (isOverdue) return "Overdue";
-      return "Pending";
-    }
-
     IconData getStatusIcon() {
-      if (isSubmitted) return Icons.check_circle;
+      if (_isCompleted) return Icons.check_circle;
       if (isOverdue) return Icons.warning_amber;
       return Icons.schedule;
     }
@@ -418,7 +458,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                     ],
                   ),
                 ),
-
               Row(
                 children: [
                   Container(
@@ -459,7 +498,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          getStatusText(),
+                          status,
                           style: TextStyle(
                             fontSize: 10,
                             color: getStatusColor(),
@@ -471,9 +510,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 12),
-
               Text(
                 widget.description,
                 style: const TextStyle(
@@ -485,7 +522,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                 overflow:
                     _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
               ),
-
               if (widget.description.length > 120)
                 TextButton(
                   onPressed: () => setState(() => _isExpanded = !_isExpanded),
@@ -502,9 +538,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                     ),
                   ),
                 ),
-
               const SizedBox(height: 12),
-
               Row(
                 children: [
                   Icon(
@@ -533,9 +567,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   ],
                 ],
               ),
-
               const SizedBox(height: 8),
-
               Row(
                 children: [
                   Icon(Icons.person_outline, size: 12, color: Colors.grey),
@@ -546,24 +578,27 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   ),
                 ],
               ),
-
+              // Attachments section
               if (widget.attachments.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 const Divider(),
+                const SizedBox(height: 8),
+                const Text(
+                  "Attachments:",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children:
-                      widget.attachments
-                          .map((attachment) => _buildAttachmentChip(attachment))
-                          .toList(),
+                      widget.attachments.map((attachment) {
+                        return _buildAttachmentChip(attachment);
+                      }).toList(),
                 ),
               ],
-
               const SizedBox(height: 16),
-
-              if (!isSubmitted && !isOverdue)
+              if (!_isCompleted && !isOverdue)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -592,8 +627,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                     ),
                   ),
                 ),
-
-              if (isSubmitted)
+              if (_isCompleted)
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -620,8 +654,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                     ],
                   ),
                 ),
-
-              if (isOverdue && !isSubmitted)
+              if (isOverdue && !_isCompleted)
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -652,46 +685,179 @@ class _HomeworkCardState extends State<_HomeworkCard> {
   }
 
   Widget _buildAttachmentChip(Map<String, dynamic> attachment) {
-    final fileName = attachment['name'] ?? 'Attachment';
-    final fileType = fileName.split('.').last.toLowerCase();
-
-    IconData getFileIcon() {
-      if (fileType == 'pdf') return Icons.picture_as_pdf;
-      if (['jpg', 'jpeg', 'png', 'gif'].contains(fileType)) return Icons.image;
-      if (['doc', 'docx'].contains(fileType)) return Icons.description;
-      return Icons.attach_file;
-    }
-
-    Color getFileColor() {
-      if (fileType == 'pdf') return Colors.red;
-      if (['jpg', 'jpeg', 'png', 'gif'].contains(fileType)) return Colors.green;
-      if (['doc', 'docx'].contains(fileType)) return Colors.blue;
-      return Colors.grey;
-    }
+    final isImage = attachment['type'] == 'image';
+    final fileName = attachment['originalName'] ?? attachment['name'];
+    final fileSize = attachment['size'] ?? 0;
 
     return GestureDetector(
-      onTap: () => _viewAttachment(attachment),
+      onTap: () => _showAttachmentPreview(attachment),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: isImage ? Colors.green.shade50 : Colors.blue.shade50,
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isImage ? Colors.green.shade200 : Colors.blue.shade200,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(getFileIcon(), size: 14, color: getFileColor()),
+            Icon(
+              isImage ? Icons.image : Icons.insert_drive_file,
+              size: 14,
+              color: isImage ? Colors.green : Colors.blue,
+            ),
             const SizedBox(width: 6),
             Text(
               fileName.length > 20
                   ? '${fileName.substring(0, 17)}...'
                   : fileName,
-              style: const TextStyle(fontSize: 12),
+              style: TextStyle(
+                fontSize: 12,
+                color: isImage ? Colors.green.shade700 : Colors.blue.shade700,
+              ),
+            ),
+            if (fileSize > 0) ...[
+              const SizedBox(width: 4),
+              Text(
+                _formatFileSize(fileSize),
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+              ),
+            ],
+            const SizedBox(width: 4),
+            Icon(
+              Icons.visibility,
+              size: 12,
+              color: isImage ? Colors.green : Colors.blue,
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _showAttachmentPreview(Map<String, dynamic> attachment) {
+    final isImage = attachment['type'] == 'image';
+    final url = attachment['url'];
+    final fileName = attachment['originalName'] ?? attachment['name'];
+    final fileSize = attachment['size'] ?? 0;
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Container(
+              width: double.maxFinite,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isImage)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        url,
+                        fit: BoxFit.contain,
+                        height: 300,
+                        errorBuilder:
+                            (_, __, ___) => Container(
+                              height: 200,
+                              color: Colors.grey.shade200,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.broken_image,
+                                  size: 48,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ),
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            height: 200,
+                            color: Colors.grey.shade100,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.insert_drive_file,
+                            size: 48,
+                            color: Colors.orange,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            fileName,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          if (fileSize > 0)
+                            Text(
+                              _formatFileSize(fileSize),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text("Close"),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Download feature coming soon"),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.download),
+                          label: const Text("Download"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   Future<void> _submitHomework() async {
@@ -709,9 +875,10 @@ class _HomeworkCardState extends State<_HomeworkCard> {
       });
 
       if (mounted) {
+        setState(() => _isCompleted = true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Homework marked as completed! 🎉"),
+            content: Text("Homework marked as completed!"),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
@@ -728,75 +895,8 @@ class _HomeworkCardState extends State<_HomeworkCard> {
     }
   }
 
-  void _viewAttachment(Map<String, dynamic> attachment) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder:
-          (context) => Container(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.attach_file, size: 56, color: Colors.orange),
-                const SizedBox(height: 16),
-                Text(
-                  attachment['name'] ?? 'Attachment',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  "Tap to download or view",
-                  style: TextStyle(color: Colors.grey),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close),
-                        label: const Text("Close"),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.download),
-                        label: const Text("Download"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-    );
-  }
-
   String _formatDate(Timestamp? timestamp) {
     if (timestamp == null) return 'No due date';
-    final date = timestamp.toDate();
-    return DateFormat('dd MMM yyyy').format(date);
+    return DateFormat('dd MMM yyyy').format(timestamp.toDate());
   }
 }

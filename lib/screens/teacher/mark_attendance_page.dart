@@ -466,14 +466,12 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
                       value: _lateReasons[id],
                       hint: const Text("Select reason"),
                       items:
-                          _lateReasonOptions
-                              .map(
-                                (reason) => DropdownMenuItem(
-                                  value: reason,
-                                  child: Text(reason),
-                                ),
-                              )
-                              .toList(),
+                          _lateReasonOptions.map((reason) {
+                            return DropdownMenuItem(
+                              value: reason,
+                              child: Text(reason),
+                            );
+                          }).toList(),
                       onChanged:
                           (value) => setState(() => _lateReasons[id] = value!),
                     ),
@@ -490,8 +488,9 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
                               context: context,
                               initialTime: TimeOfDay.now(),
                             );
-                            if (time != null)
+                            if (time != null) {
                               setState(() => _checkInTimes[id] = time);
+                            }
                           },
                         ),
                       ),
@@ -505,8 +504,9 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
                               context: context,
                               initialTime: TimeOfDay.now(),
                             );
-                            if (time != null)
+                            if (time != null) {
                               setState(() => _checkOutTimes[id] = time);
+                            }
                           },
                         ),
                       ),
@@ -696,6 +696,7 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
 
         final recordData = <String, dynamic>{
           "studentId": studentId,
+          "studentName": studentData['name'] ?? "",
           "name": studentData['name'] ?? "",
           "rollNo": studentData['rollNo'] ?? "",
           "className": widget.className,
@@ -704,6 +705,7 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
           "date": _today,
           "updatedAt": FieldValue.serverTimestamp(),
           "updatedBy": FirebaseAuth.instance.currentUser?.uid ?? "",
+          "updatedByName": FirebaseAuth.instance.currentUser?.email ?? "",
         };
 
         if (status == 'Late') {
