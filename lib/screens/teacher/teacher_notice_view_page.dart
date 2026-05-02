@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -16,6 +17,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
   String _selectedFilter = "All";
   List<Map<String, dynamic>> _notices = [];
   bool _isLoading = true;
+  late Timer _cleanupTimer;
 
   final List<String> _filterOptions = ["All", "Normal", "Important", "Urgent"];
 
@@ -24,15 +26,138 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadNotices();
+
+    // Run cleanup every hour
+    _cleanupTimer = Timer.periodic(const Duration(hours: 1), (timer) {
+      _cleanupExpiredNotices();
+    });
+
+    // Also run cleanup when page loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _cleanupExpiredNotices();
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _cleanupTimer.cancel();
     super.dispose();
   }
 
-  // FIXED: Removed orderBy to avoid index requirement
+  // Auto-delete expired notices
+  Future<void> _cleanupExpiredNotices() async {
+    try {
+      final now = DateTime.now();
+      final noticesSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('notices')
+              .where('isActive', isEqualTo: true)
+              .get();
+
+      final batch = FirebaseFirestore.instance.batch();
+      int deleteCount = 0;
+
+      for (var doc in noticesSnapshot.docs) {
+        final data = doc.data();
+        final expiryDate = data['expiryDate'] as Timestamp?;
+
+        if (expiryDate != null && expiryDate.toDate().isBefore(now)) {
+          batch.delete(doc.reference);
+          deleteCount++;
+        }
+      }
+
+      if (deleteCount > 0) {
+        await batch.commit();
+        if (mounted) {
+          _loadNotices(); // Refresh the list
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                '$deleteCount expired notice(s) automatically deleted',
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error cleaning up expired notices: $e');
+    }
+  }
+
+  // Manual delete via long press
+  Future<void> _deleteNotice(String noticeId, String title) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text(
+              "Delete Notice",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              "Are you sure you want to delete '$title'?\nThis action cannot be undone.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Delete"),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('notices')
+          .doc(noticeId)
+          .delete();
+
+      if (mounted) {
+        _loadNotices(); // Refresh the list
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Notice deleted successfully"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error deleting notice: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error deleting notice: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _loadNotices() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -44,7 +169,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
               .doc(AppConfig.schoolId)
               .collection('notices')
               .where('isActive', isEqualTo: true)
-              .get(); // NO orderBy here - will sort client-side
+              .get();
 
       final now = DateTime.now();
       List<Map<String, dynamic>> validNotices = [];
@@ -53,13 +178,11 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
         final data = doc.data();
         final expiryDate = data['expiryDate'] as Timestamp?;
 
-        // Check target audience
         final targetAudience = data['targetAudience'] ?? 'All';
         if (targetAudience != 'All' && targetAudience != 'Teachers') {
           continue;
         }
 
-        // Check if not expired
         if (expiryDate == null || expiryDate.toDate().isAfter(now)) {
           validNotices.add({
             'id': doc.id,
@@ -77,17 +200,14 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
         }
       }
 
-      // CLIENT-SIDE SORTING: Pinned first, then by createdAt (newest first)
       validNotices.sort((a, b) {
         final aPinned = a['isPinned'] ?? false;
         final bPinned = b['isPinned'] ?? false;
 
-        // Pinned notices come first
         if (aPinned != bPinned) {
           return bPinned ? 1 : -1;
         }
 
-        // Then sort by createdAt (newest first)
         final aDate = a['createdAt'] as Timestamp?;
         final bDate = b['createdAt'] as Timestamp?;
 
@@ -249,6 +369,9 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
     final createdBy = notice['createdBy'] ?? 'Admin';
     final attachments = notice['attachments'] as List? ?? [];
 
+    final isExpired =
+        expiryDate != null && expiryDate.toDate().isBefore(DateTime.now());
+
     Color getPriorityColor() {
       switch (priority) {
         case 'Urgent':
@@ -261,14 +384,11 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
     }
 
     return GestureDetector(
-      onTap: () {
-        _incrementViewCount(notice['id'], viewCount);
-        _showNoticeDetail(notice);
-      },
+      onLongPress: () => _deleteNotice(notice['id'], notice['title']),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isExpired ? Colors.grey.shade100 : Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -283,8 +403,10 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () {
-              _incrementViewCount(notice['id'], viewCount);
-              _showNoticeDetail(notice);
+              if (!isExpired) {
+                _incrementViewCount(notice['id'], viewCount);
+                _showNoticeDetail(notice);
+              }
             },
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -358,6 +480,34 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                           ),
                         ),
                       ],
+                      if (isExpired) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.timer_off_outlined, size: 12, color: Colors.red),
+                              SizedBox(width: 4),
+                              Text(
+                                "EXPIRED",
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -391,9 +541,10 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                   const SizedBox(height: 12),
                   Text(
                     notice['title'],
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      color: isExpired ? Colors.grey.shade600 : Colors.black,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -402,7 +553,10 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                   Text(
                     notice['description'],
                     style: TextStyle(
-                      color: Colors.grey.shade700,
+                      color:
+                          isExpired
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade700,
                       fontSize: 13,
                       height: 1.4,
                     ),
@@ -452,10 +606,15 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          "Expires: ${DateFormat('dd MMM').format(expiryDate.toDate())}",
+                          isExpired
+                              ? "Expired"
+                              : "Expires: ${DateFormat('dd MMM').format(expiryDate.toDate())}",
                           style: TextStyle(
                             fontSize: 10,
-                            color: Colors.grey.shade500,
+                            color:
+                                isExpired
+                                    ? Colors.red.shade400
+                                    : Colors.grey.shade500,
                           ),
                         ),
                       ],
@@ -925,7 +1084,6 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
   }
 }
 
-// Add this helper class for file size formatting if not already present
 class FilePickerService {
   static String getReadableSize(int bytes) {
     if (bytes < 1024) return '$bytes B';

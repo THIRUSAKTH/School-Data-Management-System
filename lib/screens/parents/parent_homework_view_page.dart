@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -28,11 +28,155 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
   String? _studentName;
   bool _isLoading = true;
   List<QueryDocumentSnapshot> _childrenList = [];
+  Timer? _autoDeleteTimer;
+
+  // Auto-delete settings
+  static const int _autoDeleteAfterDays =
+      7; // Delete homework 7 days after due date
 
   @override
   void initState() {
     super.initState();
     _loadStudentData();
+    _startAutoDeleteChecker();
+  }
+
+  @override
+  void dispose() {
+    _autoDeleteTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startAutoDeleteChecker() {
+    // Check every 6 hours for expired homework to delete
+    _autoDeleteTimer = Timer.periodic(const Duration(hours: 6), (timer) {
+      _autoDeleteExpiredHomework();
+    });
+    // Also run once immediately
+    _autoDeleteExpiredHomework();
+  }
+
+  Future<void> _autoDeleteExpiredHomework() async {
+    if (_studentClass == null || _studentSection == null) return;
+
+    try {
+      final now = DateTime.now();
+      final cutoffDate = now.subtract(
+        const Duration(days: _autoDeleteAfterDays),
+      );
+
+      // Get all homework for this class/section
+      final homeworkSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('homework')
+              .where('className', isEqualTo: _studentClass)
+              .where('section', isEqualTo: _studentSection)
+              .where('isActive', isEqualTo: true)
+              .get();
+
+      final batch = FirebaseFirestore.instance.batch();
+      int deletedCount = 0;
+
+      for (var doc in homeworkSnapshot.docs) {
+        final data = doc.data();
+        final dueDate = data['dueDate'] as Timestamp?;
+
+        if (dueDate != null) {
+          final dueDateTime = dueDate.toDate();
+          // Delete if due date is older than cutoff (completed or not)
+          if (dueDateTime.isBefore(cutoffDate)) {
+            // Soft delete - mark as inactive
+            batch.update(doc.reference, {
+              'isActive': false,
+              'deletedAt': FieldValue.serverTimestamp(),
+              'deletedReason':
+                  'Auto-deleted after $_autoDeleteAfterDays days of due date',
+            });
+            deletedCount++;
+          }
+        }
+      }
+
+      if (deletedCount > 0) {
+        await batch.commit();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$deletedCount old homework(s) auto-deleted'),
+              backgroundColor: Colors.grey,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+          setState(() {}); // Refresh the list
+        }
+      }
+    } catch (e) {
+      debugPrint('Error in auto-delete: $e');
+    }
+  }
+
+  Future<void> _deleteHomeworkPermanently(
+    String homeworkId,
+    String title,
+  ) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text("Delete Homework"),
+            content: Text(
+              "Are you sure you want to hide this homework?\n\n\"$title\"\n\nThis will hide it from your view only. The school can still access it.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text("Hide from My View"),
+              ),
+            ],
+          ),
+    );
+
+    if (shouldDelete == true) {
+      try {
+        // Soft delete - hide from parent view only
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('homework')
+            .doc(homeworkId)
+            .update({
+              'hiddenForParent_${_selectedStudentId}': true,
+              'hiddenByParentAt': FieldValue.serverTimestamp(),
+            });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Homework hidden from your view"),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+          setState(() {}); // Refresh the list
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _loadStudentData() async {
@@ -287,7 +431,42 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
           );
         }
 
-        final homeworkList = snapshot.data!.docs;
+        // Filter out homework hidden by this parent
+        var homeworkList =
+            snapshot.data!.docs.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final hiddenKey = 'hiddenForParent_${_selectedStudentId}';
+              return data[hiddenKey] != true;
+            }).toList();
+
+        if (homeworkList.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.check_circle,
+                  size: 80,
+                  color: Colors.green.shade400,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'All Done!',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'No pending homework',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          );
+        }
 
         // Client-side sorting: Urgent first, then by due date
         homeworkList.sort((a, b) {
@@ -314,16 +493,33 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
               final doc = homeworkList[index];
               final data = doc.data() as Map<String, dynamic>;
               final attachments = data['attachments'] as List? ?? [];
-              return _HomeworkCard(
-                homeworkId: doc.id,
-                subject: data['subject'] ?? 'General',
-                description: data['description'] ?? 'No description',
-                dueDate: data['dueDate'] as Timestamp?,
-                dueTime: data['dueTime'],
-                isUrgent: data['isUrgent'] ?? false,
-                studentId: _selectedStudentId!,
-                teacherName: data['teacherName'] ?? 'Teacher',
-                attachments: attachments,
+              final dueDate = data['dueDate'] as Timestamp?;
+              final isOverdue =
+                  dueDate != null && dueDate.toDate().isBefore(DateTime.now());
+              final daysOverdue =
+                  isOverdue && dueDate != null
+                      ? DateTime.now().difference(dueDate.toDate()).inDays
+                      : 0;
+
+              return GestureDetector(
+                onLongPress:
+                    () => _deleteHomeworkPermanently(
+                      doc.id,
+                      data['title'] ?? 'Homework',
+                    ),
+                child: _HomeworkCard(
+                  homeworkId: doc.id,
+                  subject: data['subject'] ?? 'General',
+                  description: data['description'] ?? 'No description',
+                  dueDate: dueDate,
+                  dueTime: data['dueTime'],
+                  isUrgent: data['isUrgent'] ?? false,
+                  studentId: _selectedStudentId!,
+                  teacherName: data['teacherName'] ?? 'Teacher',
+                  attachments: attachments,
+                  isOverdue: isOverdue,
+                  daysOverdue: daysOverdue,
+                ),
               );
             },
           ),
@@ -344,6 +540,8 @@ class _HomeworkCard extends StatefulWidget {
   final String studentId;
   final String teacherName;
   final List<dynamic> attachments;
+  final bool isOverdue;
+  final int daysOverdue;
 
   const _HomeworkCard({
     required this.homeworkId,
@@ -355,6 +553,8 @@ class _HomeworkCard extends StatefulWidget {
     required this.studentId,
     required this.teacherName,
     required this.attachments,
+    this.isOverdue = false,
+    this.daysOverdue = 0,
   });
 
   @override
@@ -397,21 +597,18 @@ class _HomeworkCardState extends State<_HomeworkCard> {
 
   @override
   Widget build(BuildContext context) {
-    final isOverdue =
-        widget.dueDate != null &&
-        widget.dueDate!.toDate().isBefore(DateTime.now());
     final status =
-        _isCompleted ? "Completed" : (isOverdue ? "Overdue" : "Pending");
+        _isCompleted ? "Completed" : (widget.isOverdue ? "Overdue" : "Pending");
 
     Color getStatusColor() {
       if (_isCompleted) return Colors.green;
-      if (isOverdue) return Colors.red;
+      if (widget.isOverdue) return Colors.red;
       return Colors.orange;
     }
 
     IconData getStatusIcon() {
       if (_isCompleted) return Icons.check_circle;
-      if (isOverdue) return Icons.warning_amber;
+      if (widget.isOverdue) return Icons.warning_amber;
       return Icons.schedule;
     }
 
@@ -427,6 +624,33 @@ class _HomeworkCardState extends State<_HomeworkCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Auto-delete warning banner for overdue
+              if (widget.isOverdue && !_isCompleted && widget.daysOverdue >= 5)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning, size: 16, color: Colors.red.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "This homework will be auto-deleted in ${7 - widget.daysOverdue} days",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               if (widget.isUrgent)
                 Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -480,6 +704,24 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                     ),
                   ),
                   const Spacer(),
+                  Row(
+                    children: [
+                      Icon(Icons.access_time, size: 12, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        "Due: ${_formatDate(widget.dueDate)}",
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: widget.isOverdue ? Colors.red : Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -508,6 +750,13 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                         ),
                       ],
                     ),
+                  ),
+                  const Spacer(),
+                  Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                  const SizedBox(width: 4),
+                  Text(
+                    "Long press to hide",
+                    style: TextStyle(fontSize: 10, color: Colors.grey),
                   ),
                 ],
               ),
@@ -542,35 +791,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 14,
-                    color: isOverdue ? Colors.red : Colors.grey,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    "Due: ${_formatDate(widget.dueDate)}",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isOverdue ? Colors.red : Colors.grey,
-                      fontWeight:
-                          isOverdue ? FontWeight.w500 : FontWeight.normal,
-                    ),
-                  ),
-                  if (widget.dueTime != null) ...[
-                    const SizedBox(width: 12),
-                    Icon(Icons.access_time, size: 12, color: Colors.grey),
-                    const SizedBox(width: 6),
-                    Text(
-                      widget.dueTime!,
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
                   Icon(Icons.person_outline, size: 12, color: Colors.grey),
                   const SizedBox(width: 6),
                   Text(
@@ -598,7 +818,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                 ),
               ],
               const SizedBox(height: 16),
-              if (!_isCompleted && !isOverdue)
+              if (!_isCompleted && !widget.isOverdue)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -654,7 +874,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                     ],
                   ),
                 ),
-              if (isOverdue && !_isCompleted)
+              if (widget.isOverdue && !_isCompleted)
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -686,7 +906,6 @@ class _HomeworkCardState extends State<_HomeworkCard> {
 
   Widget _buildAttachmentChip(Map<String, dynamic> attachment) {
     final isImage = attachment['type'] == 'image';
-    final url = attachment['url'];
     final fileName = attachment['originalName'] ?? attachment['name'];
 
     return GestureDetector(
