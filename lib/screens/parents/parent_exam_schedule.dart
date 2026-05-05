@@ -8,11 +8,7 @@ class ParentExamSchedulePage extends StatefulWidget {
   final String? className;
   final String? section;
 
-  const ParentExamSchedulePage({
-    super.key,
-    this.className,
-    this.section,
-  });
+  const ParentExamSchedulePage({super.key, this.className, this.section});
 
   @override
   State<ParentExamSchedulePage> createState() => _ParentExamSchedulePageState();
@@ -32,39 +28,37 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
     _loadStudents();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   Future<void> _loadStudents() async {
     setState(() => _isLoading = true);
 
     try {
       final parentUid = FirebaseAuth.instance.currentUser!.uid;
-      final studentsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('students')
-          .where('parentUid', isEqualTo: parentUid)
-          .get();
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('parentUid', isEqualTo: parentUid)
+              .get();
 
-      _students = studentsSnapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? 'Student',
-          'class': data['class'] ?? '',
-          'section': data['section'] ?? '',
-          'rollNo': data['rollNo'] ?? '',
-        };
-      }).toList();
+      _students =
+          studentsSnapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'id': doc.id,
+              'name': data['name'] ?? 'Student',
+              'class': data['class'] ?? '',
+              'section': data['section'] ?? '',
+              'rollNo': data['rollNo'] ?? '',
+            };
+          }).toList();
 
       if (_students.isNotEmpty) {
         if (widget.className != null && widget.section != null) {
-          // Find student matching the provided class/section
           final matchingStudent = _students.firstWhere(
-                (s) => s['class'] == widget.className && s['section'] == widget.section,
+            (s) =>
+                s['class'] == widget.className &&
+                s['section'] == widget.section,
             orElse: () => _students.first,
           );
           _selectedStudentId = matchingStudent['id'];
@@ -106,10 +100,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             if (_selectedStudentName != null)
-              Text(
-                _selectedStudentName!,
-                style: const TextStyle(fontSize: 12),
-              ),
+              Text(_selectedStudentName!, style: const TextStyle(fontSize: 12)),
           ],
         ),
         backgroundColor: Colors.orange,
@@ -118,26 +109,31 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              _loadStudents();
-            },
+            onPressed: _loadStudents,
             tooltip: "Refresh",
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _students.isEmpty
-          ? _buildEmptyState('No Children Linked', 'Please contact the school admin to link your children.')
-          : _selectedClass == null || _selectedClass!.isEmpty
-          ? _buildEmptyState('No Class Assigned', 'Your child has not been assigned to any class yet.')
-          : Column(
-        children: [
-          if (_students.length > 1) _buildStudentSelector(),
-          _buildClassInfoCard(),
-          Expanded(child: _buildExamSchedule()),
-        ],
-      ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _students.isEmpty
+              ? _buildEmptyState(
+                'No Children Linked',
+                'Please contact the school admin to link your children.',
+              )
+              : _selectedClass == null || _selectedClass!.isEmpty
+              ? _buildEmptyState(
+                'No Class Assigned',
+                'Your child has not been assigned to any class yet.',
+              )
+              : Column(
+                children: [
+                  if (_students.length > 1) _buildStudentSelector(),
+                  _buildClassInfoCard(),
+                  Expanded(child: _buildExamSchedule()),
+                ],
+              ),
     );
   }
 
@@ -150,7 +146,11 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
           const SizedBox(height: 16),
           Text(
             title,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -184,20 +184,23 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                 hint: const Text('Select Child'),
                 isExpanded: true,
                 icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
-                items: _students.map<DropdownMenuItem<String>>((student) {
-                  return DropdownMenuItem<String>(
-                    value: student['id'] as String,
-                    child: Text(
-                      '${student['name']} (${student['class']}-${student['section']})',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  );
-                }).toList(),
+                items:
+                    _students.map<DropdownMenuItem<String>>((student) {
+                      return DropdownMenuItem<String>(
+                        value: student['id'] as String,
+                        child: Text(
+                          '${student['name']} (${student['class']}-${student['section']})',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      );
+                    }).toList(),
                 onChanged: (value) async {
                   if (value == null) return;
                   setState(() => _isLoading = true);
 
-                  final selectedStudent = _students.firstWhere((s) => s['id'] == value);
+                  final selectedStudent = _students.firstWhere(
+                    (s) => s['id'] == value,
+                  );
                   setState(() {
                     _selectedStudentId = value;
                     _selectedStudentName = selectedStudent['name'];
@@ -243,10 +246,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                 ),
                 Text(
                   'Exam schedule for your child\'s class',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                 ),
               ],
             ),
@@ -272,18 +272,15 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
   }
 
   Widget _buildExamSchedule() {
-    if (_selectedClass == null || _selectedClass!.isEmpty) {
-      return const Center(child: Text("No class assigned to this student"));
-    }
-
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('exams')
-          .where('className', isEqualTo: _selectedClass)
-          .orderBy('startDate', descending: false)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('exams')
+              .where('className', isEqualTo: _selectedClass)
+              .orderBy('startDate', descending: false)
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -296,16 +293,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
               children: [
                 Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
                 const SizedBox(height: 16),
-                Text(
-                  'Error loading exams',
-                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  snapshot.error.toString(),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                  textAlign: TextAlign.center,
-                ),
+                Text('Error loading exams'),
               ],
             ),
           );
@@ -316,16 +304,15 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.quiz_outlined, size: 64, color: Colors.grey.shade400),
-                const SizedBox(height: 16),
-                Text(
-                  "No exams scheduled for this class",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.grey.shade600),
+                Icon(
+                  Icons.quiz_outlined,
+                  size: 64,
+                  color: Colors.grey.shade400,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  "Check back later for updates",
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                const SizedBox(height: 16),
+                const Text(
+                  "No exams scheduled",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
               ],
             ),
@@ -333,11 +320,8 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
         }
 
         final exams = snapshot.data!.docs;
-
         return RefreshIndicator(
-          onRefresh: () async {
-            setState(() {});
-          },
+          onRefresh: () async => setState(() {}),
           child: ListView.builder(
             padding: const EdgeInsets.all(12),
             itemCount: exams.length,
@@ -353,9 +337,8 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
   }
 
   Widget _buildExamCard(Map<String, dynamic> exam) {
-    // Safely parse dates
-    Timestamp? startTimestamp = exam['startDate'] as Timestamp?;
-    Timestamp? endTimestamp = exam['endDate'] as Timestamp?;
+    final startTimestamp = exam['startDate'] as Timestamp?;
+    final endTimestamp = exam['endDate'] as Timestamp?;
 
     if (startTimestamp == null || endTimestamp == null) {
       return const SizedBox.shrink();
@@ -364,7 +347,10 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
     final startDate = startTimestamp.toDate();
     final endDate = endTimestamp.toDate();
     final subjects = List<String>.from(exam['subjects'] ?? []);
-    final maxMarks = List<int>.from(exam['maxMarks'] ?? []);
+    // FIXED: Convert num to int properly
+    final maxMarksRaw = exam['maxMarks'] ?? [];
+    final List<int> maxMarks =
+        maxMarksRaw.map<int>((e) => (e as num).toInt()).toList();
     final now = DateTime.now();
 
     final isUpcoming = startDate.isAfter(now);
@@ -372,9 +358,9 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
     final daysUntil = isUpcoming ? startDate.difference(now).inDays : 0;
 
     Color getStatusColor() {
-      if (isOngoing) return const Color(0xFF10B981); // Green
-      if (isUpcoming) return const Color(0xFFF59E0B); // Orange
-      return const Color(0xFF6B7280); // Grey
+      if (isOngoing) return Colors.green;
+      if (isUpcoming) return Colors.orange;
+      return Colors.grey;
     }
 
     String getStatusText() {
@@ -394,25 +380,19 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: isOngoing
-            ? BorderSide(color: Colors.green.shade300, width: 1.5)
-            : BorderSide.none,
+        side:
+            isOngoing
+                ? BorderSide(color: Colors.green.shade300, width: 1.5)
+                : BorderSide.none,
       ),
       child: ExpansionTile(
         leading: CircleAvatar(
-          backgroundColor: getStatusColor().withValues(alpha: 0.1),
-          child: Icon(
-            getStatusIcon(),
-            color: getStatusColor(),
-            size: 20,
-          ),
+          backgroundColor: getStatusColor().withOpacity(0.1),
+          child: Icon(getStatusIcon(), color: getStatusColor(), size: 20),
         ),
         title: Text(
           exam['examName'] ?? 'Unknown Exam',
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,8 +401,6 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
               "${DateFormat('dd MMM').format(startDate)} - ${DateFormat('dd MMM yyyy').format(endDate)}",
               style: const TextStyle(fontSize: 12),
             ),
-            if (isUpcoming && daysUntil > 0)
-              const SizedBox(height: 2),
             if (isUpcoming && daysUntil > 0)
               Text(
                 "$daysUntil day${daysUntil == 1 ? '' : 's'} to go",
@@ -433,7 +411,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: getStatusColor().withValues(alpha: 0.1),
+            color: getStatusColor().withOpacity(0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
@@ -453,7 +431,10 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
               children: [
                 // Exam Type Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.purple.shade100,
                     borderRadius: BorderRadius.circular(12),
@@ -472,10 +453,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                 // Subjects List
                 const Text(
                   'Subjects',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
                 const SizedBox(height: 8),
                 ListView.separated(
@@ -503,7 +481,10 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                         ),
                         if (maxMarks.isNotEmpty && index < maxMarks.length)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.grey.shade100,
                               borderRadius: BorderRadius.circular(12),
@@ -520,68 +501,6 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                     );
                   },
                 ),
-
-                const SizedBox(height: 16),
-
-                // Info Container
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: (exam['examType'] == 'Final' ? Colors.red : Colors.blue).shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: (exam['examType'] == 'Final' ? Colors.red : Colors.blue).shade200,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        exam['examType'] == 'Final' ? Icons.warning : Icons.info_outline,
-                        size: 16,
-                        color: (exam['examType'] == 'Final' ? Colors.red : Colors.blue).shade700,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          exam['examType'] == 'Final'
-                              ? "Final exams are compulsory for all students. Please ensure proper preparation."
-                              : "Please prepare well for the exam. Contact teachers for any clarification.",
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: (exam['examType'] == 'Final' ? Colors.red : Colors.blue).shade700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Urgent reminder for upcoming exams
-                if (isUpcoming && daysUntil <= 3 && daysUntil > 0)
-                  const SizedBox(height: 8),
-                if (isUpcoming && daysUntil <= 3 && daysUntil > 0)
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.alarm, size: 14, color: Colors.orange),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            daysUntil == 1
-                                ? "Exam starts tomorrow! Best of luck! 🎯"
-                                : "Only $daysUntil days left for exam! Start preparing. 📚",
-                            style: const TextStyle(fontSize: 11, color: Colors.orange),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
               ],
             ),
           ),
@@ -596,7 +515,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
       borderRadius: BorderRadius.circular(12),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
+          color: Colors.black.withOpacity(0.05),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),

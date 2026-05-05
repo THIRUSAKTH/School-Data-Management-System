@@ -20,8 +20,18 @@ class _ExamManagementPageState extends State<ExamManagementPage>
   bool _isLoading = false;
 
   final List<String> _months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ];
 
   @override
@@ -72,11 +82,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [
-          _buildExamsList(),
-          _buildMarksEntry(),
-          _buildResultsView(),
-        ],
+        children: [_buildExamsList(), _buildMarksEntry(), _buildResultsView()],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _createExamDialog,
@@ -89,12 +95,13 @@ class _ExamManagementPageState extends State<ExamManagementPage>
   // ================= EXAMS LIST TAB =================
   Widget _buildExamsList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('exams')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('exams')
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text("Error: ${snapshot.error}"));
@@ -158,9 +165,14 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
-                        color: _getExamTypeColor(data['examType']).withValues(alpha: 0.1),
+                        color: _getExamTypeColor(
+                          data['examType'],
+                        ).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -174,28 +186,36 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                     ),
                     const Spacer(),
                     PopupMenuButton(
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Row(
-                            children: [
-                              Icon(Icons.edit, size: 18),
-                              SizedBox(width: 8),
-                              Text("Edit"),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete, size: 18, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text("Delete", style: TextStyle(color: Colors.red)),
-                            ],
-                          ),
-                        ),
-                      ],
+                      itemBuilder:
+                          (context) => [
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.edit, size: 18),
+                                  SizedBox(width: 8),
+                                  Text("Edit"),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.delete,
+                                    size: 18,
+                                    color: Colors.red,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    "Delete",
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                       onSelected: (value) {
                         if (value == 'edit') {
                           _editExam(examId, data);
@@ -209,7 +229,10 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                 const SizedBox(height: 12),
                 Text(
                   data['examName'] ?? 'Unnamed Exam',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -260,7 +283,10 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                   children: [
                     Text(
                       "${(_calculateProgress(data) * 100).toInt()}% Complete",
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     Text(
                       "${data['marksEntered'] ?? 0}/${data['totalMarks'] ?? 0} Subjects",
@@ -279,12 +305,13 @@ class _ExamManagementPageState extends State<ExamManagementPage>
   // ================= MARKS ENTRY TAB =================
   Widget _buildMarksEntry() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('exams')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('exams')
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text("Error: ${snapshot.error}"));
@@ -335,7 +362,9 @@ class _ExamManagementPageState extends State<ExamManagementPage>
 
   Widget _buildMarksEntryCard(String examId, Map<String, dynamic> data) {
     final subjects = List<String>.from(data['subjects'] ?? []);
-    final maxMarks = List<int>.from(data['maxMarks'] ?? []);
+    final maxMarksRaw = data['maxMarks'] ?? [];
+    final List<int> maxMarks =
+        maxMarksRaw.map<int>((e) => (e as num).toInt()).toList();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -363,10 +392,12 @@ class _ExamManagementPageState extends State<ExamManagementPage>
             ),
             const SizedBox(height: 8),
             ...List.generate(subjects.length, (index) {
-              final isCompleted = data['completedSubjects']?.contains(subjects[index]) ?? false;
+              final isCompleted =
+                  data['completedSubjects']?.contains(subjects[index]) ?? false;
               return ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: isCompleted ? Colors.green.shade100 : Colors.blue.shade50,
+                  backgroundColor:
+                      isCompleted ? Colors.green.shade100 : Colors.blue.shade50,
                   child: Icon(
                     isCompleted ? Icons.check : Icons.edit,
                     size: 18,
@@ -376,7 +407,14 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                 title: Text(subjects[index]),
                 subtitle: Text("Max Marks: ${maxMarks[index]}"),
                 trailing: ElevatedButton(
-                  onPressed: () => _enterMarks(examId, data, subjects[index], maxMarks[index], index),
+                  onPressed:
+                      () => _enterMarks(
+                        examId,
+                        data,
+                        subjects[index],
+                        maxMarks[index],
+                        index,
+                      ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isCompleted ? Colors.green : Colors.blue,
                     foregroundColor: Colors.white,
@@ -394,12 +432,13 @@ class _ExamManagementPageState extends State<ExamManagementPage>
   // ================= RESULTS VIEW TAB =================
   Widget _buildResultsView() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('exams')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('exams')
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text("Error: ${snapshot.error}"));
@@ -468,18 +507,27 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                     children: [
                       Text(
                         data['examName'] ?? 'Unnamed Exam',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         "${data['className'] ?? 'Class'} • ${data['examType'] ?? 'Exam'}",
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: isComplete ? Colors.green : Colors.orange,
                     borderRadius: BorderRadius.circular(20),
@@ -535,23 +583,22 @@ class _ExamManagementPageState extends State<ExamManagementPage>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ExamResultDetailsPage(
-          schoolId: widget.schoolId,
-          examId: examId,
-          examData: examData,
-        ),
+        builder:
+            (context) => ExamResultDetailsPage(
+              schoolId: widget.schoolId,
+              examId: examId,
+              examData: examData,
+            ),
       ),
     );
   }
 
-  // ================= DIALOGS =================
+  // ================= FIXED DIALOGS WITH WORKING CLASS SELECTION =================
   void _createExamDialog() {
     final formKey = GlobalKey<FormState>();
     String examName = '';
     String examType = 'Mid-term';
     String className = '';
-    DateTime startDate = DateTime.now();
-    DateTime endDate = DateTime.now().add(const Duration(days: 7));
     List<String> subjects = [];
     List<int> maxMarks = [];
     int selectedMonth = DateTime.now().month;
@@ -559,136 +606,406 @@ class _ExamManagementPageState extends State<ExamManagementPage>
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: const Text("Create New Exam"),
-            content: SingleChildScrollView(
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      decoration: const InputDecoration(
-                        labelText: "Exam Name",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.quiz),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                      onSaved: (value) => examName = value!,
-                      validator: (value) => value?.isEmpty == true ? "Required" : null,
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: examType,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: "Exam Type",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.category),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: "Mid-term", child: Text("Mid-term")),
-                        DropdownMenuItem(value: "Final", child: Text("Final")),
-                        DropdownMenuItem(value: "Unit Test", child: Text("Unit Test")),
-                        DropdownMenuItem(value: "Weekly Test", child: Text("Weekly Test")),
-                      ],
-                      onChanged: (value) => setState(() => examType = value!),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildClassDropdown(className, (value) {
-                      setState(() => className = value!);
-                    }),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            value: selectedMonth,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: "Month",
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.calendar_month),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                            ),
-                            items: List.generate(12, (i) {
-                              return DropdownMenuItem<int>(
-                                value: i + 1,
-                                child: Text(_months[i]),
-                              );
-                            }),
-                            onChanged: (v) => setState(() => selectedMonth = v!),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            value: selectedYear,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: "Year",
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.calendar_today),
-                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                            ),
-                            items: [
-                              for (int i = -2; i <= 3; i++)
-                                DropdownMenuItem<int>(
-                                  value: DateTime.now().year + i,
-                                  child: Text((DateTime.now().year + i).toString()),
-                                ),
-                            ],
-                            onChanged: (v) => setState(() => selectedYear = v!),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      onPressed: () => _addSubjectsDialog(setState, subjects, maxMarks),
-                      icon: const Icon(Icons.add),
-                      label: const Text("Add Subjects"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                    if (subjects.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: List.generate(subjects.length, (index) {
-                            return ListTile(
-                              title: Text(subjects[index]),
-                              subtitle: Text("Max Marks: ${maxMarks[index]}"),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.remove_circle, color: Colors.red),
-                                onPressed: () {
-                                  setState(() {
-                                    subjects.removeAt(index);
-                                    maxMarks.removeAt(index);
-                                  });
-                                },
-                              ),
-                            );
-                          }),
-                        ),
-                      ),
-                    ],
-                  ],
+      builder:
+          (context) => StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
                 ),
-              ),
+                title: const Text("Create New Exam"),
+                content: SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.9,
+                  child: SingleChildScrollView(
+                    child: Form(
+                      key: formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextFormField(
+                            decoration: const InputDecoration(
+                              labelText: "Exam Name",
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.quiz),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                            ),
+                            onSaved: (value) => examName = value!,
+                            validator:
+                                (value) =>
+                                    value?.isEmpty == true ? "Required" : null,
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: examType,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: "Exam Type",
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.category),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: "Mid-term",
+                                child: Text("Mid-term"),
+                              ),
+                              DropdownMenuItem(
+                                value: "Final",
+                                child: Text("Final"),
+                              ),
+                              DropdownMenuItem(
+                                value: "Unit Test",
+                                child: Text("Unit Test"),
+                              ),
+                              DropdownMenuItem(
+                                value: "Weekly Test",
+                                child: Text("Weekly Test"),
+                              ),
+                            ],
+                            onChanged:
+                                (value) => setState(() => examType = value!),
+                          ),
+                          const SizedBox(height: 12),
+                          // FIXED: Better Class Dropdown with error handling
+                          Container(
+                            constraints: const BoxConstraints(minHeight: 60),
+                            child: FutureBuilder<QuerySnapshot>(
+                              future:
+                                  FirebaseFirestore.instance
+                                      .collection('schools')
+                                      .doc(widget.schoolId)
+                                      .collection('classes')
+                                      .get(),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return DropdownButtonFormField<String>(
+                                    items: [],
+                                    onChanged: null,
+                                    decoration: InputDecoration(
+                                      labelText: "Class",
+                                      border: OutlineInputBorder(),
+                                      prefixIcon: Icon(Icons.class_),
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                    hint: Text("Loading classes..."),
+                                  );
+                                }
+
+                                if (snapshot.hasError ||
+                                    !snapshot.hasData ||
+                                    snapshot.data!.docs.isEmpty) {
+                                  return Column(
+                                    children: [
+                                      DropdownButtonFormField<String>(
+                                        items: [],
+                                        onChanged: null,
+                                        decoration: const InputDecoration(
+                                          labelText: "Class",
+                                          border: OutlineInputBorder(),
+                                          prefixIcon: Icon(Icons.class_),
+                                          contentPadding: EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 12,
+                                          ),
+                                        ),
+                                        hint: const Text(
+                                          "No classes available",
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      TextButton.icon(
+                                        onPressed: () {
+                                          // Navigate to class creation page
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                "Please create classes in Class Management section first",
+                                              ),
+                                              backgroundColor: Colors.orange,
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.add, size: 16),
+                                        label: const Text(
+                                          "Create Class First",
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }
+
+                                final classes = snapshot.data!.docs;
+                                final classNames =
+                                    classes
+                                        .map((doc) {
+                                          final data =
+                                              doc.data()
+                                                  as Map<String, dynamic>;
+                                          return data['class'] ??
+                                              data['className'] ??
+                                              '';
+                                        })
+                                        .where((name) => name.isNotEmpty)
+                                        .toList();
+
+                                return DropdownButtonFormField<String>(
+                                  value: className.isEmpty ? null : className,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    labelText: "Select Class",
+                                    border: OutlineInputBorder(),
+                                    prefixIcon: Icon(Icons.class_),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<String>(
+                                      value: null,
+                                      child: Text("Select Class"),
+                                    ),
+                                    ...classNames.map((name) {
+                                      return DropdownMenuItem<String>(
+                                        value: name,
+                                        child: Text(name),
+                                      );
+                                    }).toList(),
+                                  ],
+                                  onChanged:
+                                      (value) =>
+                                          setState(() => className = value!),
+                                  validator:
+                                      (value) =>
+                                          value == null
+                                              ? "Please select a class"
+                                              : null,
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<int>(
+                                  value: selectedMonth,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    labelText: "Month",
+                                    border: OutlineInputBorder(),
+                                    prefixIcon: Icon(Icons.calendar_month),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  items: List.generate(12, (i) {
+                                    return DropdownMenuItem<int>(
+                                      value: i + 1,
+                                      child: Text(_months[i]),
+                                    );
+                                  }),
+                                  onChanged:
+                                      (v) => setState(() => selectedMonth = v!),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: DropdownButtonFormField<int>(
+                                  value: selectedYear,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    labelText: "Year",
+                                    border: OutlineInputBorder(),
+                                    prefixIcon: Icon(Icons.calendar_today),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  items: [
+                                    for (int i = -2; i <= 3; i++)
+                                      DropdownMenuItem<int>(
+                                        value: DateTime.now().year + i,
+                                        child: Text(
+                                          (DateTime.now().year + i).toString(),
+                                        ),
+                                      ),
+                                  ],
+                                  onChanged:
+                                      (v) => setState(() => selectedYear = v!),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            onPressed:
+                                () => _addSubjectsDialog(
+                                  setState,
+                                  subjects,
+                                  maxMarks,
+                                ),
+                            icon: const Icon(Icons.add),
+                            label: const Text("Add Subjects"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                          if (subjects.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                children: List.generate(subjects.length, (
+                                  index,
+                                ) {
+                                  return ListTile(
+                                    title: Text(subjects[index]),
+                                    subtitle: Text(
+                                      "Max Marks: ${maxMarks[index]}",
+                                    ),
+                                    trailing: IconButton(
+                                      icon: const Icon(
+                                        Icons.remove_circle,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          subjects.removeAt(index);
+                                          maxMarks.removeAt(index);
+                                        });
+                                      },
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Cancel"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (formKey.currentState!.validate()) {
+                        formKey.currentState!.save();
+                        if (subjects.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Please add at least one subject"),
+                            ),
+                          );
+                          return;
+                        }
+                        final startDate = DateTime(
+                          selectedYear,
+                          selectedMonth,
+                          1,
+                        );
+                        final lastDay = DateTime(
+                          selectedYear,
+                          selectedMonth + 1,
+                          0,
+                        );
+                        final endDate = DateTime(
+                          selectedYear,
+                          selectedMonth,
+                          lastDay.day,
+                        );
+
+                        await _saveExam(
+                          examName,
+                          examType,
+                          className,
+                          startDate,
+                          endDate,
+                          subjects,
+                          maxMarks,
+                        );
+                        if (mounted) {
+                          Navigator.pop(context);
+                        }
+                      }
+                    },
+                    child: const Text("Create"),
+                  ),
+                ],
+              );
+            },
+          ),
+    );
+  }
+
+  void _addSubjectsDialog(
+    StateSetter setState,
+    List<String> subjects,
+    List<int> maxMarks,
+  ) {
+    final subjectController = TextEditingController();
+    final marksController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text("Add Subject"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: subjectController,
+                  decoration: const InputDecoration(
+                    labelText: "Subject Name",
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: marksController,
+                  decoration: const InputDecoration(
+                    labelText: "Max Marks",
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
             ),
             actions: [
               TextButton(
@@ -696,182 +1013,42 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                 child: const Text("Cancel"),
               ),
               ElevatedButton(
-                onPressed: () async {
-                  if (formKey.currentState!.validate()) {
-                    formKey.currentState!.save();
-                    if (subjects.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Please add at least one subject")),
-                      );
-                      return;
-                    }
-                    // Set startDate and endDate using selected month/year
-                    startDate = DateTime(selectedYear, selectedMonth, 1);
-                    final lastDay = DateTime(selectedYear, selectedMonth + 1, 0);
-                    endDate = DateTime(selectedYear, selectedMonth, lastDay.day);
-
-                    await _saveExam(
-                      examName,
-                      examType,
-                      className,
-                      startDate,
-                      endDate,
-                      subjects,
-                      maxMarks,
+                onPressed: () {
+                  if (subjectController.text.isNotEmpty &&
+                      marksController.text.isNotEmpty) {
+                    setState(() {
+                      subjects.add(subjectController.text);
+                      maxMarks.add(int.parse(marksController.text));
+                    });
+                    Navigator.pop(context);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          "Please enter both subject name and max marks",
+                        ),
+                        backgroundColor: Colors.orange,
+                      ),
                     );
-                    if (mounted) {
-                      Navigator.pop(context);
-                    }
                   }
                 },
-                child: const Text("Create"),
+                child: const Text("Add"),
               ),
             ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildClassDropdown(String value, Function(String?) onChanged) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('classes')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return DropdownButtonFormField<String>(
-            items: [],
-            onChanged: null,
-            hint: const Text("Loading classes..."),
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: "Class",
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.class_),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
-          );
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return DropdownButtonFormField<String>(
-            items: [],
-            onChanged: null,
-            hint: const Text("No classes available"),
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: "Class",
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.class_),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
-          );
-        }
-
-        final classes = snapshot.data!.docs;
-        final classNames = classes.map((doc) => doc['class'] as String).toList();
-
-        return DropdownButtonFormField<String>(
-          value: value.isEmpty ? null : value,
-          isExpanded: true,
-          decoration: const InputDecoration(
-            labelText: "Class",
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.class_),
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           ),
-          items: [
-            const DropdownMenuItem<String>(value: null, child: Text("Select Class")),
-            ...classNames.map((className) {
-              return DropdownMenuItem<String>(
-                value: className,
-                child: Text(className),
-              );
-            }).toList(),
-          ],
-          onChanged: onChanged,
-          validator: (value) => value == null ? "Please select a class" : null,
-        );
-      },
-    );
-  }
-
-  void _addSubjectsDialog(StateSetter setState, List<String> subjects, List<int> maxMarks) {
-    final subjectController = TextEditingController();
-    final marksController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text("Add Subject"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: subjectController,
-              decoration: const InputDecoration(
-                labelText: "Subject Name",
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: marksController,
-              decoration: const InputDecoration(
-                labelText: "Max Marks",
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (subjectController.text.isNotEmpty && marksController.text.isNotEmpty) {
-                setState(() {
-                  subjects.add(subjectController.text);
-                  maxMarks.add(int.parse(marksController.text));
-                });
-                Navigator.pop(context);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Please enter both subject name and max marks"),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-              }
-            },
-            child: const Text("Add"),
-          ),
-        ],
-      ),
     );
   }
 
   // ================= DATABASE OPERATIONS =================
   Future<void> _saveExam(
-      String name,
-      String type,
-      String className,
-      DateTime startDate,
-      DateTime endDate,
-      List<String> subjects,
-      List<int> maxMarks,
-      ) async {
+    String name,
+    String type,
+    String className,
+    DateTime startDate,
+    DateTime endDate,
+    List<String> subjects,
+    List<int> maxMarks,
+  ) async {
     setState(() => _isLoading = true);
 
     final examData = {
@@ -898,7 +1075,10 @@ class _ExamManagementPageState extends State<ExamManagementPage>
     setState(() => _isLoading = false);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Exam created successfully"), backgroundColor: Colors.green),
+        const SnackBar(
+          content: Text("Exam created successfully"),
+          backgroundColor: Colors.green,
+        ),
       );
     }
   }
@@ -906,22 +1086,27 @@ class _ExamManagementPageState extends State<ExamManagementPage>
   Future<void> _deleteExam(String examId) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Delete Exam"),
-        content: const Text("Are you sure you want to delete this exam? This action cannot be undone."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text("Delete Exam"),
+            content: const Text(
+              "Are you sure you want to delete this exam? This action cannot be undone.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text("Delete"),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Delete"),
-          ),
-        ],
-      ),
     );
 
     if (confirm == true) {
@@ -932,34 +1117,46 @@ class _ExamManagementPageState extends State<ExamManagementPage>
             .collection('exams')
             .doc(examId)
             .delete();
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Exam deleted successfully"), backgroundColor: Colors.green),
+            const SnackBar(
+              content: Text("Exam deleted successfully"),
+              backgroundColor: Colors.green,
+            ),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error deleting exam: $e"), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text("Error deleting exam: $e"),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }
     }
   }
 
-  void _enterMarks(String examId, Map<String, dynamic> examData, String subject, int maxMarks, int subjectIndex) {
+  void _enterMarks(
+    String examId,
+    Map<String, dynamic> examData,
+    String subject,
+    int maxMarks,
+    int subjectIndex,
+  ) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MarksEntryPage(
-          schoolId: widget.schoolId,
-          examId: examId,
-          examData: examData,
-          subject: subject,
-          maxMarks: maxMarks,
-          subjectIndex: subjectIndex,
-        ),
+        builder:
+            (context) => MarksEntryPage(
+              schoolId: widget.schoolId,
+              examId: examId,
+              examData: examData,
+              subject: subject,
+              maxMarks: maxMarks,
+              subjectIndex: subjectIndex,
+            ),
       ),
     ).then((_) => setState(() {}));
   }
@@ -995,51 +1192,57 @@ class _ExamManagementPageState extends State<ExamManagementPage>
   void _viewExamDetails(String examId, Map<String, dynamic> data) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(data['examName'] ?? 'Exam Details'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _infoRow("Exam Type", data['examType'] ?? 'N/A'),
-              _infoRow("Class", data['className'] ?? 'N/A'),
-              _infoRow("Start Date", _formatDate(data['startDate'])),
-              _infoRow("End Date", _formatDate(data['endDate'])),
-              const Divider(),
-              const Text("Subjects:", style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              ...List.generate(data['subjects']?.length ?? 0, (index) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      Text("• ${data['subjects'][index]}"),
-                      const Spacer(),
-                      Text("Max: ${data['maxMarks'][index]}"),
-                    ],
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Text(data['examName'] ?? 'Exam Details'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _infoRow("Exam Type", data['examType'] ?? 'N/A'),
+                  _infoRow("Class", data['className'] ?? 'N/A'),
+                  _infoRow("Start Date", _formatDate(data['startDate'])),
+                  _infoRow("End Date", _formatDate(data['endDate'])),
+                  const Divider(),
+                  const Text(
+                    "Subjects:",
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
-                );
-              }),
+                  const SizedBox(height: 8),
+                  ...List.generate(data['subjects']?.length ?? 0, (index) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Text("• ${data['subjects'][index]}"),
+                          const Spacer(),
+                          Text("Max: ${data['maxMarks'][index]}"),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
-          ),
-        ],
-      ),
     );
   }
 
   void _editExam(String examId, Map<String, dynamic> data) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Edit feature coming soon")),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Edit feature coming soon")));
   }
 
   Widget _infoRow(String label, String value) {
@@ -1047,7 +1250,13 @@ class _ExamManagementPageState extends State<ExamManagementPage>
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          SizedBox(width: 80, child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold))),
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
           Text(": $value"),
         ],
       ),
@@ -1060,7 +1269,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
       borderRadius: BorderRadius.circular(18),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
+          color: Colors.black.withOpacity(0.05),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),
@@ -1114,33 +1323,43 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
 
   Future<void> _loadData() async {
     try {
-      final studentsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('students')
-          .where('class', isEqualTo: widget.examData['className'])
-          .get();
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('students')
+              .where('class', isEqualTo: widget.examData['className'])
+              .get();
 
-      final marksSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('exams')
-          .doc(widget.examId)
-          .collection('marks')
-          .where('subject', isEqualTo: widget.subject)
-          .get();
+      if (studentsSnapshot.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("No students found in this class"),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final marksSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('exams')
+              .doc(widget.examId)
+              .collection('marks')
+              .where('subject', isEqualTo: widget.subject)
+              .get();
 
       for (var student in studentsSnapshot.docs) {
         final studentId = student.id;
         _controllers[studentId] = TextEditingController();
 
-        QueryDocumentSnapshot? existingMark;
-        for (var doc in marksSnapshot.docs) {
-          if (doc.id == studentId) {
-            existingMark = doc;
-            break;
-          }
-        }
+        final existingMark = marksSnapshot.docs.firstWhere(
+          (doc) => doc.id == studentId,
+          orElse: () => null as dynamic,
+        );
 
         if (existingMark != null) {
           final markData = existingMark.data() as Map<String, dynamic>;
@@ -1153,6 +1372,12 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
     } catch (e) {
       debugPrint('Error loading data: $e');
       setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error loading data: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -1172,121 +1397,160 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('schools')
-            .doc(widget.schoolId)
-            .collection('students')
-            .where('class', isEqualTo: widget.examData['className'])
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : StreamBuilder<QuerySnapshot>(
+                stream:
+                    FirebaseFirestore.instance
+                        .collection('schools')
+                        .doc(widget.schoolId)
+                        .collection('students')
+                        .where('class', isEqualTo: widget.examData['className'])
+                        .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-          final students = snapshot.data!.docs;
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.people_outline,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 16),
+                          Text("No students found in this class"),
+                        ],
+                      ),
+                    );
+                  }
 
-          return RefreshIndicator(
-            onRefresh: _loadData,
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: students.length,
-              itemBuilder: (context, index) {
-                final student = students[index];
-                final data = student.data() as Map<String, dynamic>;
-                final studentId = student.id;
+                  final students = snapshot.data!.docs;
 
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: Colors.blue.shade100,
-                              child: Text(
-                                data['rollNo']?.toString() ?? '?',
-                                style: TextStyle(color: Colors.blue.shade700),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    data['name'] ?? 'Unknown',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                  return RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: students.length,
+                      itemBuilder: (context, index) {
+                        final student = students[index];
+                        final data = student.data() as Map<String, dynamic>;
+                        final studentId = student.id;
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: Colors.blue.shade100,
+                                      child: Text(
+                                        data['rollNo']?.toString() ?? '?',
+                                        style: TextStyle(
+                                          color: Colors.blue.shade700,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  Text(
-                                    "Roll No: ${data['rollNo'] ?? 'N/A'}",
-                                    style: TextStyle(color: Colors.grey.shade600),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _controllers[studentId],
-                                decoration: InputDecoration(
-                                  labelText: "Marks Obtained",
-                                  suffixText: "/${widget.maxMarks}",
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            data['name'] ?? 'Unknown',
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          Text(
+                                            "Roll No: ${data['rollNo'] ?? 'N/A'}",
+                                            style: TextStyle(
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                keyboardType: TextInputType.number,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: TextField(
-                                onChanged: (value) => _remarks[studentId] = value,
-                                decoration: InputDecoration(
-                                  labelText: "Remarks (Optional)",
-                                  hintText: "e.g., Excellent, Needs Improvement",
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _controllers[studentId],
+                                        decoration: InputDecoration(
+                                          labelText: "Marks Obtained",
+                                          suffixText: "/${widget.maxMarks}",
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 8,
+                                              ),
+                                        ),
+                                        keyboardType: TextInputType.number,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: TextField(
+                                        onChanged:
+                                            (value) =>
+                                                _remarks[studentId] = value,
+                                        decoration: InputDecoration(
+                                          labelText: "Remarks (Optional)",
+                                          hintText:
+                                              "e.g., Excellent, Needs Improvement",
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 8,
+                                              ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ],
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                );
-              },
-            ),
-          );
-        },
-      ),
+                  );
+                },
+              ),
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 8,
               offset: const Offset(0, -2),
             ),
@@ -1297,16 +1561,17 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
           height: 50,
           child: ElevatedButton.icon(
             onPressed: _isSaving ? null : _saveMarks,
-            icon: _isSaving
-                ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 2,
-              ),
-            )
-                : const Icon(Icons.save),
+            icon:
+                _isSaving
+                    ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                    : const Icon(Icons.save),
             label: Text(_isSaving ? "Saving..." : "Save All Marks"),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue,
@@ -1336,7 +1601,10 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
         final marks = int.tryParse(marksText);
         if (marks == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Invalid marks for student"), backgroundColor: Colors.orange),
+            SnackBar(
+              content: Text("Invalid marks for student"),
+              backgroundColor: Colors.orange,
+            ),
           );
           continue;
         }
@@ -1372,7 +1640,9 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
           .doc(widget.examId);
 
       final examDoc = await examRef.get();
-      List<String> completedSubjects = List.from(examDoc.data()?['completedSubjects'] ?? []);
+      List<String> completedSubjects = List.from(
+        examDoc.data()?['completedSubjects'] ?? [],
+      );
 
       if (!completedSubjects.contains(widget.subject)) {
         completedSubjects.add(widget.subject);
@@ -1384,7 +1654,10 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Marks saved successfully"), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text("Marks saved successfully"),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pop(context, true);
       }
@@ -1438,23 +1711,27 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
 
   Future<void> _loadResults() async {
     try {
-      final studentsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('students')
-          .where('class', isEqualTo: widget.examData['className'])
-          .get();
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('students')
+              .where('class', isEqualTo: widget.examData['className'])
+              .get();
 
-      final marksSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('exams')
-          .doc(widget.examId)
-          .collection('marks')
-          .get();
+      final marksSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('exams')
+              .doc(widget.examId)
+              .collection('marks')
+              .get();
 
       final subjects = List<String>.from(widget.examData['subjects'] ?? []);
-      final maxMarks = List<int>.from(widget.examData['maxMarks'] ?? []);
+      final maxMarksRaw = widget.examData['maxMarks'] ?? [];
+      final List<int> maxMarks =
+          maxMarksRaw.map<int>((e) => (e as num).toInt()).toList();
 
       List<Map<String, dynamic>> results = [];
 
@@ -1489,7 +1766,8 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
             totalMax += maxMark;
           }
 
-          final double percentage = maxMark > 0 ? (obtained / maxMark) * 100 : 0.0;
+          final double percentage =
+              maxMark > 0 ? (obtained / maxMark) * 100 : 0.0;
 
           subjectMarks[subject] = {
             'obtained': obtained,
@@ -1499,7 +1777,8 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
           };
         }
 
-        final double overallPercentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0.0;
+        final double overallPercentage =
+            totalMax > 0 ? (totalObtained / totalMax) * 100 : 0.0;
         final String overallGrade = _calculateGrade(overallPercentage);
 
         results.add({
@@ -1514,7 +1793,11 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
         });
       }
 
-      results.sort((a, b) => (b['overallPercentage'] as double).compareTo(a['overallPercentage'] as double));
+      results.sort(
+        (a, b) => (b['overallPercentage'] as double).compareTo(
+          a['overallPercentage'] as double,
+        ),
+      );
 
       setState(() {
         _results = results;
@@ -1525,7 +1808,10 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error loading results: $e"), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text("Error loading results: $e"),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -1542,67 +1828,75 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
 
   Future<void> _exportPDF() async {
     final pdf = pw.Document();
-
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        header: (context) => pw.Column(
-          children: [
-            pw.Text(
-              'Exam Results - ${widget.examData['examName']}',
-              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+        header:
+            (context) => pw.Column(
+              children: [
+                pw.Text(
+                  'Exam Results - ${widget.examData['examName']}',
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 10),
+                pw.Text(
+                  '${widget.examData['className']} • ${widget.examData['examType']}',
+                  style: pw.TextStyle(fontSize: 14),
+                ),
+                pw.Divider(),
+              ],
             ),
-            pw.SizedBox(height: 10),
-            pw.Text(
-              '${widget.examData['className']} • ${widget.examData['examType']}',
-              style: pw.TextStyle(fontSize: 14),
-            ),
-            pw.Divider(),
-          ],
-        ),
-        build: (context) => [
-          pw.SizedBox(height: 20),
-          pw.Text(
-            'Result Summary',
-            style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.SizedBox(height: 10),
-          pw.Table(
-            border: pw.TableBorder.all(),
-            children: [
-              pw.TableRow(
+        build:
+            (context) => [
+              pw.SizedBox(height: 20),
+              pw.Text(
+                'Result Summary',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Table(
+                border: pw.TableBorder.all(),
                 children: [
-                  _pdfHeaderCell('Rank'),
-                  _pdfHeaderCell('Roll No'),
-                  _pdfHeaderCell('Student Name'),
-                  _pdfHeaderCell('Total'),
-                  _pdfHeaderCell('Percentage'),
-                  _pdfHeaderCell('Grade'),
+                  pw.TableRow(
+                    children: [
+                      _pdfHeaderCell('Rank'),
+                      _pdfHeaderCell('Roll No'),
+                      _pdfHeaderCell('Student Name'),
+                      _pdfHeaderCell('Total'),
+                      _pdfHeaderCell('Percentage'),
+                      _pdfHeaderCell('Grade'),
+                    ],
+                  ),
+                  ..._results.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final result = entry.value;
+                    return pw.TableRow(
+                      children: [
+                        _pdfCell('${index + 1}'),
+                        _pdfCell(result['rollNo'].toString()),
+                        _pdfCell(result['name']),
+                        _pdfCell(
+                          '${result['totalObtained']}/${result['totalMax']}',
+                        ),
+                        _pdfCell(
+                          '${(result['overallPercentage'] as double).toStringAsFixed(1)}%',
+                        ),
+                        _pdfCell(result['overallGrade']),
+                      ],
+                    );
+                  }).toList(),
                 ],
               ),
-              ..._results.asMap().entries.map((entry) {
-                final index = entry.key;
-                final result = entry.value;
-                return pw.TableRow(
-                  children: [
-                    _pdfCell('${index + 1}'),
-                    _pdfCell(result['rollNo'].toString()),
-                    _pdfCell(result['name']),
-                    _pdfCell('${result['totalObtained']}/${result['totalMax']}'),
-                    _pdfCell('${(result['overallPercentage'] as double).toStringAsFixed(1)}%'),
-                    _pdfCell(result['overallGrade']),
-                  ],
-                );
-              }).toList(),
             ],
-          ),
-        ],
       ),
     );
-
-    await Printing.layoutPdf(
-      onLayout: (format) async => pdf.save(),
-    );
+    await Printing.layoutPdf(onLayout: (format) async => pdf.save());
   }
 
   pw.Widget _pdfHeaderCell(String text) {
@@ -1635,151 +1929,195 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _results.isEmpty
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.assessment, size: 80, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text(
-              "No results available",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      )
-          : RefreshIndicator(
-        onRefresh: _loadResults,
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: _results.length,
-          itemBuilder: (context, index) {
-            final result = _results[index];
-            final rank = index + 1;
-            final percentage = result['overallPercentage'] as double;
-
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ExpansionTile(
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: rank <= 3 ? Colors.amber.shade100 : Colors.blue.shade100,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Center(
-                    child: Text(
-                      rank.toString(),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _results.isEmpty
+              ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.assessment, size: 80, color: Colors.grey),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "No results available",
                       style: TextStyle(
-                        fontWeight: FontWeight.bold,
                         fontSize: 18,
-                        color: rank <= 3 ? Colors.amber.shade800 : Colors.blue,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
+                  ],
                 ),
-                title: Text(
-                  result['name'],
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text("Roll No: ${result['rollNo']}"),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: percentage >= 60 ? Colors.green : Colors.red,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    result['overallGrade'],
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
+              )
+              : RefreshIndicator(
+                onRefresh: _loadResults,
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _results.length,
+                  itemBuilder: (context, index) {
+                    final result = _results[index];
+                    final rank = index + 1;
+                    final percentage = result['overallPercentage'] as double;
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: ExpansionTile(
+                        leading: Container(
+                          width: 40,
+                          height: 40,
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(12),
+                            color:
+                                rank <= 3
+                                    ? Colors.amber.shade100
+                                    : Colors.blue.shade100,
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              _statItem("Total", "${result['totalObtained']}/${result['totalMax']}"),
-                              _statItem("Percentage", "${percentage.toStringAsFixed(1)}%"),
-                              _statItem("Grade", result['overallGrade']),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          "Subject-wise Marks",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        ...List.generate(
-                          (result['subjectMarks'] as Map).keys.length,
-                              (subIndex) {
-                            final subject = (result['subjectMarks'] as Map).keys.elementAt(subIndex);
-                            final marks = result['subjectMarks'][subject];
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade50,
-                                borderRadius: BorderRadius.circular(8),
+                          child: Center(
+                            child: Text(
+                              rank.toString(),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color:
+                                    rank <= 3
+                                        ? Colors.amber.shade800
+                                        : Colors.blue,
                               ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      subject,
-                                      style: const TextStyle(fontWeight: FontWeight.w500),
-                                    ),
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          result['name'],
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text("Roll No: ${result['rollNo']}"),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: percentage >= 60 ? Colors.green : Colors.red,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            result['overallGrade'],
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.shade50,
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  Text("${marks['obtained']}/${marks['max']}"),
-                                  const SizedBox(width: 16),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: marks['percentage'] >= 60 ? Colors.green.shade100 : Colors.red.shade100,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      marks['grade'],
-                                      style: TextStyle(
-                                        color: marks['percentage'] >= 60 ? Colors.green : Colors.red,
-                                        fontWeight: FontWeight.bold,
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceAround,
+                                    children: [
+                                      _statItem(
+                                        "Total",
+                                        "${result['totalObtained']}/${result['totalMax']}",
                                       ),
-                                    ),
+                                      _statItem(
+                                        "Percentage",
+                                        "${percentage.toStringAsFixed(1)}%",
+                                      ),
+                                      _statItem(
+                                        "Grade",
+                                        result['overallGrade'],
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  "Subject-wise Marks",
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 8),
+                                ...List.generate(
+                                  (result['subjectMarks'] as Map).keys.length,
+                                  (subIndex) {
+                                    final subject = (result['subjectMarks']
+                                            as Map)
+                                        .keys
+                                        .elementAt(subIndex);
+                                    final marks =
+                                        result['subjectMarks'][subject];
+                                    final percentage =
+                                        marks['percentage'] as double;
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            percentage >= 60
+                                                ? Colors.green.shade50
+                                                : Colors.red.shade50,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              subject,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            "${marks['obtained']}/${marks['max']}",
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  percentage >= 60
+                                                      ? Colors.green
+                                                      : Colors.red,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              marks['grade'],
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 10,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
-            );
-          },
-        ),
-      ),
     );
   }
 
@@ -1790,10 +2128,7 @@ class _ExamResultDetailsPageState extends State<ExamResultDetailsPage> {
           value,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, color: Colors.grey),
-        ),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
       ],
     );
   }

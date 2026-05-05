@@ -1435,8 +1435,7 @@ class _ParentDashboardState extends State<ParentDashboard>
 
   Widget _buildAttendanceTab(String studentId, String studentName) {
     return FutureBuilder<QuerySnapshot>(
-      future:
-      FirebaseFirestore.instance
+      future: FirebaseFirestore.instance
           .collectionGroup('records')
           .where('studentId', isEqualTo: studentId)
           .get(),
@@ -1445,22 +1444,52 @@ class _ParentDashboardState extends State<ParentDashboard>
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(
+        final hasRecords = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+
+        // If no records, show button to go to detailed view
+        if (!hasRecords) {
+          return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.calendar_today, size: 40, color: Colors.grey),
-                SizedBox(height: 12),
+                Icon(Icons.history_edu, size: 64, color: Colors.grey.shade400),
+                const SizedBox(height: 16),
                 Text(
-                  'No attendance records found',
-                  style: TextStyle(fontSize: 12),
+                  'Tap below to view full attendance history',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ParentAttendanceViewPage(
+                          studentId: studentId,
+                          studentName: studentName,
+                          className: _currentClassName,
+                          section: _currentSection,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.calendar_today, size: 18),
+                  label: const Text('View Attendance History'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
               ],
             ),
           );
         }
 
+        // If records exist, show the attendance summary as before
         int present = 0;
         int absent = 0;
         int late = 0;
@@ -1560,16 +1589,11 @@ class _ParentDashboardState extends State<ParentDashboard>
                         separatorBuilder: (_, __) => const Divider(),
                         itemBuilder: (context, index) {
                           final record = records[index];
-                          final date =
-                              DateTime.tryParse(record['date']) ??
-                                  DateTime.now();
+                          final date = DateTime.tryParse(record['date']) ?? DateTime.now();
                           final status = record['status'];
-                          final statusColor =
-                          status == 'Present'
+                          final statusColor = status == 'Present'
                               ? Colors.green
-                              : (status == 'Late'
-                              ? Colors.orange
-                              : Colors.red);
+                              : (status == 'Late' ? Colors.orange : Colors.red);
 
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
@@ -1577,9 +1601,7 @@ class _ParentDashboardState extends State<ParentDashboard>
                             leading: Icon(
                               status == 'Present'
                                   ? Icons.check_circle
-                                  : (status == 'Late'
-                                  ? Icons.access_time
-                                  : Icons.cancel),
+                                  : (status == 'Late' ? Icons.access_time : Icons.cancel),
                               color: statusColor,
                               size: 18,
                             ),
@@ -1607,6 +1629,23 @@ class _ParentDashboardState extends State<ParentDashboard>
                             ),
                           );
                         },
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ParentAttendanceViewPage(
+                                studentId: studentId,
+                                studentName: studentName,
+                                className: _currentClassName,
+                                section: _currentSection,
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text('View Full History →', style: TextStyle(fontSize: 11)),
                       ),
                     ],
                   ),

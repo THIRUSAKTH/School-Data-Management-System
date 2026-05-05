@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
@@ -20,18 +22,24 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _websiteController = TextEditingController();
-  final TextEditingController _establishedYearController = TextEditingController();
-  final TextEditingController _principalNameController = TextEditingController();
+  final TextEditingController _establishedYearController =
+      TextEditingController();
+  final TextEditingController _principalNameController =
+      TextEditingController();
 
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isUploading = false;
 
-  File? _logoImage;
+  // Support both mobile and web
+  XFile? _selectedImage;
   String _logoUrl = "";
   String? _schoolCode;
 
   final ImagePicker _picker = ImagePicker();
+
+  // Check platform
+  bool get isWeb => kIsWeb;
 
   @override
   void initState() {
@@ -55,10 +63,11 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     setState(() => _isLoading = true);
 
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .get();
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .get();
 
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
@@ -71,7 +80,8 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
         _establishedYearController.text = data['establishedYear'] ?? "";
         _principalNameController.text = data['principalName'] ?? "";
         _logoUrl = data['logoUrl'] ?? "";
-        _schoolCode = data['schoolCode'] ?? "SCH${widget.schoolId.substring(0, 4)}";
+        _schoolCode =
+            data['schoolCode'] ?? "SCH${widget.schoolId.substring(0, 4)}";
       }
     } catch (e) {
       _showError("Error loading school data: $e");
@@ -86,57 +96,63 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Choose Logo",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      builder:
+          (context) => Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildImageSourceOption(
-                  icon: Icons.camera_alt,
-                  label: "Camera",
-                  onTap: () async {
-                    Navigator.pop(context);
-                    final picked = await _picker.pickImage(source: ImageSource.camera);
-                    if (picked != null) {
-                      setState(() => _logoImage = File(picked.path));
-                    }
-                  },
+                const Text(
+                  "Choose Logo",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                _buildImageSourceOption(
-                  icon: Icons.photo_library,
-                  label: "Gallery",
-                  onTap: () async {
-                    Navigator.pop(context);
-                    final picked = await _picker.pickImage(source: ImageSource.gallery);
-                    if (picked != null) {
-                      setState(() => _logoImage = File(picked.path));
-                    }
-                  },
-                ),
-                _buildImageSourceOption(
-                  icon: Icons.delete,
-                  label: "Remove",
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _logoImage = null;
-                      _logoUrl = "";
-                    });
-                  },
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    if (!isWeb) // Camera not fully supported on web
+                      _buildImageSourceOption(
+                        icon: Icons.camera_alt,
+                        label: "Camera",
+                        onTap: () async {
+                          Navigator.pop(context);
+                          final picked = await _picker.pickImage(
+                            source: ImageSource.camera,
+                          );
+                          if (picked != null) {
+                            setState(() => _selectedImage = picked);
+                          }
+                        },
+                      ),
+                    _buildImageSourceOption(
+                      icon: Icons.photo_library,
+                      label: "Gallery",
+                      onTap: () async {
+                        Navigator.pop(context);
+                        final picked = await _picker.pickImage(
+                          source: ImageSource.gallery,
+                        );
+                        if (picked != null) {
+                          setState(() => _selectedImage = picked);
+                        }
+                      },
+                    ),
+                    _buildImageSourceOption(
+                      icon: Icons.delete,
+                      label: "Remove",
+                      onTap: () {
+                        Navigator.pop(context);
+                        setState(() {
+                          _selectedImage = null;
+                          _logoUrl = "";
+                        });
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -164,8 +180,13 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     );
   }
 
+  Future<Uint8List?> _getImageBytes() async {
+    if (_selectedImage == null) return null;
+    return await _selectedImage!.readAsBytes();
+  }
+
   Future<void> _uploadLogo() async {
-    if (_logoImage == null) {
+    if (_selectedImage == null) {
       _showError("Please select an image first");
       return;
     }
@@ -176,9 +197,21 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
       final ref = FirebaseStorage.instance
           .ref()
           .child('school_logos')
-          .child('${widget.schoolId}.png');
+          .child(
+            '${widget.schoolId}_${DateTime.now().millisecondsSinceEpoch}.png',
+          );
 
-      await ref.putFile(_logoImage!);
+      // Upload based on platform
+      if (isWeb) {
+        // Web platform - upload bytes
+        final bytes = await _selectedImage!.readAsBytes();
+        await ref.putData(bytes);
+      } else {
+        // Mobile platform - upload file
+        final file = File(_selectedImage!.path);
+        await ref.putFile(file);
+      }
+
       final url = await ref.getDownloadURL();
 
       await FirebaseFirestore.instance
@@ -188,7 +221,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
 
       setState(() {
         _logoUrl = url;
-        _logoImage = null;
+        _selectedImage = null;
       });
 
       if (mounted) {
@@ -249,20 +282,31 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
   void _showError(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
     }
+  }
+
+  // Helper to get image provider for display
+  ImageProvider? _getImageProvider() {
+    if (_selectedImage != null) {
+      if (isWeb) {
+        // For web, we need to load the image differently
+        return NetworkImage(_selectedImage!.path);
+      } else {
+        return FileImage(File(_selectedImage!.path));
+      }
+    }
+    if (_logoUrl.isNotEmpty) {
+      return NetworkImage(_logoUrl);
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -315,7 +359,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
+                    color: Colors.black.withOpacity(0.1),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
                   ),
@@ -324,44 +368,50 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
               child: CircleAvatar(
                 radius: 65,
                 backgroundColor: Colors.grey.shade200,
-                backgroundImage: _logoImage != null
-                    ? FileImage(_logoImage!)
-                    : (_logoUrl.isNotEmpty
-                    ? NetworkImage(_logoUrl)
-                    : null) as ImageProvider?,
-                child: _logoImage == null && _logoUrl.isEmpty
-                    ? Icon(Icons.add_photo_alternate, size: 45, color: Colors.grey.shade400)
-                    : null,
+                backgroundImage: _getImageProvider(),
+                onBackgroundImageError: (_, __) {
+                  setState(() {
+                    _logoUrl = "";
+                  });
+                },
+                child:
+                    _selectedImage == null && _logoUrl.isEmpty
+                        ? Icon(
+                          Icons.add_photo_alternate,
+                          size: 45,
+                          color: Colors.grey.shade400,
+                        )
+                        : null,
               ),
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            _logoImage != null
+            _selectedImage != null
                 ? "New logo selected - tap upload to save"
-                : (_logoUrl.isNotEmpty ? "Tap to change logo" : "Tap to add logo"),
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade600,
-            ),
+                : (_logoUrl.isNotEmpty
+                    ? "Tap to change logo"
+                    : "Tap to add logo"),
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
-          if (_logoImage != null) ...[
+          if (_selectedImage != null) ...[
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton.icon(
                   onPressed: _isUploading ? null : _uploadLogo,
-                  icon: _isUploading
-                      ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                      : const Icon(Icons.cloud_upload, size: 18),
+                  icon:
+                      _isUploading
+                          ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                          : const Icon(Icons.cloud_upload, size: 18),
                   label: Text(_isUploading ? "Uploading..." : "Upload Logo"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
@@ -371,7 +421,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                 const SizedBox(width: 12),
                 TextButton.icon(
                   onPressed: () {
-                    setState(() => _logoImage = null);
+                    setState(() => _selectedImage = null);
                   },
                   icon: const Icon(Icons.cancel, size: 18),
                   label: const Text("Cancel"),
@@ -379,17 +429,24 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
               ],
             ),
           ],
-          if (_logoUrl.isNotEmpty && _logoImage == null)
+          if (_logoUrl.isNotEmpty && _selectedImage == null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle, size: 14, color: Colors.green.shade700),
+                  Icon(
+                    Icons.check_circle,
+                    size: 14,
+                    color: Colors.green.shade700,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     "Logo saved",
-                    style: TextStyle(fontSize: 11, color: Colors.green.shade700),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.green.shade700,
+                    ),
                   ),
                 ],
               ),
@@ -500,7 +557,11 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                   color: Colors.blue.shade100,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.contact_phone, color: Colors.blue, size: 22),
+                child: const Icon(
+                  Icons.contact_phone,
+                  color: Colors.blue,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 12),
               const Text(
@@ -593,16 +654,17 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
       height: 52,
       child: ElevatedButton.icon(
         onPressed: _isSaving ? null : _saveSchool,
-        icon: _isSaving
-            ? const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
-        )
-            : const Icon(Icons.save),
+        icon:
+            _isSaving
+                ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+                : const Icon(Icons.save),
         label: Text(_isSaving ? "Saving..." : "Save Settings"),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.blue,
@@ -622,7 +684,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
       borderRadius: BorderRadius.circular(16),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
+          color: Colors.black.withOpacity(0.05),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),

@@ -81,6 +81,11 @@ class _SelectChildPageState extends State<SelectChildPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
+        leading: IconButton(onPressed: (){
+          Navigator.push(context, MaterialPageRoute(builder: (context) {
+            return ParentDashboard();
+          },));
+        }, icon: Icon(Icons.arrow_back,color: Colors.white,)),
         title: const Text(
           "Select Your Child",
           style: TextStyle(fontWeight: FontWeight.bold),

@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import '../../app_config.dart';
 
 class ParentViewResultsPage extends StatefulWidget {
   final String? studentId;
   final String? studentName;
 
-  const ParentViewResultsPage({
-    super.key,
-    this.studentId,
-    this.studentName,
-  });
+  const ParentViewResultsPage({super.key, this.studentId, this.studentName});
 
   @override
   State<ParentViewResultsPage> createState() => _ParentViewResultsPageState();
@@ -20,10 +17,13 @@ class ParentViewResultsPage extends StatefulWidget {
 class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
   String? _selectedStudentId;
   String? _selectedStudentName;
+  String? _selectedStudentClass;
+  String? _selectedStudentSection;
   String? _selectedExamId;
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _exams = [];
   List<Map<String, dynamic>> _results = [];
+  Map<String, dynamic>? _selectedExamDetails;
   bool _isLoading = true;
   bool _isExporting = false;
 
@@ -38,37 +38,43 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
 
     try {
       final parentUid = FirebaseAuth.instance.currentUser!.uid;
-      final studentsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('students')
-          .where('parentUid', isEqualTo: parentUid)
-          .get();
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('parentUid', isEqualTo: parentUid)
+              .get();
 
-      _students = studentsSnapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? 'Unknown',
-          'class': data['class'] ?? '',
-          'section': data['section'] ?? '',
-          'rollNo': data['rollNo'] ?? '',
-          'admissionNo': data['admissionNo'] ?? '',
-        };
-      }).toList();
+      _students =
+          studentsSnapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'id': doc.id,
+              'name': data['name'] ?? 'Unknown',
+              'class': data['class'] ?? '',
+              'section': data['section'] ?? '',
+              'rollNo': data['rollNo'] ?? '',
+              'admissionNo': data['admissionNo'] ?? '',
+            };
+          }).toList();
 
       // Use provided studentId or first child
       if (_students.isNotEmpty) {
         if (widget.studentId != null) {
           final foundStudent = _students.firstWhere(
-                (s) => s['id'] == widget.studentId,
+            (s) => s['id'] == widget.studentId,
             orElse: () => _students.first,
           );
           _selectedStudentId = foundStudent['id'];
           _selectedStudentName = foundStudent['name'];
+          _selectedStudentClass = foundStudent['class'];
+          _selectedStudentSection = foundStudent['section'];
         } else {
           _selectedStudentId = _students.first['id'];
           _selectedStudentName = _students.first['name'];
+          _selectedStudentClass = _students.first['class'];
+          _selectedStudentSection = _students.first['section'];
         }
         await _loadExams();
       }
@@ -105,30 +111,56 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
     if (className == null || className.isEmpty) return;
 
     try {
-      final examsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('exams')
-          .where('className', isEqualTo: className)
-          .orderBy('createdAt', descending: true)
-          .get();
+      final examsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('exams')
+              .where('className', isEqualTo: className)
+              .orderBy('createdAt', descending: true)
+              .get();
 
-      _exams = examsSnapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['examName'] ?? data['name'] ?? 'Unknown Exam',
-          'type': data['examType'] ?? 'Regular',
-          'date': data['startDate'] ?? data['examDate'] ?? 'N/A',
-        };
-      }).toList();
+      _exams =
+          examsSnapshot.docs.map((doc) {
+            final data = doc.data();
+            final startDate = data['startDate'] as Timestamp?;
+            return {
+              'id': doc.id,
+              'name': data['examName'] ?? data['name'] ?? 'Unknown Exam',
+              'type': data['examType'] ?? 'Regular',
+              'date':
+                  startDate != null
+                      ? DateFormat('dd MMM yyyy').format(startDate.toDate())
+                      : 'Date not set',
+              'startDate': startDate,
+              'endDate': data['endDate'] as Timestamp?,
+              'subjects': List<String>.from(data['subjects'] ?? []),
+              'maxMarks':
+                  (data['maxMarks'] as List?)
+                      ?.map((e) => (e as num).toInt())
+                      .toList() ??
+                  [],
+              'marksEntered': data['marksEntered'] ?? 0,
+              'totalMarks': data['totalMarks'] ?? 0,
+            };
+          }).toList();
 
       if (_exams.isNotEmpty) {
+        // Select exam that has results or first exam
         _selectedExamId = _exams.first['id'];
+        _selectedExamDetails = _exams.first;
         await _loadResults();
       }
     } catch (e) {
       debugPrint('Error loading exams: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading exams: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -138,25 +170,33 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
     setState(() => _isLoading = true);
 
     try {
-      final resultsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('exam_results')
-          .where('studentId', isEqualTo: _selectedStudentId)
-          .where('examId', isEqualTo: _selectedExamId)
-          .get();
+      // Get results from exam_results collection
+      final resultsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('exam_results')
+              .where('studentId', isEqualTo: _selectedStudentId)
+              .where('examId', isEqualTo: _selectedExamId)
+              .get();
 
-      _results = resultsSnapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'subject': data['subject'] ?? 'Unknown',
-          'marksObtained': data['marksObtained'] ?? 0,
-          'maxMarks': data['maxMarks'] ?? 100,
-          'percentage': data['percentage'] ?? 0.0,
-          'grade': data['grade'] ?? 'N/A',
-          'remarks': data['remarks'] ?? '',
-        };
-      }).toList();
+      if (resultsSnapshot.docs.isNotEmpty) {
+        _results =
+            resultsSnapshot.docs.map((doc) {
+              final data = doc.data();
+              return {
+                'subject': data['subject'] ?? 'Unknown',
+                'marksObtained': data['marksObtained'] ?? 0,
+                'maxMarks': data['maxMarks'] ?? 100,
+                'percentage': data['percentage'] ?? 0.0,
+                'grade': data['grade'] ?? 'N/A',
+                'remarks': data['remarks'] ?? '',
+              };
+            }).toList();
+      } else {
+        // No results found for this exam
+        _results = [];
+      }
 
       // Sort results alphabetically by subject
       _results.sort((a, b) => a['subject'].compareTo(b['subject']));
@@ -184,6 +224,22 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
     return totalPercentage / _results.length;
   }
 
+  int get _totalMarksObtained {
+    int total = 0;
+    for (var result in _results) {
+      total += result['marksObtained'] as int;
+    }
+    return total;
+  }
+
+  int get _totalMaxMarks {
+    int total = 0;
+    for (var result in _results) {
+      total += result['maxMarks'] as int;
+    }
+    return total;
+  }
+
   String get _overallGrade {
     final avg = _totalPercentage;
     if (avg >= 90) return 'A+';
@@ -198,10 +254,10 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
   String get _performanceMessage {
     final avg = _totalPercentage;
     if (avg >= 90) return 'Excellent performance! Keep up the great work! 🎉';
-    if (avg >= 75) return 'Good job! You\'re doing well. 👍';
-    if (avg >= 60) return 'Satisfactory. Keep improving! 📚';
+    if (avg >= 75) return 'Good job! You\'re doing well. Keep improving! 👍';
+    if (avg >= 60) return 'Satisfactory performance. Keep working hard! 📚';
     if (avg >= 50) return 'Need more effort. You can do better! 💪';
-    return 'Needs significant improvement. Please focus more. ⚠️';
+    return 'Needs significant improvement. Please focus more on studies. ⚠️';
   }
 
   Future<void> _exportResults() async {
@@ -213,7 +269,7 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('PDF Export will be available soon'),
+          content: Text('PDF Export feature coming soon'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -235,10 +291,7 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             if (_selectedStudentName != null)
-              Text(
-                _selectedStudentName!,
-                style: const TextStyle(fontSize: 12),
-              ),
+              Text(_selectedStudentName!, style: const TextStyle(fontSize: 12)),
           ],
         ),
         backgroundColor: Colors.orange,
@@ -247,16 +300,17 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
         actions: [
           if (_results.isNotEmpty)
             IconButton(
-              icon: _isExporting
-                  ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-                  : const Icon(Icons.picture_as_pdf),
+              icon:
+                  _isExporting
+                      ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                      : const Icon(Icons.picture_as_pdf),
               onPressed: _isExporting ? null : _exportResults,
               tooltip: 'Export as PDF',
             ),
@@ -269,20 +323,27 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _students.isEmpty
-          ? _buildEmptyState('No Children Linked', 'Please contact the school admin to link your children.')
-          : _exams.isEmpty
-          ? _buildEmptyState('No Exams Found', 'No exam results have been published yet.')
-          : Column(
-        children: [
-          if (_students.length > 1) _buildStudentSelector(),
-          _buildExamSelector(),
-          const SizedBox(height: 8),
-          Expanded(child: _buildResultsView()),
-        ],
-      ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _students.isEmpty
+              ? _buildEmptyState(
+                'No Children Linked',
+                'Please contact the school admin to link your children.',
+              )
+              : _exams.isEmpty
+              ? _buildEmptyState(
+                'No Exams Found',
+                'No exams have been created for this class yet.',
+              )
+              : Column(
+                children: [
+                  if (_students.length > 1) _buildStudentSelector(),
+                  _buildExamSelector(),
+                  const SizedBox(height: 8),
+                  Expanded(child: _buildResultsView()),
+                ],
+              ),
     );
   }
 
@@ -295,7 +356,11 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
           const SizedBox(height: 16),
           Text(
             title,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -329,15 +394,16 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
                 hint: const Text('Select Child'),
                 isExpanded: true,
                 icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
-                items: _students.map<DropdownMenuItem<String>>((student) {
-                  return DropdownMenuItem<String>(
-                    value: student['id'] as String,
-                    child: Text(
-                      '${student['name']} (${student['class']}-${student['section']})',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  );
-                }).toList(),
+                items:
+                    _students.map<DropdownMenuItem<String>>((student) {
+                      return DropdownMenuItem<String>(
+                        value: student['id'] as String,
+                        child: Text(
+                          '${student['name']} (${student['class']}-${student['section']})',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      );
+                    }).toList(),
                 onChanged: (value) async {
                   setState(() {
                     _selectedStudentId = value;
@@ -345,11 +411,13 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
                     _results = [];
                   });
 
-                  // Update selected student name
+                  // Update selected student details
                   for (var student in _students) {
                     if (student['id'] == value) {
                       setState(() {
                         _selectedStudentName = student['name'];
+                        _selectedStudentClass = student['class'];
+                        _selectedStudentSection = student['section'];
                       });
                       break;
                     }
@@ -371,65 +439,130 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
         margin: const EdgeInsets.all(12),
         padding: const EdgeInsets.all(16),
         decoration: _cardDecoration(),
-        child: const Center(
-          child: Text('No exams available for this student'),
-        ),
+        child: const Center(child: Text('No exams available for this student')),
       );
     }
 
-    return Container(
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: _cardDecoration(),
-      child: Row(
-        children: [
-          const Icon(Icons.quiz, color: Colors.orange, size: 20),
-          const SizedBox(width: 8),
-          const Text(
-            'Exam:',
-            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedExamId,
-                hint: const Text('Select Exam'),
-                isExpanded: true,
-                icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
-                items: _exams.map<DropdownMenuItem<String>>((exam) {
-                  return DropdownMenuItem<String>(
-                    value: exam['id'] as String,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          exam['name'],
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                        ),
-                        if (exam['date'] != 'N/A')
-                          Text(
-                            exam['date'],
-                            style: const TextStyle(fontSize: 10, color: Colors.grey),
-                          ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onChanged: (value) async {
-                  setState(() {
-                    _selectedExamId = value;
-                    _results = [];
-                  });
-                  await _loadResults();
-                },
+    // Check which exams have results
+    return FutureBuilder<Map<String, bool>>(
+      future: _getExamsWithResults(),
+      builder: (context, snapshot) {
+        final examsWithResults = snapshot.data ?? {};
+
+        return Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: _cardDecoration(),
+          child: Row(
+            children: [
+              const Icon(Icons.quiz, color: Colors.orange, size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Exam:',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
               ),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedExamId,
+                    hint: const Text('Select Exam'),
+                    isExpanded: true,
+                    icon: const Icon(
+                      Icons.arrow_drop_down,
+                      color: Colors.orange,
+                    ),
+                    items:
+                        _exams.map<DropdownMenuItem<String>>((exam) {
+                          final hasResults =
+                              examsWithResults[exam['id']] ?? false;
+                          return DropdownMenuItem<String>(
+                            value: exam['id'] as String,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      exam['name'],
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    if (hasResults)
+                                      Container(
+                                        margin: const EdgeInsets.only(left: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.shade100,
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Published',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            color: Colors.green.shade700,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                Text(
+                                  exam['date'],
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                    onChanged: (value) async {
+                      setState(() {
+                        _selectedExamId = value;
+                        _results = [];
+                        for (var exam in _exams) {
+                          if (exam['id'] == value) {
+                            _selectedExamDetails = exam;
+                            break;
+                          }
+                        }
+                      });
+                      await _loadResults();
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
+  }
+
+  Future<Map<String, bool>> _getExamsWithResults() async {
+    final Map<String, bool> resultMap = {};
+    for (var exam in _exams) {
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('exam_results')
+              .where('examId', isEqualTo: exam['id'])
+              .where('studentId', isEqualTo: _selectedStudentId)
+              .limit(1)
+              .get();
+      resultMap[exam['id']] = snapshot.docs.isNotEmpty;
+    }
+    return resultMap;
   }
 
   Widget _buildResultsView() {
@@ -446,7 +579,7 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Results will appear here once published',
+              'Results will appear here once published by the teacher',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
           ],
@@ -465,6 +598,8 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
             const SizedBox(height: 16),
             _buildPerformanceMessage(),
             const SizedBox(height: 16),
+            _buildMarksSummary(),
+            const SizedBox(height: 16),
             const Text(
               'Subject-wise Marks',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -475,6 +610,46 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildMarksSummary() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: _cardDecoration(),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _summaryItem(
+            'Total Marks',
+            '$_totalMarksObtained / $_totalMaxMarks',
+            Colors.blue,
+          ),
+          _summaryItem(
+            'Average',
+            '${_totalPercentage.toStringAsFixed(1)}%',
+            Colors.orange,
+          ),
+          _summaryItem('Grade', _overallGrade, Colors.green),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+      ],
     );
   }
 
@@ -490,7 +665,7 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.orange.withValues(alpha: 0.3),
+            color: Colors.orange.withOpacity(0.3),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -516,9 +691,12 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -532,17 +710,17 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
               ),
               const SizedBox(width: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   '${_results.length} Subjects',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
               ),
             ],
@@ -563,9 +741,9 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: getMessageColor().withValues(alpha: 0.1),
+        color: getMessageColor().withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: getMessageColor().withValues(alpha: 0.3)),
+        border: Border.all(color: getMessageColor().withOpacity(0.3)),
       ),
       child: Row(
         children: [
@@ -592,9 +770,10 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
 
   Widget _buildResultCard(Map<String, dynamic> result) {
     final percentage = result['percentage'] as double;
-    Color gradeColor = percentage >= 80
-        ? Colors.green
-        : (percentage >= 60 ? Colors.orange : Colors.red);
+    Color gradeColor =
+        percentage >= 80
+            ? Colors.green
+            : (percentage >= 60 ? Colors.orange : Colors.red);
 
     IconData getIcon() {
       if (percentage >= 80) return Icons.emoji_events;
@@ -619,7 +798,7 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: gradeColor.withValues(alpha: 0.1),
+                      color: gradeColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(getIcon(), color: gradeColor, size: 24),
@@ -648,9 +827,12 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: gradeColor.withValues(alpha: 0.1),
+                      color: gradeColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Column(
@@ -665,17 +847,15 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
                         ),
                         Text(
                           'Grade: ${result['grade']}',
-                          style: TextStyle(
-                            color: gradeColor,
-                            fontSize: 11,
-                          ),
+                          style: TextStyle(color: gradeColor, fontSize: 11),
                         ),
                       ],
                     ),
                   ),
                 ],
               ),
-              if (result['remarks'] != null && result['remarks'].toString().isNotEmpty)
+              if (result['remarks'] != null &&
+                  result['remarks'].toString().isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Container(
@@ -686,7 +866,11 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.comment, size: 14, color: Colors.grey.shade600),
+                        Icon(
+                          Icons.comment,
+                          size: 14,
+                          color: Colors.grey.shade600,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -719,87 +903,89 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
+      builder:
+          (context) => Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade100,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    Icons.assignment_turned_in,
-                    color: Colors.orange.shade700,
-                    size: 30,
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        result['subject'],
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade100,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      Text(
-                        'Exam Result Details',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                        ),
+                      child: Icon(
+                        Icons.assignment_turned_in,
+                        color: Colors.orange.shade700,
+                        size: 30,
                       ),
-                    ],
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            result['subject'],
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Exam Result Details',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Divider(),
+                _detailRow('Marks Obtained', '$marksObtained / $maxMarks'),
+                _detailRow('Percentage', '${percentage.toStringAsFixed(2)}%'),
+                _detailRow('Grade', result['grade']),
+                if (result['remarks'] != null &&
+                    result['remarks'].toString().isNotEmpty)
+                  _detailRow('Remarks', result['remarks']),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text("Close"),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            const Divider(),
-            _detailRow('Marks Obtained', '$marksObtained / $maxMarks'),
-            _detailRow('Percentage', '${percentage.toStringAsFixed(2)}%'),
-            _detailRow('Grade', result['grade']),
-            if (result['remarks'] != null && result['remarks'].toString().isNotEmpty)
-              _detailRow('Remarks', result['remarks']),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text("Close"),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -832,7 +1018,7 @@ class _ParentViewResultsPageState extends State<ParentViewResultsPage> {
       borderRadius: BorderRadius.circular(16),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
+          color: Colors.black.withOpacity(0.05),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),

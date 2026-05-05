@@ -106,8 +106,8 @@ class _ParentHomePageState extends State<ParentHomePage>
       _selectedClassName = studentData['class'] ?? '';
       _selectedSection = studentData['section'] ?? '';
       _selectedRollNo = studentData['rollNo'] ?? '';
-      _loadUnreadCounts();
     });
+    _loadUnreadCounts();
   }
 
   void _logout(BuildContext context) async {
@@ -1137,7 +1137,7 @@ class _ParentHomePageState extends State<ParentHomePage>
       );
     }
 
-    // Find selected student with null safety
+    // Find selected student
     QueryDocumentSnapshot? selectedStudent;
     for (var student in students) {
       if (student.id == _selectedStudentId) {
@@ -1187,7 +1187,7 @@ class _ParentHomePageState extends State<ParentHomePage>
             const SizedBox(height: 16),
             _buildStatsRow(_selectedStudentId!),
             const SizedBox(height: 16),
-            _buildAttendanceSummary(_selectedStudentId!),
+            _buildAttendanceSummary(_selectedStudentId!, className, section),
             const SizedBox(height: 16),
             _buildFeeDetails(_selectedStudentId!),
             const SizedBox(height: 16),
@@ -1207,7 +1207,7 @@ class _ParentHomePageState extends State<ParentHomePage>
     );
   }
 
-  // ================= ADDITIONAL WIDGETS =================
+  // ================= FIXED ATTENDANCE METHODS =================
 
   Widget _buildStudentHeader(
     String name,
@@ -1268,116 +1268,238 @@ class _ParentHomePageState extends State<ParentHomePage>
   }
 
   Widget _buildStatsRow(String studentId) {
-    return FutureBuilder<int>(
-      future: _getPresentCount(studentId),
-      builder: (context, presentSnapshot) {
-        final present = presentSnapshot.data ?? 0;
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _getAttendanceStats(studentId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Row(
+            children: [
+              Expanded(
+                child: _StatCard(
+                  title: "Attendance",
+                  value: "...",
+                  color: Colors.green,
+                  icon: Icons.check_circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatCard(
+                  title: "Fees Paid",
+                  value: "...",
+                  color: Colors.blue,
+                  icon: Icons.account_balance_wallet,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatCard(
+                  title: "Fees Due",
+                  value: "...",
+                  color: Colors.red,
+                  icon: Icons.pending_actions,
+                ),
+              ),
+            ],
+          );
+        }
 
-        return FutureBuilder<int>(
-          future: _getTotalCount(),
-          builder: (context, totalSnapshot) {
-            final total = totalSnapshot.data ?? 0;
-            double attendanceRate = total > 0 ? (present / total) * 100 : 0;
+        final stats = snapshot.data ?? {};
+        final attendanceRate = stats['attendanceRate'] ?? 0;
+        final totalPaid = stats['totalPaid'] ?? 0;
+        final totalDue = stats['totalDue'] ?? 0;
 
-            return FutureBuilder<Map<String, double>>(
-              future: _getFeeData(studentId),
-              builder: (context, feeSnapshot) {
-                double totalPaid = feeSnapshot.data?['paid'] ?? 0;
-                double totalDue = feeSnapshot.data?['due'] ?? 0;
-
-                return Row(
-                  children: [
-                    Expanded(
-                      child: _StatCard(
-                        title: "Attendance",
-                        value: "${attendanceRate.toStringAsFixed(1)}%",
-                        color: Colors.green,
-                        icon: Icons.check_circle,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _StatCard(
-                        title: "Fees Paid",
-                        value: "₹${totalPaid.toInt()}",
-                        color: Colors.blue,
-                        icon: Icons.account_balance_wallet,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _StatCard(
-                        title: "Fees Due",
-                        value: "₹${totalDue.toInt()}",
-                        color: Colors.red,
-                        icon: Icons.pending_actions,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
+        return Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                title: "Attendance",
+                value: "${attendanceRate.toStringAsFixed(1)}%",
+                color: Colors.green,
+                icon: Icons.check_circle,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatCard(
+                title: "Fees Paid",
+                value: "₹${totalPaid.toInt()}",
+                color: Colors.blue,
+                icon: Icons.account_balance_wallet,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatCard(
+                title: "Fees Due",
+                value: "₹${totalDue.toInt()}",
+                color: Colors.red,
+                icon: Icons.pending_actions,
+              ),
+            ),
+          ],
         );
       },
     );
   }
 
-  Future<int> _getPresentCount(String studentId) async {
-    final attendanceDates =
-        await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(_schoolId)
-            .collection('attendance')
-            .get();
+  Future<Map<String, dynamic>> _getAttendanceStats(String studentId) async {
+    try {
+      // Use collection group query for better performance
+      final records =
+          await FirebaseFirestore.instance
+              .collectionGroup('records')
+              .where('studentId', isEqualTo: studentId)
+              .get();
 
-    int present = 0;
-    for (var dateDoc in attendanceDates.docs) {
-      final record =
-          await dateDoc.reference.collection('records').doc(studentId).get();
-      if (record.exists && record.data()?['status'] == 'Present') {
-        present++;
+      int present = 0;
+      int total = 0;
+
+      for (var doc in records.docs) {
+        final data = doc.data();
+        final status = data['status'];
+        total++;
+        if (status == 'Present') {
+          present++;
+        }
       }
-    }
-    return present;
-  }
 
-  Future<int> _getTotalCount() async {
-    final attendanceDates =
-        await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(_schoolId)
-            .collection('attendance')
-            .get();
-    return attendanceDates.docs.length;
-  }
+      double attendanceRate = total > 0 ? (present / total) * 100 : 0;
 
-  Future<Map<String, double>> _getFeeData(String studentId) async {
-    final fees =
-        await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(_schoolId)
-            .collection('student_fees')
-            .where('studentId', isEqualTo: studentId)
-            .get();
+      // Get fee data
+      final fees =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(_schoolId)
+              .collection('student_fees')
+              .where('studentId', isEqualTo: studentId)
+              .get();
 
-    double paid = 0;
-    double due = 0;
-    for (var doc in fees.docs) {
-      final data = doc.data();
-      final amount = (data['amount'] ?? 0).toDouble();
-      if (data['status'] == 'paid') {
-        paid += amount;
-      } else {
-        due += amount;
+      double paid = 0;
+      double due = 0;
+      for (var doc in fees.docs) {
+        final feeData = doc.data();
+        final amount = (feeData['amount'] ?? 0).toDouble();
+        if (feeData['status'] == 'paid') {
+          paid += amount;
+        } else {
+          due += amount;
+        }
       }
+
+      return {
+        'attendanceRate': attendanceRate,
+        'totalPaid': paid,
+        'totalDue': due,
+      };
+    } catch (e) {
+      debugPrint('Error getting attendance stats: $e');
+      return {'attendanceRate': 0, 'totalPaid': 0, 'totalDue': 0};
     }
-    return {'paid': paid, 'due': due};
   }
 
-  Widget _buildAttendanceSummary(String studentId) {
+  // FIXED: Correct attendance fetching method
+  Future<List<Map<String, dynamic>>> _getRecentAttendance(
+    String studentId,
+    String className,
+    String section,
+  ) async {
+    try {
+      // Method 1: Try collection group query first
+      final recordsSnapshot =
+          await FirebaseFirestore.instance
+              .collectionGroup('records')
+              .where('studentId', isEqualTo: studentId)
+              .get();
+
+      List<Map<String, dynamic>> records = [];
+
+      for (var doc in recordsSnapshot.docs) {
+        final data = doc.data();
+        final date = data['date'];
+        final status = data['status'] ?? 'Absent';
+
+        if (date != null && date.toString().isNotEmpty) {
+          records.add({'date': date, 'status': status});
+        }
+      }
+
+      // Sort by date (newest first)
+      records.sort((a, b) => b['date'].compareTo(a['date']));
+
+      debugPrint(
+        'Found ${records.length} attendance records for student $studentId',
+      );
+      return records;
+    } catch (e) {
+      debugPrint('Collection group query failed: $e');
+
+      // Method 2: Fallback to manual fetch
+      return await _getRecentAttendanceFallback(studentId, className, section);
+    }
+  }
+
+  // Fallback method
+  Future<List<Map<String, dynamic>>> _getRecentAttendanceFallback(
+    String studentId,
+    String className,
+    String section,
+  ) async {
+    try {
+      final attendanceDocs =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(_schoolId)
+              .collection('attendance')
+              .get();
+
+      List<Map<String, dynamic>> records = [];
+
+      for (var dateDoc in attendanceDocs.docs) {
+        final date = dateDoc.id;
+
+        // Try to get record by studentId
+        final recordDoc =
+            await dateDoc.reference.collection('records').doc(studentId).get();
+
+        if (recordDoc.exists) {
+          final data = recordDoc.data()!;
+          records.add({'date': date, 'status': data['status'] ?? 'Absent'});
+        } else {
+          // Also try to find by className and section if studentId not found
+          final querySnapshot =
+              await dateDoc.reference
+                  .collection('records')
+                  .where('className', isEqualTo: className)
+                  .where('section', isEqualTo: section)
+                  .where('studentId', isEqualTo: studentId)
+                  .get();
+
+          for (var doc in querySnapshot.docs) {
+            records.add({
+              'date': date,
+              'status': doc.data()['status'] ?? 'Absent',
+            });
+          }
+        }
+      }
+
+      records.sort((a, b) => b['date'].compareTo(a['date']));
+      debugPrint('Fallback: Found ${records.length} attendance records');
+      return records;
+    } catch (e) {
+      debugPrint('Error in fallback attendance fetch: $e');
+      return [];
+    }
+  }
+
+  Widget _buildAttendanceSummary(
+    String studentId,
+    String className,
+    String section,
+  ) {
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _getRecentAttendance(studentId),
+      future: _getRecentAttendance(studentId, className, section),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Card(
@@ -1388,16 +1510,48 @@ class _ParentHomePageState extends State<ParentHomePage>
           );
         }
 
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        if (snapshot.hasError) {
           return Card(
-            child: const Padding(
-              padding: EdgeInsets.all(32),
-              child: Center(child: Text('No attendance records found')),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 8),
+                  Text('Error loading attendance: ${snapshot.error}'),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () => setState(() {}),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
             ),
           );
         }
 
-        final records = snapshot.data!;
+        final records = snapshot.data ?? [];
+
+        if (records.isEmpty) {
+          return Card(
+            child: const Padding(
+              padding: EdgeInsets.all(32),
+              child: Column(
+                children: [
+                  Icon(Icons.history_edu, size: 48, color: Colors.grey),
+                  SizedBox(height: 12),
+                  Text('No attendance records found'),
+                  SizedBox(height: 4),
+                  Text(
+                    'Attendance will appear once marked by teacher',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         int present = records.where((r) => r['status'] == 'Present').length;
         int absent = records.where((r) => r['status'] == 'Absent').length;
         int late = records.where((r) => r['status'] == 'Late').length;
@@ -1452,53 +1606,81 @@ class _ParentHomePageState extends State<ParentHomePage>
                 ),
                 const SizedBox(height: 16),
                 ...records.take(5).map((record) {
-                  final date = DateTime.parse(record['date']);
-                  final status = record['status'];
-                  Color statusColor =
-                      status == 'Present'
-                          ? Colors.green
-                          : (status == 'Late' ? Colors.orange : Colors.red);
-
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: statusColor.withOpacity(0.1),
-                      child: Icon(
+                  try {
+                    final date = DateTime.parse(record['date']);
+                    final status = record['status'];
+                    Color statusColor =
                         status == 'Present'
-                            ? Icons.check_circle
-                            : (status == 'Late'
-                                ? Icons.access_time
-                                : Icons.cancel),
-                        color: statusColor,
-                        size: 20,
-                      ),
-                    ),
-                    title: Text(
-                      DateFormat('EEEE, dd MMM yyyy').format(date),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                    ),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        status,
-                        style: TextStyle(
+                            ? Colors.green
+                            : (status == 'Late' ? Colors.orange : Colors.red);
+
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: statusColor.withOpacity(0.1),
+                        child: Icon(
+                          status == 'Present'
+                              ? Icons.check_circle
+                              : (status == 'Late'
+                                  ? Icons.access_time
+                                  : Icons.cancel),
                           color: statusColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                          size: 20,
                         ),
                       ),
-                    ),
-                  );
+                      title: Text(
+                        DateFormat('EEEE, dd MMM yyyy').format(date),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          status,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    return const SizedBox.shrink();
+                  }
                 }),
+                if (records.length > 5)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: TextButton(
+                      onPressed: () {
+                        if (_selectedStudentId != null &&
+                            _selectedStudentName != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => ParentAttendanceViewPage(
+                                    studentId: _selectedStudentId!,
+                                    studentName: _selectedStudentName!,
+                                    className: className,
+                                    section: section,
+                                  ),
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text('View All →'),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1507,31 +1689,27 @@ class _ParentHomePageState extends State<ParentHomePage>
     );
   }
 
-  Future<List<Map<String, dynamic>>> _getRecentAttendance(
-    String studentId,
-  ) async {
-    final attendanceDates =
+  Future<Map<String, double>> _getFeeData(String studentId) async {
+    final fees =
         await FirebaseFirestore.instance
             .collection('schools')
             .doc(_schoolId)
-            .collection('attendance')
+            .collection('student_fees')
+            .where('studentId', isEqualTo: studentId)
             .get();
 
-    List<Map<String, dynamic>> records = [];
-    for (var dateDoc in attendanceDates.docs) {
-      final record =
-          await dateDoc.reference.collection('records').doc(studentId).get();
-
-      if (record.exists) {
-        records.add({
-          'date': dateDoc.id,
-          'status': record.data()?['status'] ?? 'Absent',
-        });
+    double paid = 0;
+    double due = 0;
+    for (var doc in fees.docs) {
+      final data = doc.data();
+      final amount = (data['amount'] ?? 0).toDouble();
+      if (data['status'] == 'paid') {
+        paid += amount;
+      } else {
+        due += amount;
       }
     }
-
-    records.sort((a, b) => b['date'].compareTo(a['date']));
-    return records;
+    return {'paid': paid, 'due': due};
   }
 
   Widget _buildFeeDetails(String studentId) {
