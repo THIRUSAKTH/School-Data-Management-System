@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:schoolprojectjan/app_config.dart';
+import '../../services/attendance_service.dart';
 
 class ParentAttendanceViewPage extends StatefulWidget {
   final String studentId;
@@ -43,13 +43,12 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     super.dispose();
   }
 
-  // OPTIMIZED: Fetch all records in a single query using collection group
   Future<void> _fetchAttendance() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
-      // Use collection group query to get all records for this student
+      // First try collection group query
       final recordsSnapshot =
           await FirebaseFirestore.instance
               .collectionGroup('records')
@@ -70,7 +69,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
             };
           }).toList();
 
-      // Sort by date (newest first)
       records.sort((a, b) => b['date'].compareTo(a['date']));
 
       if (mounted) {
@@ -80,38 +78,71 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
         });
       }
     } catch (e) {
-      debugPrint('Error fetching attendance: $e');
-
-      // Fallback method if collection group index is not created yet
-      await _fetchAttendanceFallback();
+      debugPrint('Collection group error: $e');
+      await _fetchAttendanceDirect();
     }
   }
 
-  // FALLBACK: If collection group index is missing, use this method
-  Future<void> _fetchAttendanceFallback() async {
+  // Direct fetch from attendance collection (fallback)
+  Future<void> _fetchAttendanceDirect() async {
     try {
-      // Get all attendance date documents
+      final attendanceDocs =
+          await FirebaseFirestore.instance.collectionGroup('records').get();
+
+      final records = <Map<String, dynamic>>[];
+
+      for (var doc in attendanceDocs.docs) {
+        final data = doc.data();
+        if (data['studentId'] == widget.studentId) {
+          records.add({
+            'date': data['date'] ?? '',
+            'status': data['status'] ?? 'Absent',
+            'remark': data['remark'] ?? '',
+            'checkInTime': data['checkInTime'] ?? '',
+            'checkOutTime': data['checkOutTime'] ?? '',
+            'className': data['className'] ?? widget.className,
+            'section': data['section'] ?? widget.section,
+          });
+        }
+      }
+
+      records.sort((a, b) => b['date'].compareTo(a['date']));
+
+      if (mounted) {
+        setState(() {
+          _attendanceRecords = records;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Direct fetch error: $e');
+      await _fetchAttendanceManual();
+    }
+  }
+
+  // Manual fetch (last resort)
+  Future<void> _fetchAttendanceManual() async {
+    try {
       final attendanceDocs =
           await FirebaseFirestore.instance
               .collection('schools')
-              .doc(AppConfig.schoolId)
+              .doc('YOUR_SCHOOL_ID') // Replace with your school ID
               .collection('attendance')
               .get();
 
-      List<Map<String, dynamic>> records = [];
+      final records = <Map<String, dynamic>>[];
 
-      // Fetch records in parallel for better performance
-      final futures = attendanceDocs.docs.map((dateDoc) async {
+      for (var dateDoc in attendanceDocs.docs) {
         try {
-          final recordSnapshot =
+          final record =
               await dateDoc.reference
                   .collection('records')
                   .doc(widget.studentId)
                   .get();
 
-          if (recordSnapshot.exists) {
-            final data = recordSnapshot.data()!;
-            return {
+          if (record.exists) {
+            final data = record.data()!;
+            records.add({
               'date': dateDoc.id,
               'status': data['status'] ?? 'Absent',
               'remark': data['remark'] ?? '',
@@ -119,19 +150,10 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
               'checkOutTime': data['checkOutTime'] ?? '',
               'className': data['className'] ?? widget.className,
               'section': data['section'] ?? widget.section,
-            };
+            });
           }
         } catch (e) {
-          debugPrint('Error fetching record for ${dateDoc.id}: $e');
-        }
-        return null;
-      });
-
-      final results = await Future.wait(futures);
-
-      for (var result in results) {
-        if (result != null) {
-          records.add(result);
+          // Skip errors for individual dates
         }
       }
 
@@ -144,14 +166,11 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
         });
       }
     } catch (e) {
-      debugPrint('Error in fallback attendance fetch: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Error loading attendance: ${e.toString().substring(0, 100)}',
-            ),
+            content: Text('Error loading attendance: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -212,10 +231,7 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            'Attendance has not been marked for this student yet.',
-            style: TextStyle(color: Colors.grey.shade500),
-          ),
+          Text('Attendance has not been marked for this student yet.'),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: _fetchAttendance,
@@ -293,13 +309,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
           colors: [Colors.orange, Colors.deepOrange],
         ),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.orange.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         children: [
@@ -393,13 +402,10 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
                       ),
                     );
                   }).toList(),
-              onChanged: (value) {
-                if (value != null) setState(() => _selectedMonth = value);
-              },
+              onChanged: (value) => setState(() => _selectedMonth = value!),
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
-                isDense: true,
               ),
             ),
           ),
@@ -448,7 +454,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
               percentage >= 75 ? Colors.green : Colors.orange,
             ),
             minHeight: 6,
-            borderRadius: BorderRadius.circular(3),
           ),
           const SizedBox(height: 6),
           Row(
@@ -477,9 +482,7 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: _cardDecoration(),
-        child: const Center(
-          child: Text('No data to display', style: TextStyle(fontSize: 12)),
-        ),
+        child: const Center(child: Text('No data to display')),
       );
     }
 
@@ -536,15 +539,7 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
                 maxY: 100,
                 titlesData: FlTitlesData(
                   leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 25,
-                      getTitlesWidget:
-                          (value, meta) => Text(
-                            '${value.toInt()}%',
-                            style: const TextStyle(fontSize: 8),
-                          ),
-                    ),
+                    sideTitles: SideTitles(showTitles: true, interval: 25),
                   ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
@@ -716,7 +711,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -817,7 +811,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 70,

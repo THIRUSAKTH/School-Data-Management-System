@@ -1,282 +1,166 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../app_config.dart';
 
 class AttendanceService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Mark attendance for a class
-  static Future<Map<String, dynamic>> markAttendance({
-    required String classId,
+  // Save attendance for a class
+  static Future<bool> saveAttendance({
+    required String schoolId,
+    required String className,
     required String section,
-    required String date,
-    required List<Map<String, dynamic>> studentsAttendance,
-    String? notes,
+    required DateTime date,
+    required Map<String, Map<String, dynamic>> attendanceData,
   }) async {
     try {
-      final attendanceRef = _firestore
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('attendance')
-          .doc(date)
-          .collection('records');
-
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
       final batch = _firestore.batch();
 
-      for (var student in studentsAttendance) {
-        final studentId = student['studentId'];
-        final status = student['status']; // 'present', 'absent', 'late'
-        final checkInTime = student['checkInTime'];
-        final checkOutTime = student['checkOutTime'];
+      for (var entry in attendanceData.entries) {
+        final studentId = entry.key;
+        final data = entry.value;
 
-        final docRef = attendanceRef.doc(studentId);
-        batch.set(docRef, {
-          'studentId': studentId,
-          'classId': classId,
-          'section': section,
-          'date': date,
-          'status': status,
-          'checkInTime': checkInTime ?? FieldValue.serverTimestamp(),
-          'checkOutTime': checkOutTime,
-          'markedBy': FirebaseAuth.instance.currentUser?.uid,
-          'markedAt': FieldValue.serverTimestamp(),
-          'notes': notes ?? '',
-          'isHoliday': false,
-        });
-      }
-
-      await batch.commit();
-      return {'success': true, 'message': 'Attendance marked successfully'};
-    } catch (e) {
-      return {'success': false, 'message': e.toString()};
-    }
-  }
-
-  // Get attendance for a specific date and class
-  static Future<List<Map<String, dynamic>>> getAttendanceByDate({
-    required String classId,
-    required String section,
-    required String date,
-  }) async {
-    try {
-      final snapshot = await _firestore
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('attendance')
-          .doc(date)
-          .collection('records')
-          .where('classId', isEqualTo: classId)
-          .where('section', isEqualTo: section)
-          .get();
-
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          ...data,
-        };
-      }).toList();
-    } catch (e) {
-      print('Error getting attendance: $e');
-      return [];
-    }
-  }
-
-  // Get student attendance for a month
-  static Future<Map<String, dynamic>> getStudentMonthlyAttendance({
-    required String studentId,
-    required int year,
-    required int month,
-  }) async {
-    try {
-      final startDate = DateTime(year, month, 1);
-      final endDate = DateTime(year, month + 1, 0);
-
-      final attendanceData = <String, Map<String, dynamic>>{};
-      int present = 0, absent = 0, late = 0, total = 0;
-
-      for (var day = startDate; day.isBefore(endDate); day = day.add(const Duration(days: 1))) {
-        final dateStr = DateFormat('yyyy-MM-dd').format(day);
-
-        // Skip weekends if configured
-        if (day.weekday == DateTime.sunday) {
-          continue;
-        }
-
-        final doc = await _firestore
+        final docRef = _firestore
             .collection('schools')
-            .doc(AppConfig.schoolId)
+            .doc(schoolId)
             .collection('attendance')
             .doc(dateStr)
             .collection('records')
-            .doc(studentId)
-            .get();
+            .doc(studentId);
 
-        total++;
+        final recordData = {
+          'studentId': studentId,
+          'studentName': data['studentName'] ?? '',
+          'rollNo': data['rollNo'] ?? '',
+          'className': className,
+          'section': section,
+          'date': dateStr,
+          'status': data['status'] ?? 'Absent',
+          'remark': data['remark'] ?? '',
+          'checkInTime': data['checkInTime'] ?? '',
+          'checkOutTime': data['checkOutTime'] ?? '',
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedBy': data['updatedBy'] ?? '',
+        };
 
-        if (doc.exists) {
-          final data = doc.data()!;
-          final status = data['status'] ?? 'absent';
-
-          attendanceData[dateStr] = {
-            'status': status,
-            'checkInTime': data['checkInTime'],
-            'checkOutTime': data['checkOutTime'],
-          };
-
-          switch (status) {
-            case 'present':
-              present++;
-              break;
-            case 'late':
-              late++;
-              break;
-            case 'absent':
-              absent++;
-              break;
-          }
-        } else {
-          attendanceData[dateStr] = {'status': 'absent', 'checkInTime': null, 'checkOutTime': null};
-          absent++;
-        }
+        batch.set(docRef, recordData);
       }
 
-      return {
-        'attendance': attendanceData,
-        'summary': {
-          'present': present,
-          'absent': absent,
-          'late': late,
-          'total': total,
-          'percentage': total > 0 ? (present / total * 100).toStringAsFixed(1) : '0',
-        }
-      };
-    } catch (e) {
-      print('Error getting monthly attendance: $e');
-      return {
-        'attendance': {},
-        'summary': {'present': 0, 'absent': 0, 'late': 0, 'total': 0, 'percentage': '0'},
-      };
-    }
-  }
-
-  // Update single student attendance
-  static Future<bool> updateStudentAttendance({
-    required String studentId,
-    required String date,
-    required String status,
-    String? checkInTime,
-    String? checkOutTime,
-  }) async {
-    try {
-      await _firestore
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('attendance')
-          .doc(date)
-          .collection('records')
-          .doc(studentId)
-          .update({
-        'status': status,
-        if (checkInTime != null) 'checkInTime': checkInTime,
-        if (checkOutTime != null) 'checkOutTime': checkOutTime,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await batch.commit();
       return true;
     } catch (e) {
-      print('Error updating attendance: $e');
+      debugPrint('Error saving attendance: $e');
       return false;
     }
   }
 
-  // Get attendance statistics for a class
-  static Future<Map<String, dynamic>> getClassAttendanceStats({
-    required String classId,
+  // Get attendance for a student (using collection group)
+  static Future<List<Map<String, dynamic>>> getStudentAttendance(
+    String studentId,
+  ) async {
+    try {
+      final snapshot =
+          await _firestore
+              .collectionGroup('records')
+              .where('studentId', isEqualTo: studentId)
+              .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'date': data['date'] ?? '',
+          'status': data['status'] ?? 'Absent',
+          'remark': data['remark'] ?? '',
+          'checkInTime': data['checkInTime'] ?? '',
+          'checkOutTime': data['checkOutTime'] ?? '',
+          'className': data['className'] ?? '',
+          'section': data['section'] ?? '',
+          'studentName': data['studentName'] ?? '',
+          'rollNo': data['rollNo'] ?? '',
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('Error getting student attendance: $e');
+      return [];
+    }
+  }
+
+  // Get attendance for a specific date and class
+  static Future<List<Map<String, dynamic>>> getClassAttendance({
+    required String schoolId,
+    required String className,
     required String section,
-    required int year,
-    required int month,
+    required DateTime date,
   }) async {
     try {
-      final startDate = DateTime(year, month, 1);
-      final endDate = DateTime(year, month + 1, 0);
+      final dateStr = DateFormat('yyyy-MM-dd').format(date);
+      final snapshot =
+          await _firestore
+              .collection('schools')
+              .doc(schoolId)
+              .collection('attendance')
+              .doc(dateStr)
+              .collection('records')
+              .where('className', isEqualTo: className)
+              .where('section', isEqualTo: section)
+              .get();
 
-      final students = await _getClassStudents(classId, section);
-      final stats = <String, Map<String, dynamic>>{};
-
-      for (var student in students) {
-        final studentId = student['id'];
-        final monthlyData = await getStudentMonthlyAttendance(
-          studentId: studentId,
-          year: year,
-          month: month,
-        );
-
-        stats[studentId] = {
-          'name': student['name'],
-          'rollNo': student['rollNo'],
-          ...monthlyData['summary'],
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'studentId': doc.id,
+          'studentName': data['studentName'] ?? '',
+          'rollNo': data['rollNo'] ?? '',
+          'status': data['status'] ?? 'Absent',
+          'remark': data['remark'] ?? '',
+          'checkInTime': data['checkInTime'] ?? '',
+          'checkOutTime': data['checkOutTime'] ?? '',
         };
-      }
-
-      return {
-        'students': stats,
-        'classAverage': _calculateClassAverage(stats),
-      };
+      }).toList();
     } catch (e) {
-      print('Error getting class stats: $e');
-      return {'students': {}, 'classAverage': '0'};
+      debugPrint('Error getting class attendance: $e');
+      return [];
     }
   }
 
-  // Helper: Get class students
-  static Future<List<Map<String, dynamic>>> _getClassStudents(String classId, String section) async {
-    final snapshot = await _firestore
-        .collection('schools')
-        .doc(AppConfig.schoolId)
-        .collection('students')
-        .where('class', isEqualTo: classId)
-        .where('section', isEqualTo: section)
-        .get();
+  // Get attendance statistics
+  static Map<String, dynamic> getAttendanceStats(
+    List<Map<String, dynamic>> records,
+  ) {
+    int present = records.where((r) => r['status'] == 'Present').length;
+    int absent = records.where((r) => r['status'] == 'Absent').length;
+    int late = records.where((r) => r['status'] == 'Late').length;
+    int total = present + absent + late;
+    double percentage = total > 0 ? (present / total) * 100 : 0;
 
-    return snapshot.docs.map((doc) {
-      final data = doc.data();
-      return {
-        'id': doc.id,
-        'name': data['name'] ?? 'Unknown',
-        'rollNo': data['rollNo'] ?? '',
-      };
-    }).toList();
+    return {
+      'present': present,
+      'absent': absent,
+      'late': late,
+      'total': total,
+      'percentage': percentage.toStringAsFixed(1),
+    };
   }
 
-  static String _calculateClassAverage(Map<String, dynamic> stats) {
-    double total = 0;
-    int count = 0;
+  // Group attendance by month
+  static Map<String, List<Map<String, dynamic>>> groupByMonth(
+    List<Map<String, dynamic>> records,
+  ) {
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
 
-    for (var student in stats.values) {
-      final percentage = double.tryParse(student['percentage'] ?? '0');
-      if (percentage != null) {
-        total += percentage;
-        count++;
+    for (var record in records) {
+      final date = record['date'];
+      if (date.toString().length >= 7) {
+        final month = date.toString().substring(0, 7);
+        if (!grouped.containsKey(month)) {
+          grouped[month] = [];
+        }
+        grouped[month]!.add(record);
       }
     }
 
-    return count > 0 ? (total / count).toStringAsFixed(1) : '0';
-  }
-
-  // Export attendance to CSV
-  static String exportAttendanceToCSV(List<Map<String, dynamic>> attendanceData) {
-    String csv = "Student Name,Roll No,Date,Status,Check In Time,Check Out Time\n";
-
-    for (var record in attendanceData) {
-      csv += "${record['studentName']},"
-          "${record['rollNo']},"
-          "${record['date']},"
-          "${record['status']},"
-          "${record['checkInTime'] ?? '-'},"
-          "${record['checkOutTime'] ?? '-'}\n";
-    }
-
-    return csv;
+    return grouped;
   }
 }

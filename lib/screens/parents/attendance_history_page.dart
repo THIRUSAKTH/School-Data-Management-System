@@ -30,11 +30,36 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
   bool _isLoading = true;
   bool _isExporting = false;
 
+  Future<void> _debugCheckAttendance() async {
+    // Check if attendance collection exists
+    final attendanceCheck = await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(AppConfig.schoolId)
+        .collection('attendance')
+        .limit(1)
+        .get();
+
+    print('Attendance collection exists: ${attendanceCheck.docs.isNotEmpty}');
+
+    // Check if student has any records
+    final recordCheck = await FirebaseFirestore.instance
+        .collectionGroup('records')
+        .where('studentId', isEqualTo: widget.studentId)
+        .limit(1)
+        .get();
+
+    print('Student has records: ${recordCheck.docs.isNotEmpty}');
+    if (recordCheck.docs.isNotEmpty) {
+      print('Sample record: ${recordCheck.docs.first.data()}');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadAttendanceData();
+    _debugCheckAttendance(); // Add this line
   }
 
   @override
@@ -48,12 +73,86 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
     setState(() => _isLoading = true);
 
     try {
-      final attendanceSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('attendance')
-              .get();
+      // Use collection group query for better performance
+      final recordsSnapshot = await FirebaseFirestore.instance
+          .collectionGroup('records')
+          .where('studentId', isEqualTo: widget.studentId)
+          .get();
+
+      Map<String, List<Map<String, dynamic>>> monthlyRecords = {};
+      Map<String, int> monthlyPresent = {};
+      Map<String, int> monthlyAbsent = {};
+      Map<String, int> monthlyLate = {};
+      List<Map<String, dynamic>> allRecords = [];
+
+      for (var doc in recordsSnapshot.docs) {
+        final data = doc.data();
+        final date = data['date'] ?? '';
+
+        if (date.isEmpty || date.length < 7) continue;
+
+        final status = data['status'] ?? 'Absent';
+        final month = date.substring(0, 7);
+
+        if (!monthlyRecords.containsKey(month)) {
+          monthlyRecords[month] = [];
+          monthlyPresent[month] = 0;
+          monthlyAbsent[month] = 0;
+          monthlyLate[month] = 0;
+        }
+
+        final recordData = {
+          'date': date,
+          'status': status,
+          'checkInTime': data['checkInTime'] ?? '',
+          'checkOutTime': data['checkOutTime'] ?? '',
+          'remark': data['remark'] ?? '',
+          'className': data['className'] ?? widget.className ?? '',
+          'section': data['section'] ?? widget.section ?? '',
+        };
+
+        monthlyRecords[month]!.add(recordData);
+        allRecords.add(recordData);
+
+        if (status == 'Present') {
+          monthlyPresent[month] = (monthlyPresent[month] ?? 0) + 1;
+        } else if (status == 'Absent') {
+          monthlyAbsent[month] = (monthlyAbsent[month] ?? 0) + 1;
+        } else if (status == 'Late') {
+          monthlyLate[month] = (monthlyLate[month] ?? 0) + 1;
+        }
+      }
+
+      // Sort records by date (newest first)
+      allRecords.sort((a, b) => b['date'].compareTo(a['date']));
+
+      if (mounted) {
+        setState(() {
+          _attendanceData = {
+            'monthlyRecords': monthlyRecords,
+            'monthlyPresent': monthlyPresent,
+            'monthlyAbsent': monthlyAbsent,
+            'monthlyLate': monthlyLate,
+            'allRecords': allRecords,
+          };
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading attendance: $e');
+      // Use fallback method
+      await _loadAttendanceDataFallback();
+    }
+  }
+
+// Fallback method (your original implementation)
+  Future<void> _loadAttendanceDataFallback() async {
+    try {
+      final attendanceSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('attendance')
+          .get();
 
       Map<String, List<Map<String, dynamic>>> monthlyRecords = {};
       Map<String, int> monthlyPresent = {};
@@ -63,16 +162,12 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
 
       for (var dateDoc in attendanceSnapshot.docs) {
         final date = dateDoc.id;
-
-        // Skip if date is invalid format
         if (date.length < 7) continue;
 
-        // Get the student's record for this date
-        final recordDoc =
-            await dateDoc.reference
-                .collection('records')
-                .doc(widget.studentId)
-                .get();
+        final recordDoc = await dateDoc.reference
+            .collection('records')
+            .doc(widget.studentId)
+            .get();
 
         if (recordDoc.exists) {
           final studentRecord = recordDoc.data()!;
@@ -109,7 +204,6 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
         }
       }
 
-      // Sort records by date (newest first)
       allRecords.sort((a, b) => b['date'].compareTo(a['date']));
 
       if (mounted) {
@@ -125,7 +219,6 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
         });
       }
     } catch (e) {
-      debugPrint('Error loading attendance: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -137,7 +230,6 @@ class _AttendanceHistoryPageState extends State<AttendanceHistoryPage>
       }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
