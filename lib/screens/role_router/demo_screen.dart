@@ -1,9 +1,11 @@
 // lib/screens/role_router/demo_screen.dart
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:schoolprojectjan/screens/get_started.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'role_select_screen.dart';
-
 
 class DemoScreen extends StatefulWidget {
   const DemoScreen({super.key});
@@ -21,7 +23,11 @@ class _DemoScreenState extends State<DemoScreen> {
   final _messageController = TextEditingController();
 
   bool _isSubmitting = false;
-  bool _hasSubmitted = false;  // Changed from _skipDemo
+  bool _hasSubmitted = false;
+
+  // YOUR TELEGRAM CREDENTIALS (Updated)
+  static const String _botToken = '8586271534:AAEj5Ge0S1VEeq-uKOJx-5_MtyzTznfucUs';
+  static const String _chatId = '5230749142';  // Your Chat ID
 
   @override
   void initState() {
@@ -34,8 +40,6 @@ class _DemoScreenState extends State<DemoScreen> {
     setState(() {
       _hasSubmitted = prefs.getBool('hasSubmittedLead') ?? false;
     });
-
-    // REMOVED auto-navigation - now user must manually click to continue
   }
 
   @override
@@ -48,43 +52,100 @@ class _DemoScreenState extends State<DemoScreen> {
     super.dispose();
   }
 
+  Future<void> _sendTelegramNotification({
+    required String name,
+    required String schoolName,
+    required String email,
+    required String phone,
+    required String message,
+  }) async {
+    try {
+      final String text = """
+🎉 *NEW SCHOOL DEMO REQUEST!* 🎉
+
+🏫 *School:* $schoolName
+👤 *Contact:* $name
+📧 *Email:* $email
+📞 *Phone:* $phone
+💬 *Message:* ${message.isEmpty ? 'No message' : message}
+📅 *Time:* ${DateTime.now().toString()}
+
+*Action Required:* Contact this school immediately!
+
+#Lead #DemoRequest #SchoolManagement
+      """;
+
+      final url = "https://api.telegram.org/bot$_botToken/sendMessage";
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'chat_id': _chatId,
+          'text': text,
+          'parse_mode': 'Markdown',
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        print("✅ Telegram notification sent successfully!");
+      } else {
+        print("❌ Telegram error: ${response.body}");
+      }
+    } catch (e) {
+      print("❌ Telegram error: $e");
+    }
+  }
+
   Future<void> _submitLead() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSubmitting = true);
 
     try {
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 1));
+      final String name = _nameController.text.trim();
+      final String schoolName = _schoolNameController.text.trim();
+      final String email = _emailController.text.trim().toLowerCase();
+      final String phone = _phoneController.text.trim();
+      final String message = _messageController.text.trim();
 
+      // 1. Save to Firestore
+      await FirebaseFirestore.instance.collection('leads').add({
+        'name': name,
+        'schoolName': schoolName,
+        'email': email,
+        'phone': phone,
+        'message': message,
+        'status': 'new',
+        'createdAt': FieldValue.serverTimestamp(),
+        'source': 'Demo App',
+        'isContacted': false,
+      });
+
+      print("✅ Lead saved to Firestore");
+
+      // 2. Send Telegram Notification
+      await _sendTelegramNotification(
+        name: name,
+        schoolName: schoolName,
+        email: email,
+        phone: phone,
+        message: message,
+      );
+
+      // 3. Save to SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('hasSubmittedLead', true);
       await prefs.setBool('skipDemo', true);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Thank you! Our team will contact you soon."),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
-        );
-
-        // Show success message and then navigate
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const RoleSelectScreen()),
-            );
-          }
-        });
+        _showSuccessDialog();
       }
     } catch (e) {
+      print("❌ Error: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Error: $e"),
+            content: Text("Error: ${e.toString()}"),
             backgroundColor: Colors.red,
           ),
         );
@@ -92,6 +153,75 @@ class _DemoScreenState extends State<DemoScreen> {
     } finally {
       setState(() => _isSubmitting = false);
     }
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 30),
+            SizedBox(width: 10),
+            Text("Thank You!"),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Our team will contact you soon.",
+              style: TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "📧 What happens next?",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    "1. You'll receive a confirmation email\n"
+                        "2. Our sales team will call you within 24 hours\n"
+                        "3. We'll schedule a personalized demo\n"
+                        "4. Get your customized school app",
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => const RoleSelectScreen()),
+              );
+            },
+            child: const Text("Continue to Demo"),
+          ),
+        ],
+      ),
+    );
   }
 
   void _skipToApp() async {
@@ -106,7 +236,6 @@ class _DemoScreenState extends State<DemoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Don't auto-navigate - always show the demo screen
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -134,7 +263,6 @@ class _DemoScreenState extends State<DemoScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Show success message if already submitted
             if (_hasSubmitted)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -158,7 +286,6 @@ class _DemoScreenState extends State<DemoScreen> {
                 ),
               ),
 
-            // Header
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -193,7 +320,6 @@ class _DemoScreenState extends State<DemoScreen> {
 
             const SizedBox(height: 20),
 
-            // Form Card
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -217,14 +343,12 @@ class _DemoScreenState extends State<DemoScreen> {
                       icon: Icons.person,
                     ),
                     const SizedBox(height: 15),
-
                     _buildTextField(
                       controller: _schoolNameController,
                       label: "School Name *",
                       icon: Icons.school,
                     ),
                     const SizedBox(height: 15),
-
                     _buildTextField(
                       controller: _emailController,
                       label: "Email Address *",
@@ -232,7 +356,6 @@ class _DemoScreenState extends State<DemoScreen> {
                       keyboardType: TextInputType.emailAddress,
                     ),
                     const SizedBox(height: 15),
-
                     _buildTextField(
                       controller: _phoneController,
                       label: "Phone Number *",
@@ -240,16 +363,13 @@ class _DemoScreenState extends State<DemoScreen> {
                       keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 15),
-
                     _buildTextField(
                       controller: _messageController,
                       label: "Message (Optional)",
                       icon: Icons.message,
                       maxLines: 3,
                     ),
-
                     const SizedBox(height: 25),
-
                     SizedBox(
                       width: double.infinity,
                       height: 50,
@@ -279,9 +399,7 @@ class _DemoScreenState extends State<DemoScreen> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 12),
-
                     TextButton(
                       onPressed: _skipToApp,
                       child: const Text(
@@ -296,7 +414,6 @@ class _DemoScreenState extends State<DemoScreen> {
 
             const SizedBox(height: 20),
 
-            // Info Section
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
