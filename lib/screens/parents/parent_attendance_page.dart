@@ -34,17 +34,21 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
     setState(() => _isLoading = true);
 
     try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(_schoolId)
-          .collection('students')
-          .where('parentUid', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(_schoolId)
+              .collection('students')
+              .where(
+                'parentUid',
+                isEqualTo: FirebaseAuth.instance.currentUser!.uid,
+              )
+              .get();
 
       if (snapshot.docs.isNotEmpty) {
         if (widget.studentId != null) {
           final studentDoc = snapshot.docs.firstWhere(
-                (doc) => doc.id == widget.studentId,
+            (doc) => doc.id == widget.studentId,
             orElse: () => snapshot.docs.first,
           );
           _selectedStudentId = studentDoc.id;
@@ -60,7 +64,10 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
       debugPrint('Error loading students: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error loading students: $e"), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text("Error loading students: $e"),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -74,43 +81,100 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
     setState(() => _isLoadingChart = true);
 
     try {
-      final startDate = '${_selectedMonth}-01';
-      final endDate = _getEndDateOfMonth(_selectedMonth);
-
-      final snapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(_schoolId)
-          .collection('attendance')
-          .doc(startDate)  // You need to query each date document properly
-          .collection('records')
-          .where('studentId', isEqualTo: _selectedStudentId)
-          .get();
-
-      // Alternative: Get all attendance documents and filter
-      // This is more reliable
-      final allAttendance = await FirebaseFirestore.instance
-          .collectionGroup('records')
-          .where('studentId', isEqualTo: _selectedStudentId)
-          .get();
-
       final Map<String, dynamic> data = {};
-      for (var doc in allAttendance.docs) {
-        final docData = doc.data();
-        final date = docData['date'];
-        if (date != null && date.startsWith(_selectedMonth)) {
-          data[date] = {
-            'status': docData['status'],
-            'checkInTime': docData['checkInTime'],
-            'checkOutTime': docData['checkOutTime'],
-            'remark': docData['remark'],
-          };
+
+      // Method 1: Try collection group query (requires index)
+      try {
+        final allAttendance =
+            await FirebaseFirestore.instance
+                .collectionGroup('records')
+                .where('studentId', isEqualTo: _selectedStudentId)
+                .get();
+
+        for (var doc in allAttendance.docs) {
+          final docData = doc.data();
+          final date = docData['date'];
+          if (date != null && date.toString().startsWith(_selectedMonth)) {
+            data[date.toString()] = {
+              'status': docData['status'],
+              'checkInTime': docData['checkInTime'],
+              'checkOutTime': docData['checkOutTime'],
+              'remark': docData['remark'],
+            };
+          }
         }
+        setState(() => _attendanceData = data);
+      } catch (e) {
+        // Method 2: Fallback - Query by date range without index
+        debugPrint('Collection group query failed, using fallback: $e');
+        await _loadAttendanceFallback(data);
       }
-      setState(() => _attendanceData = data);
     } catch (e) {
       debugPrint('Error loading attendance: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Please create Firebase index for attendance"),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     } finally {
       setState(() => _isLoadingChart = false);
+    }
+  }
+
+  // Fallback method that doesn't require collection group index
+  Future<void> _loadAttendanceFallback(Map<String, dynamic> data) async {
+    try {
+      // Get all attendance documents for the selected month
+      final startDate = '$_selectedMonth-01';
+
+      // Query by date - this doesn't need collection group index
+      final monthStart = DateTime.parse(startDate);
+      final nextMonth = DateTime(monthStart.year, monthStart.month + 1);
+      final endDate = DateFormat(
+        'yyyy-MM-dd',
+      ).format(nextMonth.subtract(const Duration(days: 1)));
+
+      // Get all attendance dates in the month
+      final attendanceDates =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(_schoolId)
+              .collection('attendance')
+              .get();
+
+      for (var dateDoc in attendanceDates.docs) {
+        final date = dateDoc.id;
+        if (date.startsWith(_selectedMonth)) {
+          try {
+            final record =
+                await dateDoc.reference
+                    .collection('records')
+                    .doc(_selectedStudentId)
+                    .get();
+
+            if (record.exists) {
+              final recordData = record.data()!;
+              data[date] = {
+                'status': recordData['status'] ?? 'Absent',
+                'checkInTime': recordData['checkInTime'] ?? '',
+                'checkOutTime': recordData['checkOutTime'] ?? '',
+                'remark': recordData['remark'] ?? '',
+              };
+            }
+          } catch (e) {
+            debugPrint('Error fetching record for $date: $e');
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() => _attendanceData = data);
+      }
+    } catch (e) {
+      debugPrint('Fallback attendance load error: $e');
     }
   }
 
@@ -134,46 +198,45 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
               margin: const EdgeInsets.only(right: 16),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Text(
-                _studentName!,
-                style: const TextStyle(fontSize: 12),
-              ),
+              child: Text(_studentName!, style: const TextStyle(fontSize: 12)),
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _selectedStudentId == null
-          ? _buildNoStudentsWidget()
-          : Column(
-        children: [
-          _buildChildSelector(),
-          _buildMonthSelector(),
-          Expanded(
-            child: _isLoadingChart
-                ? const Center(child: CircularProgressIndicator())
-                : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _selectedStudentId == null
+              ? _buildNoStudentsWidget()
+              : Column(
                 children: [
-                  _buildAttendanceSummary(),
-                  const SizedBox(height: 20),
-                  if (_attendanceData.isNotEmpty) ...[
-                    _buildMonthlyChart(),
-                    const SizedBox(height: 20),
-                    _buildAttendanceCalendar(),
-                  ] else ...[
-                    _buildEmptyState(),
-                  ],
+                  _buildChildSelector(),
+                  _buildMonthSelector(),
+                  Expanded(
+                    child:
+                        _isLoadingChart
+                            ? const Center(child: CircularProgressIndicator())
+                            : SingleChildScrollView(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                children: [
+                                  _buildAttendanceSummary(),
+                                  const SizedBox(height: 20),
+                                  if (_attendanceData.isNotEmpty) ...[
+                                    _buildMonthlyChart(),
+                                    const SizedBox(height: 20),
+                                    _buildAttendanceCalendar(),
+                                  ] else ...[
+                                    _buildEmptyState(),
+                                  ],
+                                ],
+                              ),
+                            ),
+                  ),
                 ],
               ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -186,7 +249,11 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
           const SizedBox(height: 16),
           Text(
             'No Children Linked',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade600,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -218,12 +285,16 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
 
   Widget _buildChildSelector() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(_schoolId)
-          .collection('students')
-          .where('parentUid', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(_schoolId)
+              .collection('students')
+              .where(
+                'parentUid',
+                isEqualTo: FirebaseAuth.instance.currentUser!.uid,
+              )
+              .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox();
 
@@ -240,10 +311,7 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-              ),
+              BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
             ],
           ),
           child: DropdownButtonHideUnderline(
@@ -252,16 +320,17 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
               hint: const Text("Select Child"),
               isExpanded: true,
               icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
-              items: students.map<DropdownMenuItem<String>>((student) {
-                final data = student.data() as Map<String, dynamic>;
-                return DropdownMenuItem<String>(
-                  value: student.id,
-                  child: Text(
-                    data['name'] ?? 'Student',
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                );
-              }).toList(),
+              items:
+                  students.map<DropdownMenuItem<String>>((student) {
+                    final data = student.data() as Map<String, dynamic>;
+                    return DropdownMenuItem<String>(
+                      value: student.id,
+                      child: Text(
+                        data['name'] ?? 'Student',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    );
+                  }).toList(),
               onChanged: (value) async {
                 setState(() {
                   _selectedStudentId = value;
@@ -291,10 +360,7 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
         ],
       ),
       child: Row(
@@ -321,7 +387,8 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
               final date = DateTime.parse('$_selectedMonth-01');
               final nextMonth = DateTime(date.year, date.month + 1);
               if (nextMonth.isBefore(DateTime.now()) ||
-                  (nextMonth.year == currentDate.year && nextMonth.month == currentDate.month)) {
+                  (nextMonth.year == currentDate.year &&
+                      nextMonth.month == currentDate.month)) {
                 setState(() {
                   _selectedMonth = DateFormat('yyyy-MM').format(nextMonth);
                 });
@@ -335,9 +402,12 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
   }
 
   Widget _buildAttendanceSummary() {
-    int present = _attendanceData.values.where((v) => v['status'] == 'Present').length;
-    int absent = _attendanceData.values.where((v) => v['status'] == 'Absent').length;
-    int late = _attendanceData.values.where((v) => v['status'] == 'Late').length;
+    int present =
+        _attendanceData.values.where((v) => v['status'] == 'Present').length;
+    int absent =
+        _attendanceData.values.where((v) => v['status'] == 'Absent').length;
+    int late =
+        _attendanceData.values.where((v) => v['status'] == 'Late').length;
     int total = present + absent + late;
     double percentage = total > 0 ? (present / total) * 100 : 0;
 
@@ -349,10 +419,31 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
       mainAxisSpacing: 12,
       childAspectRatio: 1.1,
       children: [
-        _SummaryCard(title: "Present", value: present.toString(), color: Colors.green, icon: Icons.check_circle),
-        _SummaryCard(title: "Absent", value: absent.toString(), color: Colors.red, icon: Icons.cancel),
-        if (late > 0) _SummaryCard(title: "Late", value: late.toString(), color: Colors.orange, icon: Icons.access_time),
-        _SummaryCard(title: "Rate", value: "${percentage.toStringAsFixed(1)}%", color: Colors.blue, icon: Icons.trending_up),
+        _SummaryCard(
+          title: "Present",
+          value: present.toString(),
+          color: Colors.green,
+          icon: Icons.check_circle,
+        ),
+        _SummaryCard(
+          title: "Absent",
+          value: absent.toString(),
+          color: Colors.red,
+          icon: Icons.cancel,
+        ),
+        if (late > 0)
+          _SummaryCard(
+            title: "Late",
+            value: late.toString(),
+            color: Colors.orange,
+            icon: Icons.access_time,
+          ),
+        _SummaryCard(
+          title: "Rate",
+          value: "${percentage.toStringAsFixed(1)}%",
+          color: Colors.blue,
+          icon: Icons.trending_up,
+        ),
       ],
     );
   }
@@ -418,7 +509,8 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      getTitlesWidget: (value, meta) => Text('${value.toInt()}'),
+                      getTitlesWidget:
+                          (value, meta) => Text('${value.toInt()}'),
                     ),
                   ),
                   bottomTitles: AxisTitles(
@@ -426,12 +518,18 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         int index = value.toInt();
-                        return index < weeks.length ? Text('Week ${weeks[index]}') : const Text('');
+                        return index < weeks.length
+                            ? Text('Week ${weeks[index]}')
+                            : const Text('');
                       },
                     ),
                   ),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 gridData: const FlGridData(show: true),
                 borderData: FlBorderData(show: true),
@@ -469,7 +567,14 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
   Widget _legendItem(Color color, String label) {
     return Row(
       children: [
-        Container(width: 16, height: 16, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4))),
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
         const SizedBox(width: 6),
         Text(label, style: const TextStyle(fontSize: 12)),
       ],
@@ -493,15 +598,19 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day) {
-              return Expanded(
-                child: Text(
-                  day,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-              );
-            }).toList(),
+            children:
+                ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day) {
+                  return Expanded(
+                    child: Text(
+                      day,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  );
+                }).toList(),
           ),
           const SizedBox(height: 8),
           GridView.builder(
@@ -515,23 +624,35 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
             ),
             itemCount: 42,
             itemBuilder: (context, index) {
-              if (index < startingOffset || index >= startingOffset + daysInMonth) {
+              final day = index - startingOffset + 1;
+              if (day < 1 || day > daysInMonth) {
                 return Container();
               }
-              final day = index - startingOffset + 1;
-              final dateKey = '$_selectedMonth-${day.toString().padLeft(2, '0')}';
+              final dateKey =
+                  '$_selectedMonth-${day.toString().padLeft(2, '0')}';
               final record = _attendanceData[dateKey];
               final status = record != null ? record['status'] : null;
 
               Color bgColor;
+              IconData? icon;
+              Color iconColor;
+
               if (status == 'Present') {
                 bgColor = Colors.green.shade100;
+                icon = Icons.check_circle;
+                iconColor = Colors.green;
               } else if (status == 'Absent') {
                 bgColor = Colors.red.shade100;
+                icon = Icons.cancel;
+                iconColor = Colors.red;
               } else if (status == 'Late') {
                 bgColor = Colors.orange.shade100;
+                icon = Icons.access_time;
+                iconColor = Colors.orange;
               } else {
                 bgColor = Colors.grey.shade100;
+                icon = null;
+                iconColor = Colors.grey;
               }
 
               return Container(
@@ -540,21 +661,18 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey.shade300),
                 ),
+                alignment: Alignment.center,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       day.toString(),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    if (status != null)
-                      Icon(
-                        status == 'Present' ? Icons.check_circle :
-                        status == 'Late' ? Icons.access_time : Icons.cancel,
-                        size: 14,
-                        color: status == 'Present' ? Colors.green :
-                        status == 'Late' ? Colors.orange : Colors.red,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
                       ),
+                    ),
+                    if (icon != null) Icon(icon, size: 12, color: iconColor),
                   ],
                 ),
               );
@@ -577,7 +695,7 @@ class _ParentAttendancePageState extends State<ParentAttendancePage> {
       borderRadius: BorderRadius.circular(16),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
+          color: Colors.black.withOpacity(0.05),
           blurRadius: 8,
           offset: const Offset(0, 2),
         ),
@@ -607,10 +725,7 @@ class _SummaryCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 4,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4),
         ],
       ),
       child: Column(
@@ -620,7 +735,11 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
           Text(title, style: const TextStyle(fontSize: 10, color: Colors.grey)),
         ],

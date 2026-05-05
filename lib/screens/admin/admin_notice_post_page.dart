@@ -1,10 +1,14 @@
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/services/file_picker_service.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class AdminNoticePostPage extends StatefulWidget {
   const AdminNoticePostPage({super.key});
@@ -27,7 +31,8 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
 
   // File attachments
   List<Map<String, dynamic>> _attachments = [];
-  List<File> _localFiles = [];
+  List<dynamic> _localFiles =
+      []; // Changed to dynamic to support both File and XFile
 
   final List<String> _priorityOptions = ["Normal", "Important", "Urgent"];
   final List<String> _audienceOptions = [
@@ -88,7 +93,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
 
   Future<void> _pickFiles() async {
     final files = await FilePickerService.pickFiles(allowMultiple: true);
-    if (files.isNotEmpty && mounted) {
+    if (files != null && files.isNotEmpty && mounted) {
       setState(() {
         _localFiles.addAll(files);
       });
@@ -103,7 +108,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
 
   Future<void> _pickImages() async {
     final images = await FilePickerService.pickImages(allowMultiple: true);
-    if (images.isNotEmpty && mounted) {
+    if (images != null && images.isNotEmpty && mounted) {
       setState(() {
         _localFiles.addAll(images);
       });
@@ -128,7 +133,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
     });
   }
 
-// Add this method to track upload progress
   Future<void> _uploadFiles() async {
     if (_localFiles.isEmpty) return;
 
@@ -139,22 +143,77 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text("Uploading ${_localFiles.length} files..."),
-            ],
-          ),
-        ),
+        builder:
+            (context) => AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text("Uploading ${_localFiles.length} files..."),
+                ],
+              ),
+            ),
       );
 
-      final uploadedFiles = await FilePickerService.uploadMultipleFiles(
-        files: _localFiles,
-        folder: 'notices',
-      );
+      List<Map<String, dynamic>> uploadedFiles = [];
+
+      // Handle different file types based on platform
+      for (var fileItem in _localFiles) {
+        try {
+          final fileName =
+              '${DateTime.now().millisecondsSinceEpoch}_${_getFileName(fileItem)}';
+          final storageRef = FirebaseStorage.instance.ref().child(
+            'notices/$fileName',
+          );
+
+          UploadTask uploadTask;
+
+          if (kIsWeb) {
+            // Web platform - handle XFile or FilePickerResult
+            if (fileItem is FilePickerResult) {
+              final file = fileItem.files.first;
+              if (file.bytes != null) {
+                uploadTask = storageRef.putData(file.bytes!);
+              } else {
+                continue;
+              }
+            } else if (fileItem is XFile) {
+              final bytes = await fileItem.readAsBytes();
+              uploadTask = storageRef.putData(bytes);
+            } else {
+              continue;
+            }
+          } else {
+            // Android platform - handle File objects
+            if (fileItem is FilePickerResult) {
+              final file = fileItem.files.first;
+              if (file.path != null) {
+                uploadTask = storageRef.putFile(File(file.path!));
+              } else {
+                continue;
+              }
+            } else if (fileItem is XFile) {
+              uploadTask = storageRef.putFile(File(fileItem.path));
+            } else {
+              continue;
+            }
+          }
+
+          final snapshot = await uploadTask;
+          final downloadUrl = await snapshot.ref.getDownloadURL();
+
+          uploadedFiles.add({
+            'name': fileName,
+            'originalName': _getOriginalName(fileItem),
+            'url': downloadUrl,
+            'type': _getFileType(_getOriginalName(fileItem)),
+            'size': await _getFileSize(fileItem),
+          });
+        } catch (e) {
+          debugPrint('Error uploading file: $e');
+        }
+      }
 
       Navigator.pop(context); // Close progress dialog
 
@@ -166,7 +225,9 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("${uploadedFiles.length} file(s) uploaded successfully"),
+            content: Text(
+              "${uploadedFiles.length} file(s) uploaded successfully",
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -180,13 +241,55 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
       }
     } catch (e) {
       if (mounted) {
+        Navigator.pop(context); // Close dialog if open
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error uploading files: $e"), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text("Error uploading files: $e"),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
+  }
+
+  // Helper methods for cross-platform file handling
+  String _getFileName(dynamic fileItem) {
+    if (fileItem is FilePickerResult) {
+      return fileItem.files.first.name;
+    } else if (fileItem is XFile) {
+      return fileItem.name;
+    }
+    return 'file';
+  }
+
+  String _getOriginalName(dynamic fileItem) {
+    if (fileItem is FilePickerResult) {
+      return fileItem.files.first.name;
+    } else if (fileItem is XFile) {
+      return fileItem.name;
+    }
+    return 'file';
+  }
+
+  Future<int> _getFileSize(dynamic fileItem) async {
+    if (fileItem is FilePickerResult) {
+      return fileItem.files.first.size;
+    } else if (fileItem is XFile) {
+      return await fileItem.length();
+    }
+    return 0;
+  }
+
+  String _getFileType(String fileName) {
+    final extension = fileName.toLowerCase().split('.').last;
+    const images = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const pdfs = ['pdf'];
+
+    if (images.contains(extension)) return 'image';
+    if (pdfs.contains(extension)) return 'pdf';
+    return 'document';
   }
 
   @override
@@ -422,8 +525,8 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
             const SizedBox(height: 8),
             ..._localFiles.asMap().entries.map((entry) {
               final index = entry.key;
-              final file = entry.value;
-              final fileName = file.path.split('/').last;
+              final fileItem = entry.value;
+              final fileName = _getFileName(fileItem);
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(

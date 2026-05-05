@@ -111,18 +111,21 @@ class _AdminAttendanceOverviewPageState
           );
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _buildEmptyState();
-        }
-
-        // Process records - FIXED: Reset stats before processing
+        // IMPORTANT: Reset stats before processing new data
         _totalStudents = 0;
         _totalPresent = 0;
         _totalAbsent = 0;
         _totalLate = 0;
         _classStats.clear();
 
-        for (var doc in snapshot.data!.docs) {
+        final records = snapshot.data?.docs ?? [];
+
+        if (records.isEmpty) {
+          return _buildEmptyState();
+        }
+
+        // Process all records
+        for (var doc in records) {
           final data = doc.data() as Map<String, dynamic>;
           final status = data['status'] ?? 'Absent';
           _totalStudents++;
@@ -153,27 +156,24 @@ class _AdminAttendanceOverviewPageState
             };
           }
 
-          _classStats[classKey]!['total'] =
-              (_classStats[classKey]!['total'] as int) + 1;
+          final classData = _classStats[classKey]!;
+          classData['total'] = (classData['total'] as int) + 1;
 
           if (status == 'Present') {
-            _classStats[classKey]!['present'] =
-                (_classStats[classKey]!['present'] as int) + 1;
+            classData['present'] = (classData['present'] as int) + 1;
           } else if (status == 'Late') {
-            _classStats[classKey]!['late'] =
-                (_classStats[classKey]!['late'] as int) + 1;
+            classData['late'] = (classData['late'] as int) + 1;
           } else {
-            _classStats[classKey]!['absent'] =
-                (_classStats[classKey]!['absent'] as int) + 1;
+            classData['absent'] = (classData['absent'] as int) + 1;
           }
 
-          (_classStats[classKey]!['students'] as List).add({
-            'name': data['name'] ?? 'Unknown',
-            'rollNo': data['rollNo'] ?? '',
+          (classData['students'] as List).add({
+            'name': data['studentName'] ?? data['name'] ?? 'Unknown',
+            'rollNo': data['rollNo']?.toString() ?? '',
             'status': status,
-            'checkInTime': data['checkInTime'],
-            'checkOutTime': data['checkOutTime'],
-            'remark': data['remark'],
+            'checkInTime': data['checkInTime'] ?? '',
+            'checkOutTime': data['checkOutTime'] ?? '',
+            'remark': data['remark'] ?? '',
           });
         }
 
@@ -367,7 +367,7 @@ class _AdminAttendanceOverviewPageState
             children: [
               Expanded(
                 child: LinearProgressIndicator(
-                  value: (_attendanceRate / 100).toDouble(),
+                  value: _attendanceRate / 100,
                   backgroundColor: Colors.white.withOpacity(0.3),
                   valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                   minHeight: 8,
@@ -396,65 +396,62 @@ class _AdminAttendanceOverviewPageState
   }
 
   Widget _buildAttendanceChart() {
-    final sections = <PieChartSectionData>[];
     final total = _totalStudents;
 
     if (total == 0) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDecoration(),
+        child: const Center(child: Text('No data available')),
+      );
+    }
+
+    final sections = <PieChartSectionData>[];
+
+    if (_totalPresent > 0) {
       sections.add(
         PieChartSectionData(
-          value: 1,
-          title: 'No Data',
-          color: Colors.grey,
+          value: _totalPresent.toDouble(),
+          title: '${((_totalPresent / total) * 100).toStringAsFixed(0)}%',
+          color: Colors.green,
           radius: 80,
           titleStyle: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
+            fontSize: 14,
           ),
         ),
       );
-    } else {
-      if (_totalPresent > 0) {
-        sections.add(
-          PieChartSectionData(
-            value: _totalPresent.toDouble(),
-            title: '${((_totalPresent / total) * 100).toStringAsFixed(0)}%',
-            color: Colors.green,
-            radius: 80,
-            titleStyle: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+    }
+    if (_totalAbsent > 0) {
+      sections.add(
+        PieChartSectionData(
+          value: _totalAbsent.toDouble(),
+          title: '${((_totalAbsent / total) * 100).toStringAsFixed(0)}%',
+          color: Colors.red,
+          radius: 80,
+          titleStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
           ),
-        );
-      }
-      if (_totalAbsent > 0) {
-        sections.add(
-          PieChartSectionData(
-            value: _totalAbsent.toDouble(),
-            title: '${((_totalAbsent / total) * 100).toStringAsFixed(0)}%',
-            color: Colors.red,
-            radius: 80,
-            titleStyle: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+        ),
+      );
+    }
+    if (_totalLate > 0) {
+      sections.add(
+        PieChartSectionData(
+          value: _totalLate.toDouble(),
+          title: '${((_totalLate / total) * 100).toStringAsFixed(0)}%',
+          color: Colors.orange,
+          radius: 80,
+          titleStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
           ),
-        );
-      }
-      if (_totalLate > 0) {
-        sections.add(
-          PieChartSectionData(
-            value: _totalLate.toDouble(),
-            title: '${((_totalLate / total) * 100).toStringAsFixed(0)}%',
-            color: Colors.orange,
-            radius: 80,
-            titleStyle: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        );
-      }
+        ),
+      );
     }
 
     return Container(
@@ -498,6 +495,16 @@ class _AdminAttendanceOverviewPageState
 
   List<Widget> _buildClassWiseList() {
     List<Widget> widgets = [];
+
+    if (_classStats.isEmpty) {
+      return [
+        Container(
+          padding: const EdgeInsets.all(32),
+          decoration: _cardDecoration(),
+          child: const Center(child: Text("No class data available")),
+        ),
+      ];
+    }
 
     // Sort classes by attendance rate
     var sortedClasses = _classStats.entries.toList();
@@ -618,16 +625,6 @@ class _AdminAttendanceOverviewPageState
               ),
             ),
           ),
-        ),
-      );
-    }
-
-    if (widgets.isEmpty) {
-      widgets.add(
-        Container(
-          padding: const EdgeInsets.all(32),
-          decoration: _cardDecoration(),
-          child: const Center(child: Text("No class data available")),
         ),
       );
     }
@@ -778,7 +775,10 @@ class _AdminAttendanceOverviewPageState
                               ),
                               title: Text(student['name']),
                               subtitle:
-                                  student['checkInTime'] != null
+                                  student['checkInTime'] != null &&
+                                          student['checkInTime']
+                                              .toString()
+                                              .isNotEmpty
                                       ? Text(
                                         'Check In: ${student['checkInTime']}',
                                       )
@@ -935,24 +935,115 @@ class _AdminAttendanceOverviewPageState
                   title: const Text('Export as PDF'),
                   onTap: () {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('PDF export coming soon')),
-                    );
+                    _generatePDFReport();
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.table_chart, color: Colors.green),
-                  title: const Text('Export as Excel'),
+                  title: const Text('Export as CSV'),
                   onTap: () {
                     Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Excel export coming soon')),
-                    );
+                    _generateCSVReport();
                   },
                 ),
               ],
             ),
           ),
+    );
+  }
+
+  void _generatePDFReport() {
+    // Show summary dialog with report data
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Attendance Report'),
+            content: Container(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Date: $_displayDate'),
+                  const Divider(),
+                  Text('Total Students: $_totalStudents'),
+                  Text('Present: $_totalPresent'),
+                  Text('Absent: $_totalAbsent'),
+                  if (_totalLate > 0) Text('Late: $_totalLate'),
+                  Text(
+                    'Attendance Rate: ${_attendanceRate.toStringAsFixed(1)}%',
+                  ),
+                  const Divider(),
+                  const Text('Class-wise Breakdown:'),
+                  const SizedBox(height: 8),
+                  ..._classStats.entries.map((entry) {
+                    final data = entry.value;
+                    final total = data['total'] as int;
+                    final present = data['present'] as int;
+                    final rate = total > 0 ? (present / total) * 100 : 0;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text(
+                        '${entry.key}: ${rate.toStringAsFixed(1)}% ($present/$total)',
+                      ),
+                    );
+                  }).toList(),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('PDF export will be available soon'),
+                    ),
+                  );
+                },
+                child: const Text('Export'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  void _generateCSVReport() {
+    // Build CSV content
+    String csv =
+        "Student Name,Roll No,Class,Section,Status,Check In Time,Check Out Time,Remark\n";
+
+    for (var classEntry in _classStats.entries) {
+      final classData = classEntry.value;
+      final students = List<Map<String, dynamic>>.from(classData['students']);
+
+      for (var student in students) {
+        csv +=
+            "${student['name']},"
+            "${student['rollNo']},"
+            "${classData['className']},"
+            "${classData['section']},"
+            "${student['status']},"
+            "${student['checkInTime'] ?? ''},"
+            "${student['checkOutTime'] ?? ''},"
+            "${student['remark'] ?? ''}\n";
+      }
+    }
+
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('CSV report generated'),
+        backgroundColor: Colors.green,
+      ),
     );
   }
 

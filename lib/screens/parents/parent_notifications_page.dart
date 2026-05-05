@@ -10,7 +10,8 @@ class ParentNotificationsPage extends StatefulWidget {
   const ParentNotificationsPage({super.key, this.studentId});
 
   @override
-  State<ParentNotificationsPage> createState() => _ParentNotificationsPageState();
+  State<ParentNotificationsPage> createState() =>
+      _ParentNotificationsPageState();
 }
 
 class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
@@ -35,27 +36,29 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
 
     try {
       final parentUid = FirebaseAuth.instance.currentUser!.uid;
-      final snapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('students')
-          .where('parentUid', isEqualTo: parentUid)
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('parentUid', isEqualTo: parentUid)
+              .get();
 
-      _students = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? 'Student',
-          'class': data['class'] ?? '',
-          'section': data['section'] ?? '',
-        };
-      }).toList();
+      _students =
+          snapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'id': doc.id,
+              'name': data['name'] ?? 'Student',
+              'class': data['class'] ?? '',
+              'section': data['section'] ?? '',
+            };
+          }).toList();
 
       if (_students.isNotEmpty) {
         if (widget.studentId != null) {
           final matchingStudent = _students.firstWhere(
-                (s) => s['id'] == widget.studentId,
+            (s) => s['id'] == widget.studentId,
             orElse: () => _students.first,
           );
           _selectedStudentId = matchingStudent['id'];
@@ -65,7 +68,8 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
           _selectedStudentName = _students.first['name'];
         }
       } else {
-        _errorMessage = "No students linked to your account. Please contact school admin.";
+        _errorMessage =
+            "No students linked to your account. Please contact school admin.";
       }
     } catch (e) {
       debugPrint('Error loading students: $e');
@@ -88,10 +92,7 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             if (_selectedStudentName != null)
-              Text(
-                _selectedStudentName!,
-                style: const TextStyle(fontSize: 12),
-              ),
+              Text(_selectedStudentName!, style: const TextStyle(fontSize: 12)),
           ],
         ),
         backgroundColor: Colors.orange,
@@ -100,16 +101,17 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
         actions: [
           if (_selectedStudentId != null)
             IconButton(
-              icon: _isMarkingAll
-                  ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-                  : const Icon(Icons.mark_email_read),
+              icon:
+                  _isMarkingAll
+                      ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                      : const Icon(Icons.mark_email_read),
               onPressed: _isMarkingAll ? null : _markAllAsRead,
               tooltip: "Mark all as read",
             ),
@@ -120,20 +122,19 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-          ? _buildErrorWidget()
-          : _students.isEmpty
-          ? _buildNoStudentsWidget()
-          : Column(
-        children: [
-          if (_students.length > 1) _buildStudentSelector(),
-          Expanded(
-            child: _buildNotificationsList(),
-          ),
-        ],
-      ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _errorMessage != null
+              ? _buildErrorWidget()
+              : _students.isEmpty
+              ? _buildNoStudentsWidget()
+              : Column(
+                children: [
+                  if (_students.length > 1) _buildStudentSelector(),
+                  Expanded(child: _buildNotificationsList()),
+                ],
+              ),
     );
   }
 
@@ -200,7 +201,7 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -222,20 +223,23 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
                 hint: const Text("Select Child"),
                 isExpanded: true,
                 icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
-                items: _students.map<DropdownMenuItem<String>>((student) {
-                  return DropdownMenuItem<String>(
-                    value: student['id'] as String,
-                    child: Text(
-                      "${student['name']} (${student['class']} - ${student['section']})",
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  );
-                }).toList(),
+                items:
+                    _students.map<DropdownMenuItem<String>>((student) {
+                      return DropdownMenuItem<String>(
+                        value: student['id'] as String,
+                        child: Text(
+                          "${student['name']} (${student['class']} - ${student['section']})",
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      );
+                    }).toList(),
                 onChanged: (value) {
                   if (value == null) return;
                   setState(() {
                     _selectedStudentId = value;
-                    final selected = _students.firstWhere((s) => s['id'] == value);
+                    final selected = _students.firstWhere(
+                      (s) => s['id'] == value,
+                    );
                     _selectedStudentName = selected['name'];
                   });
                 },
@@ -249,13 +253,14 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
 
   Widget _buildNotificationsList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('notifications')
-          .where('studentId', isEqualTo: _selectedStudentId)
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('notifications')
+              .where('studentId', isEqualTo: _selectedStudentId)
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -269,6 +274,11 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
                 Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
                 const SizedBox(height: 16),
                 const Text("Error loading notifications"),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => setState(() {}),
+                  child: const Text("Retry"),
+                ),
               ],
             ),
           );
@@ -288,11 +298,13 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
         }
 
         final parentUid = FirebaseAuth.instance.currentUser!.uid;
-        final notifications = snapshot.data!.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final List<dynamic> deletedFor = data['deletedFor'] as List? ?? [];
-          return !deletedFor.contains(parentUid);
-        }).toList();
+        final notifications =
+            snapshot.data!.docs.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final List<dynamic> deletedFor =
+                  data['deletedFor'] as List? ?? [];
+              return !deletedFor.contains(parentUid);
+            }).toList();
 
         if (notifications.isEmpty) {
           return const Center(
@@ -323,7 +335,10 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
     );
   }
 
-  Widget _buildNotificationCard(String notificationId, Map<String, dynamic> data) {
+  Widget _buildNotificationCard(
+    String notificationId,
+    Map<String, dynamic> data,
+  ) {
     final bool isRead = (data['isRead'] ?? false) as bool;
     final String type = (data['type'] ?? 'general').toString();
     final String title = (data['title'] ?? 'Notification').toString();
@@ -345,22 +360,27 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
       confirmDismiss: (direction) async {
         return await showDialog(
           context: context,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text("Remove Notification"),
-            content: const Text("This notification will be removed only for you."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Cancel"),
+          builder:
+              (context) => AlertDialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                title: const Text("Remove Notification"),
+                content: const Text(
+                  "This notification will be removed only for you.",
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text("Cancel"),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    child: const Text("Remove"),
+                  ),
+                ],
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text("Remove"),
-              ),
-            ],
-          ),
         );
       },
       onDismissed: (direction) async {
@@ -369,13 +389,13 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: isRead ? Colors.white : (typeConfig['color'] as Color).withValues(alpha: 0.1),
+          color:
+              isRead
+                  ? Colors.white
+                  : (typeConfig['color'] as Color).withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
           ],
         ),
         child: Material(
@@ -393,8 +413,14 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
               child: Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: (typeConfig['color'] as Color).withValues(alpha: 0.1),
-                    child: Icon(typeConfig['icon'] as IconData, color: typeConfig['color'] as Color, size: 20),
+                    backgroundColor: (typeConfig['color'] as Color).withOpacity(
+                      0.1,
+                    ),
+                    child: Icon(
+                      typeConfig['icon'] as IconData,
+                      color: typeConfig['color'] as Color,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -405,20 +431,27 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
                           title,
                           style: TextStyle(
                             fontSize: 14,
-                            fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                            fontWeight:
+                                isRead ? FontWeight.normal : FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           message,
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
                         Text(
                           _formatTime(data['createdAt']),
-                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
@@ -433,7 +466,11 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
                       ),
                     ),
                   IconButton(
-                    icon: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                    icon: const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Colors.grey,
+                    ),
                     onPressed: () {
                       _showNotificationDetail(data);
                     },
@@ -455,12 +492,13 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
     try {
       final parentUid = FirebaseAuth.instance.currentUser!.uid;
 
-      final notifications = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('notifications')
-          .where('studentId', isEqualTo: _selectedStudentId)
-          .get();
+      final notifications =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('notifications')
+              .where('studentId', isEqualTo: _selectedStudentId)
+              .get();
 
       final batch = FirebaseFirestore.instance.batch();
       int updatedCount = 0;
@@ -485,7 +523,9 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("$updatedCount notification${updatedCount != 1 ? 's' : ''} marked as read"),
+              content: Text(
+                "$updatedCount notification${updatedCount != 1 ? 's' : ''} marked as read",
+              ),
               backgroundColor: Colors.green,
             ),
           );
@@ -525,10 +565,7 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
           .doc(AppConfig.schoolId)
           .collection('notifications')
           .doc(notificationId)
-          .update({
-        'isRead': true,
-        'readAt': FieldValue.serverTimestamp(),
-      });
+          .update({'isRead': true, 'readAt': FieldValue.serverTimestamp()});
       setState(() {});
     } catch (e) {
       debugPrint('Error marking notification as read: $e');
@@ -545,9 +582,9 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
           .collection('notifications')
           .doc(notificationId)
           .update({
-        'deletedFor': FieldValue.arrayUnion([parentUid]),
-        'deletedAt': FieldValue.serverTimestamp(),
-      });
+            'deletedFor': FieldValue.arrayUnion([parentUid]),
+            'deletedAt': FieldValue.serverTimestamp(),
+          });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -574,23 +611,49 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
   Map<String, dynamic> _getTypeConfig(String type) {
     switch (type) {
       case 'homework':
-        return {'icon': Icons.assignment, 'color': Colors.blue, 'label': 'Homework'};
+        return {
+          'icon': Icons.assignment,
+          'color': Colors.blue,
+          'label': 'Homework',
+        };
       case 'notice':
-        return {'icon': Icons.announcement, 'color': Colors.orange, 'label': 'Notice'};
+        return {
+          'icon': Icons.announcement,
+          'color': Colors.orange,
+          'label': 'Notice',
+        };
       case 'fee':
-        return {'icon': Icons.currency_rupee, 'color': Colors.green, 'label': 'Fee'};
+        return {
+          'icon': Icons.currency_rupee,
+          'color': Colors.green,
+          'label': 'Fee',
+        };
       case 'attendance':
-        return {'icon': Icons.check_circle, 'color': Colors.green, 'label': 'Attendance'};
+        return {
+          'icon': Icons.check_circle,
+          'color': Colors.green,
+          'label': 'Attendance',
+        };
       case 'complaint':
-        return {'icon': Icons.feedback, 'color': Colors.purple, 'label': 'Complaint'};
+        return {
+          'icon': Icons.feedback,
+          'color': Colors.purple,
+          'label': 'Complaint',
+        };
       default:
-        return {'icon': Icons.notifications, 'color': Colors.grey, 'label': 'General'};
+        return {
+          'icon': Icons.notifications,
+          'color': Colors.grey,
+          'label': 'General',
+        };
     }
   }
 
   void _showNotificationDetail(Map<String, dynamic> data) {
     final String title = (data['title'] ?? 'Notification').toString();
     final String message = (data['message'] ?? '').toString();
+    final String type = (data['type'] ?? 'general').toString();
+    final typeConfig = _getTypeConfig(type);
 
     showModalBottomSheet(
       context: context,
@@ -598,69 +661,128 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              style: const TextStyle(fontSize: 14, height: 1.4),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.access_time, size: 14, color: Colors.grey.shade600),
-                  const SizedBox(width: 8),
-                  Text(
-                    _formatFullTime(data['createdAt']),
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+      builder:
+          (context) => DraggableScrollableSheet(
+            initialChildSize: 0.6,
+            minChildSize: 0.4,
+            maxChildSize: 0.9,
+            expand: false,
+            builder:
+                (context, scrollController) => Container(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: (typeConfig['color'] as Color)
+                                .withOpacity(0.1),
+                            child: Icon(
+                              typeConfig['icon'] as IconData,
+                              color: typeConfig['color'] as Color,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  typeConfig['label'] as String,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: typeConfig['color'] as Color,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  title,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          controller: scrollController,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                message,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.access_time,
+                                      size: 16,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      _formatFullTime(data['createdAt']),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text("Close"),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
                 ),
-                child: const Text("Close"),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 

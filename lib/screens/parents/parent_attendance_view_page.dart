@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:schoolprojectjan/app_config.dart';
+import '../../services/attendance_service.dart';
 
 class ParentAttendanceViewPage extends StatefulWidget {
   final String studentId;
@@ -43,37 +43,59 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     super.dispose();
   }
 
-  // ALTERNATIVE: Fetch without collection group index
   Future<void> _fetchAttendance() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
-      // Get all attendance date documents
-      final attendanceDocs =
+      // First try collection group query
+      final recordsSnapshot =
           await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('attendance')
+              .collectionGroup('records')
+              .where('studentId', isEqualTo: widget.studentId)
               .get();
 
-      List<Map<String, dynamic>> records = [];
+      final records =
+          recordsSnapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'date': data['date'] ?? '',
+              'status': data['status'] ?? 'Absent',
+              'remark': data['remark'] ?? '',
+              'checkInTime': data['checkInTime'] ?? '',
+              'checkOutTime': data['checkOutTime'] ?? '',
+              'className': data['className'] ?? widget.className,
+              'section': data['section'] ?? widget.section,
+            };
+          }).toList();
 
-      // Iterate through each date to find records for this student
-      for (var dateDoc in attendanceDocs.docs) {
-        final date = dateDoc.id;
+      records.sort((a, b) => b['date'].compareTo(a['date']));
 
-        // Try to get the student's record for this date
-        final recordSnapshot =
-            await dateDoc.reference
-                .collection('records')
-                .doc(widget.studentId)
-                .get();
+      if (mounted) {
+        setState(() {
+          _attendanceRecords = records;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Collection group error: $e');
+      await _fetchAttendanceDirect();
+    }
+  }
 
-        if (recordSnapshot.exists) {
-          final data = recordSnapshot.data()!;
+  // Direct fetch from attendance collection (fallback)
+  Future<void> _fetchAttendanceDirect() async {
+    try {
+      final attendanceDocs =
+          await FirebaseFirestore.instance.collectionGroup('records').get();
+
+      final records = <Map<String, dynamic>>[];
+
+      for (var doc in attendanceDocs.docs) {
+        final data = doc.data();
+        if (data['studentId'] == widget.studentId) {
           records.add({
-            'date': date,
+            'date': data['date'] ?? '',
             'status': data['status'] ?? 'Absent',
             'remark': data['remark'] ?? '',
             'checkInTime': data['checkInTime'] ?? '',
@@ -84,7 +106,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
         }
       }
 
-      // Sort by date (newest first)
       records.sort((a, b) => b['date'].compareTo(a['date']));
 
       if (mounted) {
@@ -94,14 +115,62 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
         });
       }
     } catch (e) {
-      debugPrint('Error fetching attendance: $e');
+      debugPrint('Direct fetch error: $e');
+      await _fetchAttendanceManual();
+    }
+  }
+
+  // Manual fetch (last resort)
+  Future<void> _fetchAttendanceManual() async {
+    try {
+      final attendanceDocs =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc('YOUR_SCHOOL_ID') // Replace with your school ID
+              .collection('attendance')
+              .get();
+
+      final records = <Map<String, dynamic>>[];
+
+      for (var dateDoc in attendanceDocs.docs) {
+        try {
+          final record =
+              await dateDoc.reference
+                  .collection('records')
+                  .doc(widget.studentId)
+                  .get();
+
+          if (record.exists) {
+            final data = record.data()!;
+            records.add({
+              'date': dateDoc.id,
+              'status': data['status'] ?? 'Absent',
+              'remark': data['remark'] ?? '',
+              'checkInTime': data['checkInTime'] ?? '',
+              'checkOutTime': data['checkOutTime'] ?? '',
+              'className': data['className'] ?? widget.className,
+              'section': data['section'] ?? widget.section,
+            });
+          }
+        } catch (e) {
+          // Skip errors for individual dates
+        }
+      }
+
+      records.sort((a, b) => b['date'].compareTo(a['date']));
+
+      if (mounted) {
+        setState(() {
+          _attendanceRecords = records;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Error loading attendance: ${e.toString().substring(0, 100)}',
-            ),
+            content: Text('Error loading attendance: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -162,10 +231,7 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            'Attendance has not been marked for this student yet.',
-            style: TextStyle(color: Colors.grey.shade500),
-          ),
+          Text('Attendance has not been marked for this student yet.'),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             onPressed: _fetchAttendance,
@@ -192,7 +258,9 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
 
     var monthlyRecords =
         _attendanceRecords
-            .where((r) => r['date'].substring(0, 7) == _selectedMonth)
+            .where(
+              (r) => r['date'].toString().substring(0, 7) == _selectedMonth,
+            )
             .toList();
     int monthlyPresent =
         monthlyRecords.where((r) => r['status'] == 'Present').length;
@@ -241,13 +309,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
           colors: [Colors.orange, Colors.deepOrange],
         ),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.orange.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         children: [
@@ -304,8 +365,8 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
   Widget _buildMonthSelector() {
     Set<String> monthSet = {};
     for (var record in _attendanceRecords) {
-      if (record['date'].length >= 7) {
-        monthSet.add(record['date'].substring(0, 7));
+      if (record['date'].toString().length >= 7) {
+        monthSet.add(record['date'].toString().substring(0, 7));
       }
     }
     List<String> availableMonths =
@@ -341,13 +402,10 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
                       ),
                     );
                   }).toList(),
-              onChanged: (value) {
-                if (value != null) setState(() => _selectedMonth = value);
-              },
+              onChanged: (value) => setState(() => _selectedMonth = value!),
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
-                isDense: true,
               ),
             ),
           ),
@@ -396,7 +454,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
               percentage >= 75 ? Colors.green : Colors.orange,
             ),
             minHeight: 6,
-            borderRadius: BorderRadius.circular(3),
           ),
           const SizedBox(height: 6),
           Row(
@@ -425,9 +482,7 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: _cardDecoration(),
-        child: const Center(
-          child: Text('No data to display', style: TextStyle(fontSize: 12)),
-        ),
+        child: const Center(child: Text('No data to display')),
       );
     }
 
@@ -453,8 +508,11 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
           x: i,
           barRods: [
             BarChartRodData(
-              toY: status == 'Present' ? 100 : 0,
-              color: status == 'Present' ? Colors.green : Colors.red,
+              toY: status == 'Present' ? 100 : (status == 'Late' ? 50 : 0),
+              color:
+                  status == 'Present'
+                      ? Colors.green
+                      : (status == 'Late' ? Colors.orange : Colors.red),
               width: 25,
               borderRadius: BorderRadius.circular(4),
             ),
@@ -481,15 +539,7 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
                 maxY: 100,
                 titlesData: FlTitlesData(
                   leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 25,
-                      getTitlesWidget:
-                          (value, meta) => Text(
-                            '${value.toInt()}%',
-                            style: const TextStyle(fontSize: 8),
-                          ),
-                    ),
+                    sideTitles: SideTitles(showTitles: true, interval: 25),
                   ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
@@ -519,6 +569,8 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _legendItem(Colors.green, 'Present'),
+              const SizedBox(width: 12),
+              _legendItem(Colors.orange, 'Late'),
               const SizedBox(width: 12),
               _legendItem(Colors.red, 'Absent'),
             ],
@@ -555,11 +607,18 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
                 backgroundColor:
                     status == 'Present'
                         ? Colors.green.shade100
-                        : Colors.red.shade100,
+                        : (status == 'Late'
+                            ? Colors.orange.shade100
+                            : Colors.red.shade100),
                 child: Icon(
-                  status == 'Present' ? Icons.check_circle : Icons.cancel,
+                  status == 'Present'
+                      ? Icons.check_circle
+                      : (status == 'Late' ? Icons.access_time : Icons.cancel),
                   size: 16,
-                  color: status == 'Present' ? Colors.green : Colors.red,
+                  color:
+                      status == 'Present'
+                          ? Colors.green
+                          : (status == 'Late' ? Colors.orange : Colors.red),
                 ),
               ),
               title: Text(
@@ -579,13 +638,18 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
                   color:
                       status == 'Present'
                           ? Colors.green.shade100
-                          : Colors.red.shade100,
+                          : (status == 'Late'
+                              ? Colors.orange.shade100
+                              : Colors.red.shade100),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   status,
                   style: TextStyle(
-                    color: status == 'Present' ? Colors.green : Colors.red,
+                    color:
+                        status == 'Present'
+                            ? Colors.green
+                            : (status == 'Late' ? Colors.orange : Colors.red),
                     fontSize: 10,
                   ),
                 ),
@@ -647,7 +711,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -655,11 +718,20 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
         leading: CircleAvatar(
           radius: 18,
           backgroundColor:
-              status == 'Present' ? Colors.green.shade100 : Colors.red.shade100,
+              status == 'Present'
+                  ? Colors.green.shade100
+                  : (status == 'Late'
+                      ? Colors.orange.shade100
+                      : Colors.red.shade100),
           child: Icon(
-            status == 'Present' ? Icons.check_circle : Icons.cancel,
+            status == 'Present'
+                ? Icons.check_circle
+                : (status == 'Late' ? Icons.access_time : Icons.cancel),
             size: 18,
-            color: status == 'Present' ? Colors.green : Colors.red,
+            color:
+                status == 'Present'
+                    ? Colors.green
+                    : (status == 'Late' ? Colors.orange : Colors.red),
           ),
         ),
         title: Text(
@@ -669,7 +741,10 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
         subtitle: Text(
           status,
           style: TextStyle(
-            color: status == 'Present' ? Colors.green : Colors.red,
+            color:
+                status == 'Present'
+                    ? Colors.green
+                    : (status == 'Late' ? Colors.orange : Colors.red),
             fontSize: 11,
           ),
         ),
@@ -736,7 +811,6 @@ class _ParentAttendanceViewPageState extends State<ParentAttendanceViewPage>
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 70,

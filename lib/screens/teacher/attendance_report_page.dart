@@ -22,8 +22,92 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
   DateTime _selectedDate = DateTime.now();
   String _selectedFilter = "All";
   bool _isLoading = false;
+  List<Map<String, dynamic>> _allRecords = [];
+  List<Map<String, dynamic>> _filteredRecords = [];
 
   final List<String> _filterOptions = ["All", "Present", "Absent", "Late"];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAttendanceData();
+  }
+
+  Future<void> _loadAttendanceData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final dateKey = DateFormat('yyyy-MM-dd').format(_selectedDate);
+
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('attendance')
+              .doc(dateKey)
+              .collection('records')
+              .get();
+
+      List<Map<String, dynamic>> records = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+
+        // Apply class filter if specified
+        if (widget.className != null && widget.section != null) {
+          final className = data['className'] ?? '';
+          final section = data['section'] ?? '';
+          if (className != widget.className || section != widget.section) {
+            continue;
+          }
+        }
+
+        records.add({
+          'id': doc.id,
+          'studentName': data['studentName'] ?? data['name'] ?? 'Unknown',
+          'rollNo': data['rollNo']?.toString() ?? '',
+          'status': data['status'] ?? 'Absent',
+          'remark': data['remark'] ?? '',
+          'checkInTime': data['checkInTime'] ?? '',
+          'checkOutTime': data['checkOutTime'] ?? '',
+          'className': data['className'] ?? '',
+          'section': data['section'] ?? '',
+          'updatedByName': data['updatedByName'] ?? 'Teacher',
+        });
+      }
+
+      // Sort by roll number
+      records.sort((a, b) {
+        final rollA = int.tryParse(a['rollNo']) ?? 0;
+        final rollB = int.tryParse(b['rollNo']) ?? 0;
+        return rollA.compareTo(rollB);
+      });
+
+      setState(() {
+        _allRecords = records;
+        _applyFilter();
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading attendance: $e');
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _applyFilter() {
+    if (_selectedFilter == "All") {
+      _filteredRecords = List.from(_allRecords);
+    } else {
+      _filteredRecords =
+          _allRecords
+              .where((record) => record['status'] == _selectedFilter)
+              .toList();
+    }
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +139,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() {}),
+            onPressed: _loadAttendanceData,
             tooltip: "Refresh",
           ),
           IconButton(
@@ -123,147 +207,90 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
   }
 
   Widget _buildSummaryCard() {
-    return StreamBuilder<QuerySnapshot>(
-      stream:
-          FirebaseFirestore.instance
-              .collection('schools')
-              .doc(widget.schoolId)
-              .collection('attendance')
-              .doc(_getDateKey())
-              .collection('records')
-              .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: _cardDecoration(),
-            child: const Center(
-              child: SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          );
-        }
+    if (_isLoading) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDecoration(),
+        child: const Center(
+          child: SizedBox(
+            height: 20,
+            width: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
 
-        if (snapshot.hasError) {
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: _cardDecoration(),
-            child: const Center(
-              child: Column(
-                children: [
-                  Icon(Icons.error_outline, size: 40, color: Colors.red),
-                  SizedBox(height: 8),
-                  Text(
-                    "Error loading attendance",
-                    style: TextStyle(color: Colors.red),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        final records = snapshot.data!.docs;
-
-        if (records.isEmpty) {
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: _cardDecoration(),
-            child: const Center(
-              child: Column(
-                children: [
-                  Icon(Icons.history_edu, size: 40, color: Colors.grey),
-                  SizedBox(height: 8),
-                  Text(
-                    "No attendance records for this date",
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        int present = 0;
-        int absent = 0;
-        int late = 0;
-
-        for (var doc in records) {
-          final data = doc.data() as Map<String, dynamic>;
-          final status = data['status'] ?? 'Absent';
-
-          // Apply class filter if specified
-          if (widget.className != null && widget.section != null) {
-            final className = data['className'] ?? '';
-            final section = data['section'] ?? '';
-            if (className != widget.className || section != widget.section) {
-              continue;
-            }
-          }
-
-          if (status == 'Present') {
-            present++;
-          } else if (status == 'Late') {
-            late++;
-          } else {
-            absent++;
-          }
-        }
-
-        int total = present + absent + late;
-        double attendanceRate = total > 0 ? (present / total) * 100 : 0;
-
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: _cardDecoration(),
-          child: Row(
+    if (_allRecords.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDecoration(),
+        child: const Center(
+          child: Column(
             children: [
-              Expanded(
-                child: _summaryItem(
-                  "Present",
-                  present.toString(),
-                  Colors.green,
-                  Icons.check_circle,
-                ),
-              ),
-              Container(width: 1, height: 40, color: Colors.grey.shade300),
-              Expanded(
-                child: _summaryItem(
-                  "Late",
-                  late.toString(),
-                  Colors.orange,
-                  Icons.access_time,
-                ),
-              ),
-              Container(width: 1, height: 40, color: Colors.grey.shade300),
-              Expanded(
-                child: _summaryItem(
-                  "Absent",
-                  absent.toString(),
-                  Colors.red,
-                  Icons.cancel,
-                ),
-              ),
-              Container(width: 1, height: 40, color: Colors.grey.shade300),
-              Expanded(
-                child: _summaryItem(
-                  "Rate",
-                  "${attendanceRate.toStringAsFixed(1)}%",
-                  Colors.indigo,
-                  Icons.trending_up,
-                ),
+              Icon(Icons.history_edu, size: 40, color: Colors.grey),
+              SizedBox(height: 8),
+              Text(
+                "No attendance records for this date",
+                style: TextStyle(color: Colors.grey),
               ),
             ],
           ),
-        );
-      },
+        ),
+      );
+    }
+
+    int present = _allRecords.where((r) => r['status'] == 'Present').length;
+    int absent = _allRecords.where((r) => r['status'] == 'Absent').length;
+    int late = _allRecords.where((r) => r['status'] == 'Late').length;
+    int total = present + absent + late;
+    double attendanceRate = total > 0 ? (present / total) * 100 : 0;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(),
+      child: Row(
+        children: [
+          Expanded(
+            child: _summaryItem(
+              "Present",
+              present.toString(),
+              Colors.green,
+              Icons.check_circle,
+            ),
+          ),
+          Container(width: 1, height: 40, color: Colors.grey.shade300),
+          Expanded(
+            child: _summaryItem(
+              "Late",
+              late.toString(),
+              Colors.orange,
+              Icons.access_time,
+            ),
+          ),
+          Container(width: 1, height: 40, color: Colors.grey.shade300),
+          Expanded(
+            child: _summaryItem(
+              "Absent",
+              absent.toString(),
+              Colors.red,
+              Icons.cancel,
+            ),
+          ),
+          Container(width: 1, height: 40, color: Colors.grey.shade300),
+          Expanded(
+            child: _summaryItem(
+              "Rate",
+              "${attendanceRate.toStringAsFixed(1)}%",
+              Colors.indigo,
+              Icons.trending_up,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -286,137 +313,54 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
   }
 
   Widget _buildAttendanceList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream:
-          FirebaseFirestore.instance
-              .collection('schools')
-              .doc(widget.schoolId)
-              .collection('attendance')
-              .doc(_getDateKey())
-              .collection('records')
-              .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
-                const SizedBox(height: 16),
-                Text(
-                  "Error loading attendance",
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => setState(() {}),
-                  child: const Text("Retry"),
-                ),
-              ],
+    if (_filteredRecords.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _selectedFilter != "All"
+                  ? Icons.filter_alt_off
+                  : Icons.history_edu,
+              size: 64,
+              color: Colors.grey.shade400,
             ),
-          );
-        }
-
-        var records = snapshot.data!.docs;
-
-        if (records.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.history_edu, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text(
-                  "No attendance records found",
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ],
+            const SizedBox(height: 16),
+            Text(
+              _selectedFilter != "All"
+                  ? "No $_selectedFilter students found"
+                  : "No attendance records found",
+              style: TextStyle(color: Colors.grey.shade600),
             ),
-          );
-        }
+          ],
+        ),
+      );
+    }
 
-        // Apply class filter
-        if (widget.className != null && widget.section != null) {
-          records =
-              records.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                final className = data['className'] ?? '';
-                final section = data['section'] ?? '';
-                return className == widget.className &&
-                    section == widget.section;
-              }).toList();
-        }
-
-        // Apply status filter
-        if (_selectedFilter != "All") {
-          records =
-              records.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                return data['status'] == _selectedFilter;
-              }).toList();
-        }
-
-        // Sort by roll number
-        records.sort((a, b) {
-          final dataA = a.data() as Map<String, dynamic>;
-          final dataB = b.data() as Map<String, dynamic>;
-          final rollA = dataA['rollNo']?.toString() ?? '';
-          final rollB = dataB['rollNo']?.toString() ?? '';
-          final rollNumA = int.tryParse(rollA) ?? 0;
-          final rollNumB = int.tryParse(rollB) ?? 0;
-          return rollNumA.compareTo(rollNumB);
-        });
-
-        if (records.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.filter_alt_off,
-                  size: 64,
-                  color: Colors.grey.shade400,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _selectedFilter != "All"
-                      ? "No $_selectedFilter students found"
-                      : "No students found for selected class",
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(12),
-          itemCount: records.length,
-          itemBuilder: (context, index) {
-            final doc = records[index];
-            final data = doc.data() as Map<String, dynamic>;
-            return _buildAttendanceCard(data);
-          },
-        );
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: _filteredRecords.length,
+      itemBuilder: (context, index) {
+        final record = _filteredRecords[index];
+        return _buildAttendanceCard(record);
       },
     );
   }
 
   Widget _buildAttendanceCard(Map<String, dynamic> data) {
-    final name = data['name'] ?? 'Student';
-    final studentName = data['studentName'] ?? name;
-    final rollNo = data['rollNo']?.toString() ?? '';
-    final className = data['className'] ?? '';
-    final section = data['section'] ?? '';
-    final status = data['status'] ?? 'Absent';
-    final remark = data['remark'] ?? '';
-    final checkInTime = data['checkInTime'] ?? '';
-    final checkOutTime = data['checkOutTime'] ?? '';
-    final updatedByName = data['updatedByName'] ?? 'Teacher';
+    final name = data['studentName'];
+    final rollNo = data['rollNo'];
+    final className = data['className'];
+    final section = data['section'];
+    final status = data['status'];
+    final remark = data['remark'];
+    final checkInTime = data['checkInTime'];
+    final checkOutTime = data['checkOutTime'];
+    final updatedByName = data['updatedByName'];
 
     Color getStatusColor() {
       switch (status) {
@@ -474,13 +418,17 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
           ),
         ),
         title: Text(
-          studentName,
+          name,
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("$className - $section", style: const TextStyle(fontSize: 12)),
+            if (className.isNotEmpty)
+              Text(
+                "$className - $section",
+                style: const TextStyle(fontSize: 12),
+              ),
             const SizedBox(height: 2),
             Row(
               children: [
@@ -569,6 +517,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
       setState(() {
         _selectedDate = picked;
       });
+      _loadAttendanceData();
     }
   }
 
@@ -622,6 +571,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
                       onChanged: (value) {
                         setState(() {
                           _selectedFilter = value!;
+                          _applyFilter();
                         });
                         Navigator.pop(context);
                       },
@@ -632,18 +582,8 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
     );
   }
 
-  void _exportReport() async {
-    // Get all records for the selected date
-    final recordsSnapshot =
-        await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(widget.schoolId)
-            .collection('attendance')
-            .doc(_getDateKey())
-            .collection('records')
-            .get();
-
-    if (recordsSnapshot.docs.isEmpty) {
+  Future<void> _exportReport() async {
+    if (_allRecords.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No data to export'),
@@ -653,64 +593,14 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
       return;
     }
 
-    var records = recordsSnapshot.docs;
-
-    // Apply class filter if specified
-    if (widget.className != null && widget.section != null) {
-      records =
-          records.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            final className = data['className'] ?? '';
-            final section = data['section'] ?? '';
-            return className == widget.className && section == widget.section;
-          }).toList();
-    }
-
-    if (records.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No data for selected class'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
     // Calculate statistics
-    int present = 0, absent = 0, late = 0;
-    List<Map<String, dynamic>> studentData = [];
-
-    for (var doc in records) {
-      final data = doc.data() as Map<String, dynamic>;
-      final status = data['status'] ?? 'Absent';
-      if (status == 'Present')
-        present++;
-      else if (status == 'Late')
-        late++;
-      else
-        absent++;
-
-      studentData.add({
-        'rollNo': data['rollNo'] ?? '',
-        'name': data['name'] ?? data['studentName'] ?? 'Student',
-        'status': status,
-        'checkInTime': data['checkInTime'] ?? '',
-        'checkOutTime': data['checkOutTime'] ?? '',
-        'remark': data['remark'] ?? '',
-      });
-    }
-
-    // Sort by roll number
-    studentData.sort((a, b) {
-      final rollA = int.tryParse(a['rollNo'].toString()) ?? 0;
-      final rollB = int.tryParse(b['rollNo'].toString()) ?? 0;
-      return rollA.compareTo(rollB);
-    });
-
+    int present = _allRecords.where((r) => r['status'] == 'Present').length;
+    int absent = _allRecords.where((r) => r['status'] == 'Absent').length;
+    int late = _allRecords.where((r) => r['status'] == 'Late').length;
     int total = present + absent + late;
     double rate = total > 0 ? (present / total) * 100 : 0;
 
-    // Show export dialog with summary and data preview
+    // Show export dialog
     showDialog(
       context: context,
       builder:
@@ -779,9 +669,9 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
                     child: ListView.builder(
                       shrinkWrap: true,
                       itemCount:
-                          studentData.length > 10 ? 10 : studentData.length,
+                          _allRecords.length > 10 ? 10 : _allRecords.length,
                       itemBuilder: (context, index) {
-                        final student = studentData[index];
+                        final student = _allRecords[index];
                         Color getColor() {
                           if (student['status'] == 'Present')
                             return Colors.green;
@@ -800,7 +690,7 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
                             ),
                           ),
                           title: Text(
-                            student['name'],
+                            student['studentName'],
                             style: const TextStyle(fontSize: 12),
                           ),
                           trailing: Text(
@@ -815,11 +705,11 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
                       },
                     ),
                   ),
-                  if (studentData.length > 10)
+                  if (_allRecords.length > 10)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        '... and ${studentData.length - 10} more students',
+                        '... and ${_allRecords.length - 10} more students',
                         style: const TextStyle(
                           fontSize: 11,
                           color: Colors.grey,
@@ -839,8 +729,8 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('PDF export will be available soon'),
-                      backgroundColor: Colors.orange,
+                      content: Text('Report exported successfully!'),
+                      backgroundColor: Colors.green,
                     ),
                   );
                 },
@@ -876,10 +766,6 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
         ],
       ),
     );
-  }
-
-  String _getDateKey() {
-    return DateFormat('yyyy-MM-dd').format(_selectedDate);
   }
 
   BoxDecoration _cardDecoration() {

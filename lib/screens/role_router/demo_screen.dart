@@ -377,6 +377,7 @@ class _DemoScreenState extends State<DemoScreen> {
                         onPressed: _isSubmitting ? null : _submitLead,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF0F9B8E),
+                          foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -404,7 +405,7 @@ class _DemoScreenState extends State<DemoScreen> {
                       onPressed: _skipToApp,
                       child: const Text(
                         "Try Demo First",
-                        style: TextStyle(color: Colors.grey),
+                        style: TextStyle(color: Colors.black),
                       ),
                     ),
                   ],
