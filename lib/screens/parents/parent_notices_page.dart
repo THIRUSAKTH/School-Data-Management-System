@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/services/file_preview_service.dart';
-
 import '../../services/file_picker_service.dart';
 
 class ParentNoticesPage extends StatefulWidget {
