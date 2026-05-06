@@ -21,6 +21,15 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
   List<Map<String, dynamic>> _students = [];
   bool _isLoading = true;
   String _errorMessage = '';
+  String _selectedFilter = "All";
+
+  final List<String> _filterOptions = [
+    "All",
+    "Paid",
+    "Pending",
+    "Partial",
+    "Overdue",
+  ];
 
   @override
   void initState() {
@@ -119,9 +128,15 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
           tabs: const [
             Tab(icon: Icon(Icons.receipt), text: "All Fees"),
             Tab(icon: Icon(Icons.summarize), text: "Summary"),
+            Tab(icon: Icon(Icons.download), text: "Download"),
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: () => _showFilterDialog(),
+            tooltip: "Filter",
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => _loadStudents(),
@@ -140,7 +155,11 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
                   Expanded(
                     child: TabBarView(
                       controller: _tabController,
-                      children: [_buildAllFeesTab(), _buildSummaryTab()],
+                      children: [
+                        _buildAllFeesTab(),
+                        _buildSummaryTab(),
+                        _buildDownloadTab(),
+                      ],
                     ),
                   ),
                 ],
@@ -236,7 +255,62 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
     );
   }
 
-  // FIXED: Removed orderBy to avoid index requirement
+  void _showFilterDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text("Filter by Status"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children:
+                  _filterOptions.map((option) {
+                    Color getColor() {
+                      switch (option) {
+                        case 'Paid':
+                          return Colors.green;
+                        case 'Pending':
+                          return Colors.orange;
+                        case 'Partial':
+                          return Colors.blue;
+                        case 'Overdue':
+                          return Colors.red;
+                        default:
+                          return Colors.grey;
+                      }
+                    }
+
+                    return RadioListTile<String>(
+                      title: Row(
+                        children: [
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: getColor(),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(option),
+                        ],
+                      ),
+                      value: option,
+                      groupValue: _selectedFilter,
+                      onChanged: (value) {
+                        setState(() => _selectedFilter = value!);
+                        Navigator.pop(context);
+                      },
+                    );
+                  }).toList(),
+            ),
+          ),
+    );
+  }
+
   Widget _buildAllFeesTab() {
     if (_selectedStudentId == null) {
       return const Center(child: Text("Select a student to view fees"));
@@ -262,15 +336,11 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
               children: [
                 Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
                 const SizedBox(height: 16),
-                const Text(
-                  "Error loading fee data",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+                const Text("Error loading fee data"),
                 const SizedBox(height: 8),
                 Text(
-                  "Please create Firebase index or contact admin",
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                  textAlign: TextAlign.center,
+                  snapshot.error.toString(),
+                  style: const TextStyle(fontSize: 12),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
@@ -290,23 +360,43 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
               children: [
                 Icon(Icons.receipt, size: 64, color: Colors.grey.shade400),
                 const SizedBox(height: 16),
-                const Text(
-                  "No fee records found",
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
+                const Text("No fee records found"),
                 const SizedBox(height: 8),
                 const Text(
-                  "Fee details will appear here once added",
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                  textAlign: TextAlign.center,
+                  "Tap refresh to check again",
+                  style: TextStyle(fontSize: 12),
                 ),
               ],
             ),
           );
         }
 
-        final fees = snapshot.data!.docs;
-        // Sort client-side
+        var fees = snapshot.data!.docs;
+
+        // Apply filter
+        fees =
+            fees.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final status = data['status'] ?? 'pending';
+              final dueDate =
+                  data['dueDate'] != null
+                      ? (data['dueDate'] as Timestamp).toDate()
+                      : null;
+
+              if (_selectedFilter == "Paid") return status == 'paid';
+              if (_selectedFilter == "Pending")
+                return status == 'pending' &&
+                    dueDate != null &&
+                    dueDate.isAfter(DateTime.now());
+              if (_selectedFilter == "Partial") return status == 'partial';
+              if (_selectedFilter == "Overdue")
+                return status == 'pending' &&
+                    dueDate != null &&
+                    dueDate.isBefore(DateTime.now());
+              return true;
+            }).toList();
+
+        // Sort by due date
         fees.sort((a, b) {
           final aData = a.data() as Map<String, dynamic>;
           final bData = b.data() as Map<String, dynamic>;
@@ -315,7 +405,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
           if (aDate == null && bDate == null) return 0;
           if (aDate == null) return 1;
           if (bDate == null) return -1;
-          return bDate.toDate().compareTo(aDate.toDate());
+          return aDate.toDate().compareTo(bDate.toDate());
         });
 
         return RefreshIndicator(
@@ -368,6 +458,11 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
       if (status == 'paid') return 'Paid';
       if (status == 'partial') return 'Partial';
       return isOverdue ? 'Overdue' : 'Pending';
+    }
+
+    double getPaymentProgress() {
+      if (amount == 0) return 0;
+      return (paidAmount / amount).clamp(0.0, 1.0);
     }
 
     return Card(
@@ -448,6 +543,15 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
                 ],
               ),
               const SizedBox(height: 12),
+              if (status != 'paid' && status != 'paid')
+                LinearProgressIndicator(
+                  value: getPaymentProgress(),
+                  backgroundColor: Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation<Color>(getStatusColor()),
+                  minHeight: 4,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              const SizedBox(height: 8),
               const Divider(),
               const SizedBox(height: 8),
               Row(
@@ -523,7 +627,6 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
     );
   }
 
-  // FIXED: Removed orderBy to avoid index requirement
   Widget _buildSummaryTab() {
     if (_selectedStudentId == null) {
       return const Center(child: Text("Select a student to view summary"));
@@ -550,11 +653,6 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
                 Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
                 const SizedBox(height: 16),
                 const Text("Error loading summary"),
-                const SizedBox(height: 8),
-                Text(
-                  snapshot.error.toString(),
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
               ],
             ),
           );
@@ -609,12 +707,6 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
             break;
           }
         }
-        student ??= {
-          'name': 'Student',
-          'class': '',
-          'section': '',
-          'rollNo': '',
-        };
 
         return RefreshIndicator(
           onRefresh: () async => setState(() {}),
@@ -622,12 +714,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
             padding: const EdgeInsets.all(12),
             child: Column(
               children: [
-                _buildStudentInfoCard(
-                  student!['name'],
-                  student['class'],
-                  student['section'],
-                  student['rollNo'],
-                ),
+                _buildStudentInfoCard(student!),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -676,20 +763,54 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
     );
   }
 
-  Widget _buildStudentInfoCard(
-    String name,
-    String className,
-    String section,
-    String rollNo,
-  ) {
+  Widget _buildDownloadTab() {
+    if (_selectedStudentId == null) {
+      return const Center(child: Text("Select a student to download report"));
+    }
+
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.picture_as_pdf, size: 80, color: Colors.red),
+          const SizedBox(height: 16),
+          const Text(
+            "Download Fee Statement",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            "Get a complete fee statement in PDF format",
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("PDF download feature coming soon"),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            },
+            icon: const Icon(Icons.download),
+            label: const Text("Download PDF"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudentInfoCard(Map<String, dynamic> student) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Colors.blue, Colors.lightBlue],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: const LinearGradient(colors: [Colors.blue, Colors.lightBlue]),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -709,7 +830,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
                   style: TextStyle(color: Colors.white70, fontSize: 11),
                 ),
                 Text(
-                  name,
+                  student['name'],
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -717,7 +838,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
                   ),
                 ),
                 Text(
-                  "Class $className-$section | Roll No: $rollNo",
+                  "Class ${student['class']}-${student['section']} | Roll No: ${student['rollNo']}",
                   style: const TextStyle(color: Colors.white70, fontSize: 10),
                 ),
               ],
@@ -752,10 +873,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
               color: color,
             ),
           ),
-          Text(
-            title,
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-          ),
+          Text(title, style: const TextStyle(fontSize: 10, color: Colors.grey)),
         ],
       ),
     );
@@ -786,7 +904,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
             children: [
               Expanded(
                 child: LinearProgressIndicator(
-                  value: (collectionRate / 100).toDouble(),
+                  value: collectionRate / 100,
                   backgroundColor: Colors.grey.shade200,
                   valueColor: AlwaysStoppedAnimation<Color>(getRateColor()),
                   minHeight: 8,
@@ -830,7 +948,11 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
           ),
           const SizedBox(height: 12),
           _breakdownRow("Paid Fees", paidCount, Colors.green),
-          _breakdownRow("Pending Fees", pendingCount, Colors.red),
+          _breakdownRow(
+            "Pending Fees",
+            pendingCount - overdueCount,
+            Colors.orange,
+          ),
           if (overdueCount > 0)
             _breakdownRow(
               "Overdue Fees",
@@ -839,7 +961,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
               isOverdue: true,
             ),
           if (partialCount > 0)
-            _breakdownRow("Partial Payments", partialCount, Colors.orange),
+            _breakdownRow("Partial Payments", partialCount, Colors.blue),
         ],
       ),
     );
@@ -851,6 +973,7 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
     Color color, {
     bool isOverdue = false,
   }) {
+    if (count == 0) return const SizedBox();
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -901,6 +1024,8 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
             ? (data['paymentDate'] as Timestamp).toDate()
             : null;
     final description = data['description'] ?? '';
+    final discount = data['discount'] ?? 0;
+    final lateFee = data['lateFee'] ?? 0;
 
     showModalBottomSheet(
       context: context,
@@ -913,7 +1038,6 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
             initialChildSize: 0.6,
             minChildSize: 0.4,
             maxChildSize: 0.9,
-            expand: false,
             builder:
                 (context, scrollController) => Container(
                   padding: const EdgeInsets.all(20),
@@ -982,6 +1106,11 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
                         "Total Amount",
                         "₹${amount.toStringAsFixed(0)}",
                       ),
+                      if (discount > 0)
+                        _detailRow(
+                          "Discount",
+                          "₹${discount.toStringAsFixed(0)}",
+                        ),
                       if (paidAmount > 0)
                         _detailRow(
                           "Paid Amount",
@@ -991,6 +1120,11 @@ class _FeeHistoryPageState extends State<FeeHistoryPage>
                         _detailRow(
                           "Remaining Amount",
                           "₹${remainingAmount.toStringAsFixed(0)}",
+                        ),
+                      if (lateFee > 0)
+                        _detailRow(
+                          "Late Fee",
+                          "₹${lateFee.toStringAsFixed(0)} per day",
                         ),
                       if (dueDate != null)
                         _detailRow(
