@@ -20,7 +20,10 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
   String? _selectedClass;
   String? _selectedSection;
   List<Map<String, dynamic>> _students = [];
+  List<Map<String, dynamic>> _examsList = [];
   bool _isLoading = true;
+  bool _isLoadingExams = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -29,7 +32,10 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
   }
 
   Future<void> _loadStudents() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
       final parentUid = FirebaseAuth.instance.currentUser!.uid;
@@ -71,20 +77,91 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
           _selectedClass = _students.first['class'];
           _selectedSection = _students.first['section'];
         }
+        await _loadExams();
       }
     } catch (e) {
       debugPrint('Error loading students: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading students: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      _errorMessage =
+          "Error loading students: ${e.toString().substring(0, 100)}";
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadExams() async {
+    if (_selectedClass == null || _selectedClass!.isEmpty) return;
+
+    setState(() {
+      _isLoadingExams = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Try with ordering (requires index)
+      final examsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('exams')
+              .where('className', isEqualTo: _selectedClass)
+              .orderBy('startDate', descending: false)
+              .get();
+
+      _processExams(examsSnapshot);
+    } catch (e) {
+      debugPrint('Ordered query failed, trying without order: $e');
+      // Fallback: query without orderBy
+      try {
+        final examsSnapshot =
+            await FirebaseFirestore.instance
+                .collection('schools')
+                .doc(AppConfig.schoolId)
+                .collection('exams')
+                .where('className', isEqualTo: _selectedClass)
+                .get();
+
+        _processExams(examsSnapshot);
+      } catch (e2) {
+        debugPrint('Fallback query failed: $e2');
+        _errorMessage = "Unable to load exams. Please create Firebase index.";
+        setState(() => _isLoadingExams = false);
       }
     }
+  }
 
-    setState(() => _isLoading = false);
+  void _processExams(QuerySnapshot snapshot) {
+    final exams =
+        snapshot.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return {
+            'id': doc.id,
+            'name': data['examName'] ?? 'Unknown Exam',
+            'type': data['examType'] ?? 'Regular',
+            'startDate': data['startDate'],
+            'endDate': data['endDate'],
+            'subjects': List<String>.from(data['subjects'] ?? []),
+            'maxMarks':
+                (data['maxMarks'] as List?)
+                    ?.map((e) => (e as num).toInt())
+                    .toList() ??
+                [],
+          };
+        }).toList();
+
+    // Sort locally
+    exams.sort((a, b) {
+      final aDate = a['startDate'] as Timestamp?;
+      final bDate = b['startDate'] as Timestamp?;
+      if (aDate != null && bDate != null) {
+        return aDate.toDate().compareTo(bDate.toDate());
+      }
+      return 0;
+    });
+
+    setState(() {
+      _examsList = exams;
+      _isLoadingExams = false;
+    });
   }
 
   @override
@@ -109,7 +186,10 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadStudents,
+            onPressed: () async {
+              await _loadStudents();
+              await _loadExams();
+            },
             tooltip: "Refresh",
           ),
         ],
@@ -196,8 +276,6 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                     }).toList(),
                 onChanged: (value) async {
                   if (value == null) return;
-                  setState(() => _isLoading = true);
-
                   final selectedStudent = _students.firstWhere(
                     (s) => s['id'] == value,
                   );
@@ -206,8 +284,10 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                     _selectedStudentName = selectedStudent['name'];
                     _selectedClass = selectedStudent['class'];
                     _selectedSection = selectedStudent['section'];
-                    _isLoading = false;
+                    _isLoading = true;
                   });
+                  await _loadExams();
+                  setState(() => _isLoading = false);
                 },
               ),
             ),
@@ -272,67 +352,68 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
   }
 
   Widget _buildExamSchedule() {
-    return StreamBuilder<QuerySnapshot>(
-      stream:
-          FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('exams')
-              .where('className', isEqualTo: _selectedClass)
-              .orderBy('startDate', descending: false)
-              .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    if (_isLoadingExams) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
-                const SizedBox(height: 16),
-                Text('Error loading exams'),
-              ],
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+            const SizedBox(height: 16),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(fontSize: 14),
+              textAlign: TextAlign.center,
             ),
-          );
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.quiz_outlined,
-                  size: 64,
-                  color: Colors.grey.shade400,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  "No exams scheduled",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                ),
-              ],
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => _loadExams(),
+              icon: const Icon(Icons.refresh),
+              label: const Text("Retry"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
             ),
-          );
-        }
+          ],
+        ),
+      );
+    }
 
-        final exams = snapshot.data!.docs;
-        return RefreshIndicator(
-          onRefresh: () async => setState(() {}),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: exams.length,
-            itemBuilder: (context, index) {
-              final exam = exams[index];
-              final data = exam.data() as Map<String, dynamic>;
-              return _buildExamCard(data);
-            },
-          ),
-        );
-      },
+    if (_examsList.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.quiz_outlined, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            const Text(
+              "No exams scheduled",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "No exams have been created for $_selectedClass yet",
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadExams,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _examsList.length,
+        itemBuilder: (context, index) {
+          final exam = _examsList[index];
+          return _buildExamCard(exam);
+        },
+      ),
     );
   }
 
@@ -347,10 +428,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
     final startDate = startTimestamp.toDate();
     final endDate = endTimestamp.toDate();
     final subjects = List<String>.from(exam['subjects'] ?? []);
-    // FIXED: Convert num to int properly
-    final maxMarksRaw = exam['maxMarks'] ?? [];
-    final List<int> maxMarks =
-        maxMarksRaw.map<int>((e) => (e as num).toInt()).toList();
+    final maxMarks = List<int>.from(exam['maxMarks'] ?? []);
     final now = DateTime.now();
 
     final isUpcoming = startDate.isAfter(now);
@@ -391,7 +469,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
           child: Icon(getStatusIcon(), color: getStatusColor(), size: 20),
         ),
         title: Text(
-          exam['examName'] ?? 'Unknown Exam',
+          exam['name'],
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
         subtitle: Column(
@@ -440,7 +518,7 @@ class _ParentExamSchedulePageState extends State<ParentExamSchedulePage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    exam['examType'] ?? 'Regular',
+                    exam['type'],
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
