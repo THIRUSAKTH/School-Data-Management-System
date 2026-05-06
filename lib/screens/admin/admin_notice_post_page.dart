@@ -31,8 +31,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
 
   // File attachments
   List<Map<String, dynamic>> _attachments = [];
-  List<dynamic> _localFiles =
-      []; // Changed to dynamic to support both File and XFile
+  List<dynamic> _localFiles = [];
 
   final List<String> _priorityOptions = ["Normal", "Important", "Urgent"];
   final List<String> _audienceOptions = [
@@ -139,7 +138,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
     setState(() => _isUploading = true);
 
     try {
-      // Show progress dialog
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -158,7 +156,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
 
       List<Map<String, dynamic>> uploadedFiles = [];
 
-      // Handle different file types based on platform
       for (var fileItem in _localFiles) {
         try {
           final fileName =
@@ -170,7 +167,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
           UploadTask uploadTask;
 
           if (kIsWeb) {
-            // Web platform - handle XFile or FilePickerResult
             if (fileItem is FilePickerResult) {
               final file = fileItem.files.first;
               if (file.bytes != null) {
@@ -185,7 +181,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
               continue;
             }
           } else {
-            // Android platform - handle File objects
             if (fileItem is FilePickerResult) {
               final file = fileItem.files.first;
               if (file.path != null) {
@@ -215,14 +210,13 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
         }
       }
 
-      Navigator.pop(context); // Close progress dialog
+      Navigator.pop(context);
 
       if (mounted && uploadedFiles.isNotEmpty) {
         setState(() {
           _attachments.addAll(uploadedFiles);
           _localFiles.clear();
         });
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -241,7 +235,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Close dialog if open
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Error uploading files: $e"),
@@ -254,7 +248,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
     }
   }
 
-  // Helper methods for cross-platform file handling
   String _getFileName(dynamic fileItem) {
     if (fileItem is FilePickerResult) {
       return fileItem.files.first.name;
@@ -286,7 +279,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
     final extension = fileName.toLowerCase().split('.').last;
     const images = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
     const pdfs = ['pdf'];
-
     if (images.contains(extension)) return 'image';
     if (pdfs.contains(extension)) return 'pdf';
     return 'document';
@@ -481,7 +473,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-
           Row(
             children: [
               Expanded(
@@ -513,7 +504,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
               ),
             ],
           ),
-
           if (_localFiles.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Divider(),
@@ -586,7 +576,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
               ),
             ),
           ],
-
           if (_attachments.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Divider(),
@@ -652,7 +641,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
               );
             }).toList(),
           ],
-
           if (_localFiles.isEmpty && _attachments.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16),
@@ -807,7 +795,6 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
   Widget _buildSubmitButton() {
     final isValid =
         _titleController.text.isNotEmpty && _messageController.text.isNotEmpty;
-
     return SizedBox(
       width: double.infinity,
       height: 52,
