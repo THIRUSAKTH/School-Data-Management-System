@@ -305,7 +305,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
       return TextFormField(
         controller: _classController,
         decoration: const InputDecoration(
-          labelText: 'Class (e.g., Grade 10, Class 5)',
+          labelText: 'Class (e.g., CLASS 5)',
           border: OutlineInputBorder(),
           prefixIcon: Icon(Icons.class_, size: 18),
           hintText: 'Enter class name',

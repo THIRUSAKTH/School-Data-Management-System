@@ -845,18 +845,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           const Divider(),
           _drawerItem(
             context,
-            Icons.school,
-            "Teachers",
-            TeacherManagementPage(schoolId: AppConfig.schoolId),
-          ),
-          _drawerItem(
-            context,
-            Icons.people,
-            "Students",
-            StudentManagementPage(schoolId: AppConfig.schoolId),
-          ),
-          _drawerItem(
-            context,
             Icons.add_box,
             "Create Class",
             CreateClassPage(schoolId: AppConfig.schoolId),
@@ -866,6 +854,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
             Icons.class_,
             "Manage Classes",
             ClassManagementPage(schoolId: AppConfig.schoolId),
+          ),
+          _drawerItem(
+            context,
+            Icons.school,
+            "Teachers",
+            TeacherManagementPage(schoolId: AppConfig.schoolId),
+          ),
+          _drawerItem(
+            context,
+            Icons.people,
+            "Students",
+            StudentManagementPage(schoolId: AppConfig.schoolId),
           ),
           const Divider(),
           _drawerItem(

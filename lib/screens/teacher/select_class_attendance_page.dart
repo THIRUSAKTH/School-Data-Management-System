@@ -286,7 +286,7 @@ class _SelectClassAttendancePageState extends State<SelectClassAttendancePage> {
                   controller: classController,
                   decoration: InputDecoration(
                     labelText: "Or Enter Class Manually",
-                    hintText: "e.g., Class 5, Grade 10",
+                    hintText: "e.g., CLASS 5",
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     filled: true,
                     fillColor: Colors.grey.shade50,

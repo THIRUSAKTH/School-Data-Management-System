@@ -45,16 +45,18 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
   final List<String> _classes = [
     "LKG",
     "UKG",
-    "Class 1",
-    "Class 2",
-    "Class 3",
-    "Class 4",
-    "Class 5",
-    "Class 6",
-    "Class 7",
-    "Class 8",
-    "Class 9",
-    "Class 10",
+    "CLASS 1",
+    "CLASS 2",
+    "CLASS 3",
+    "CLASS 4",
+    "CLASS 5",
+    "CLASS 6",
+    "CLASS 7",
+    "CLASS 8",
+    "CLASS 9",
+    "CLASS 10",
+    "CLASS 11",
+    "CLASS 12",
   ];
 
   final List<String> _sections = ["A", "B", "C", "D"];

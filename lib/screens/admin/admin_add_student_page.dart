@@ -35,9 +35,9 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
   // Default classes as fallback
   List<String> _availableClasses = [
     "LKG", "UKG",
-    "CLASS I", "CLASS II", "CLASS III", "CLASS IV", "CLASS V",
-    "CLASS VI", "CLASS VII", "CLASS VIII", "CLASS IX", "CLASS X",
-    "CLASS XI", "CLASS XII",
+    "CLASS 1", "CLASS 2", "CLASS 3", "CLASS 4", "CLASS 5",
+    "CLASS 6", "CLASS 7", "CLASS 8", "CLASS 9", "CLASS 10",
+    "CLASS 11", "CLASS 12",
   ];
 
   List<String> _availableSections = ['A', 'B', 'C', 'D'];
