@@ -230,6 +230,7 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
                         child: Text(
                           "${student['name']} (${student['class']} - ${student['section']})",
                           style: const TextStyle(fontSize: 13),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       );
                     }).toList(),
@@ -241,6 +242,7 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
                       (s) => s['id'] == value,
                     );
                     _selectedStudentName = selected['name'];
+                    // No need to reload notifications, stream will update
                   });
                 },
               ),
