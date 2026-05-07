@@ -110,7 +110,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    if (!isWeb) // Camera not fully supported on web
+                    if (!isWeb)
                       _buildImageSourceOption(
                         icon: Icons.camera_alt,
                         label: "Camera",
@@ -180,11 +180,6 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     );
   }
 
-  Future<Uint8List?> _getImageBytes() async {
-    if (_selectedImage == null) return null;
-    return await _selectedImage!.readAsBytes();
-  }
-
   Future<void> _uploadLogo() async {
     if (_selectedImage == null) {
       _showError("Please select an image first");
@@ -201,13 +196,10 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
             '${widget.schoolId}_${DateTime.now().millisecondsSinceEpoch}.png',
           );
 
-      // Upload based on platform
       if (isWeb) {
-        // Web platform - upload bytes
         final bytes = await _selectedImage!.readAsBytes();
         await ref.putData(bytes);
       } else {
-        // Mobile platform - upload file
         final file = File(_selectedImage!.path);
         await ref.putFile(file);
       }
@@ -287,11 +279,11 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     }
   }
 
-  // Helper to get image provider for display
+  // FIXED: Helper to get image provider for display
   ImageProvider? _getImageProvider() {
     if (_selectedImage != null) {
       if (isWeb) {
-        // For web, we need to load the image differently
+        // For web preview of selected image
         return NetworkImage(_selectedImage!.path);
       } else {
         return FileImage(File(_selectedImage!.path));
@@ -300,7 +292,8 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     if (_logoUrl.isNotEmpty) {
       return NetworkImage(_logoUrl);
     }
-    return null;
+    // Return a placeholder instead of null
+    return const AssetImage('assets/images/placeholder.png');
   }
 
   @override
@@ -346,6 +339,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     );
   }
 
+  // FIXED: Logo section with proper error handling
   Widget _buildLogoSecion() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -365,23 +359,44 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                   ),
                 ],
               ),
-              child: CircleAvatar(
-                radius: 65,
-                backgroundColor: Colors.grey.shade200,
-                backgroundImage: _getImageProvider(),
-                onBackgroundImageError: (_, __) {
-                  setState(() {
-                    _logoUrl = "";
-                  });
-                },
-                child:
-                    _selectedImage == null && _logoUrl.isEmpty
-                        ? Icon(
-                          Icons.add_photo_alternate,
-                          size: 45,
-                          color: Colors.grey.shade400,
-                        )
-                        : null,
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 65,
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: _getImageProvider(),
+                    child:
+                        (_selectedImage == null && _logoUrl.isEmpty)
+                            ? Icon(
+                              Icons.add_photo_alternate,
+                              size: 45,
+                              color: Colors.grey.shade400,
+                            )
+                            : null,
+                  ),
+                  if (_selectedImage != null || _logoUrl.isNotEmpty)
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.edit,
+                          size: 18,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -420,9 +435,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                 ),
                 const SizedBox(width: 12),
                 TextButton.icon(
-                  onPressed: () {
-                    setState(() => _selectedImage = null);
-                  },
+                  onPressed: () => setState(() => _selectedImage = null),
                   icon: const Icon(Icons.cancel, size: 18),
                   label: const Text("Cancel"),
                 ),

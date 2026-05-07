@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:schoolprojectjan/app_config.dart';
 import 'admin_dashboard.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -54,7 +55,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const AdminDashboard(), // ✅ FIXED
+          builder: (_) => const AdminDashboard(schoolId: AppConfig.schoolId,), // ✅ FIXED
         ),
       );
     });

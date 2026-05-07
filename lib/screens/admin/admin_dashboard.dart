@@ -21,7 +21,8 @@ import 'student_management_page.dart';
 import 'teacher_management_page.dart';
 
 class AdminDashboard extends StatefulWidget {
-  const AdminDashboard({super.key});
+  final String schoolId;
+  const AdminDashboard({super.key,required this.schoolId});
 
   @override
   State<AdminDashboard> createState() => _AdminDashboardState();

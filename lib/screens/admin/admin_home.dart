@@ -25,7 +25,7 @@ class _AdminHomeState extends State<AdminHome> {
     super.initState();
 
     _pages = [
-      AdminDashboard(),
+      AdminDashboard(schoolId: widget.schoolId,),
       const ClassSectionPage(),
       const AdminNoticePostPage(),
     ];

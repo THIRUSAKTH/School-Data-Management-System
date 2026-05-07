@@ -42,21 +42,20 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
   String? _selectedStudentName;
   List<Map<String, dynamic>> _studentsInClass = [];
 
+  // FIXED: Removed duplicate "Class 6"
   final List<String> _classes = [
     "LKG",
     "UKG",
-    "CLASS 1",
-    "CLASS 2",
-    "CLASS 3",
-    "CLASS 4",
-    "CLASS 5",
-    "CLASS 6",
-    "CLASS 7",
-    "CLASS 8",
-    "CLASS 9",
-    "CLASS 10",
-    "CLASS 11",
-    "CLASS 12",
+    "Class 1",
+    "Class 2",
+    "Class 3",
+    "Class 4",
+    "Class 5",
+    "Class 6",
+    "Class 7",
+    "Class 8",
+    "Class 9",
+    "Class 10",
   ];
 
   final List<String> _sections = ["A", "B", "C", "D"];
@@ -91,7 +90,7 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadStudentCount();
     _loadStudentsInClass();
   }
@@ -315,9 +314,9 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
           Row(
             children: [
               Expanded(
-                child: _dropdown("Class", _selectedClass, _classes, (v) {
+                child: _dropdown("Class", _selectedClass, (value) {
                   setState(() {
-                    _selectedClass = v;
+                    _selectedClass = value;
                   });
                   _loadStudentCount();
                   _loadStudentsInClass();
@@ -326,9 +325,9 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _dropdown("Section", _selectedSection, _sections, (v) {
+                child: _dropdown("Section", _selectedSection, (value) {
                   setState(() {
-                    _selectedSection = v;
+                    _selectedSection = value;
                   });
                   _loadStudentCount();
                   _loadStudentsInClass();
@@ -397,12 +396,9 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
         children: [
           _sectionTitle("Fee Details", Icons.receipt),
           const SizedBox(height: 16),
-          _dropdown(
-            "Fee Type",
-            _selectedFeeType,
-            _feeTypes,
-            (v) => setState(() => _selectedFeeType = v),
-          ),
+          _dropdown("Fee Type", _selectedFeeType, (value) {
+            setState(() => _selectedFeeType = value);
+          }),
           const SizedBox(height: 12),
           TextField(
             controller: _amountController,
@@ -480,12 +476,9 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
           ),
           if (_isRecurring) ...[
             const SizedBox(height: 8),
-            _dropdown(
-              "Recurring Period",
-              _recurringPeriod,
-              _recurringPeriods,
-              (v) => setState(() => _recurringPeriod = v),
-            ),
+            _dropdown("Recurring Period", _recurringPeriod, (value) {
+              setState(() => _recurringPeriod = value);
+            }),
           ],
           const SizedBox(height: 12),
           TextField(
@@ -618,9 +611,9 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
           Row(
             children: [
               Expanded(
-                child: _dropdown("Class", _selectedClass, _classes, (v) {
+                child: _dropdown("Class", _selectedClass, (value) {
                   setState(() {
-                    _selectedClass = v;
+                    _selectedClass = value;
                     _selectedStudentId = null;
                   });
                   _loadStudentsInClass();
@@ -628,9 +621,9 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _dropdown("Section", _selectedSection, _sections, (v) {
+                child: _dropdown("Section", _selectedSection, (value) {
                   setState(() {
-                    _selectedSection = v;
+                    _selectedSection = value;
                     _selectedStudentId = null;
                   });
                   _loadStudentsInClass();
@@ -639,23 +632,47 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
             ],
           ),
           const SizedBox(height: 12),
-          _dropdown(
-            "Student",
-            _selectedStudentId ?? "",
-            _studentsInClass.map((s) => s['id'] as String).toList(),
-            (v) {
-              setState(() {
-                _selectedStudentId = v;
-                final selected = _studentsInClass.firstWhere(
-                  (s) => s['id'] == v,
-                );
-                _selectedStudentName = selected['name'];
-              });
-            },
-            isStudentDropdown: true,
-            studentNames: _studentsInClass,
-          ),
+          _studentDropdown(),
         ],
+      ),
+    );
+  }
+
+  Widget _studentDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedStudentId,
+      hint: const Text("Select Student"),
+      isExpanded: true,
+      items:
+          _studentsInClass.map((student) {
+            return DropdownMenuItem<String>(
+              value: student['id'],
+              child: Text("${student['rollNo']} - ${student['name']}"),
+            );
+          }).toList(),
+      onChanged: (value) {
+        setState(() {
+          _selectedStudentId = value;
+          final selected = _studentsInClass.firstWhere((s) => s['id'] == value);
+          _selectedStudentName = selected['name'];
+        });
+      },
+      decoration: InputDecoration(
+        labelText: "Student",
+        filled: true,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
       ),
     );
   }
@@ -762,7 +779,7 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
         children: [
           _sectionTitle("Fee Adjustment", Icons.edit_note),
           const SizedBox(height: 16),
-          _dropdown("Adjustment Type", "Discount", _adjustmentTypes, (v) {}),
+          _dropdown("Adjustment Type", "Discount", (v) {}),
           const SizedBox(height: 12),
           TextField(
             controller: _individualAmountController,
@@ -848,11 +865,31 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
               .doc(widget.schoolId)
               .collection('fees')
               .orderBy('createdAt', descending: true)
-              .limit(30)
+              .limit(50)
               .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text("Error loading fee history"),
+                const SizedBox(height: 8),
+                Text(snapshot.error.toString()),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => setState(() {}),
+                  child: const Text("Retry"),
+                ),
+              ],
+            ),
+          );
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -863,77 +900,264 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
                 Icon(Icons.history, size: 48, color: Colors.grey),
                 SizedBox(height: 16),
                 Text("No fee records found"),
+                SizedBox(height: 8),
+                Text(
+                  "Tap the + button to create a new fee",
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
               ],
             ),
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: snapshot.data!.docs.length,
-          itemBuilder: (context, index) {
-            final doc = snapshot.data!.docs[index];
-            final data = doc.data() as Map<String, dynamic>;
+        return RefreshIndicator(
+          onRefresh: () async => setState(() {}),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: snapshot.data!.docs.length,
+            itemBuilder: (context, index) {
+              final doc = snapshot.data!.docs[index];
+              final data = doc.data() as Map<String, dynamic>;
 
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.deepPurple.shade100,
-                  child: Icon(Icons.receipt, color: Colors.deepPurple),
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                title: Text(data['type'] ?? 'Fee'),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("${data['class']} - ${data['section']}"),
-                    Text(
-                      "Due: ${(data['dueDate'] as Timestamp).toDate().toString().split(' ')[0]}",
-                      style: const TextStyle(fontSize: 12),
+                child: InkWell(
+                  onTap: () => _showFeeDetails(data),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: Colors.deepPurple.shade100,
+                              child: Icon(
+                                Icons.receipt,
+                                color: Colors.deepPurple,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    data['type'] ?? 'Fee',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    "${data['class']} - ${data['section']}",
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                DateFormat('dd MMM yyyy').format(
+                                  (data['createdAt'] as Timestamp).toDate(),
+                                ),
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        const Divider(),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  "Amount per Student",
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                Text(
+                                  "₹${(data['amount'] as num).toInt()}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const Text(
+                                  "Students",
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                Text(
+                                  "${data['totalStudents']}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const Text(
+                                  "Total Amount",
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                Text(
+                                  "₹${(data['totalAmount'] as num).toInt()}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.deepPurple,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        if (data['dueDate'] != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.calendar_today,
+                                  size: 12,
+                                  color: Colors.grey,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  "Due: ${DateFormat('dd MMM yyyy').format((data['dueDate'] as Timestamp).toDate())}",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
-                    Text(
-                      "Amount: ₹${(data['amount'] as num).toInt()} x ${data['totalStudents']} students",
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                  ],
+                  ),
                 ),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      "₹${(data['totalAmount'] as num).toInt()}",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.deepPurple,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade100,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        DateFormat(
-                          'dd MMM yyyy',
-                        ).format((data['createdAt'] as Timestamp).toDate()),
-                        style: const TextStyle(fontSize: 10),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
+    );
+  }
+
+  void _showFeeDetails(Map<String, dynamic> data) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(data['type'] ?? 'Fee Details'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _detailRow(
+                  "Class/Section",
+                  "${data['class']} - ${data['section']}",
+                ),
+                _detailRow(
+                  "Amount per Student",
+                  "₹${(data['amount'] as num).toInt()}",
+                ),
+                _detailRow("Total Students", "${data['totalStudents']}"),
+                _detailRow(
+                  "Total Amount",
+                  "₹${(data['totalAmount'] as num).toInt()}",
+                ),
+                if (data['discount'] != null && data['discount'] > 0)
+                  _detailRow(
+                    "Discount per Student",
+                    "₹${(data['discount'] as num).toInt()}",
+                  ),
+                if (data['lateFee'] != null && data['lateFee'] > 0)
+                  _detailRow(
+                    "Late Fee per Day",
+                    "₹${(data['lateFee'] as num).toInt()}",
+                  ),
+                if (data['dueDate'] != null)
+                  _detailRow(
+                    "Due Date",
+                    DateFormat(
+                      'dd MMM yyyy',
+                    ).format((data['dueDate'] as Timestamp).toDate()),
+                  ),
+                _detailRow(
+                  "Created On",
+                  DateFormat(
+                    'dd MMM yyyy, hh:mm a',
+                  ).format((data['createdAt'] as Timestamp).toDate()),
+                ),
+                if (data['description'] != null &&
+                    data['description'].toString().isNotEmpty)
+                  _detailRow("Description", data['description']),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1004,50 +1228,36 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
     );
   }
 
+  // FIXED: Simplified dropdown method
   Widget _dropdown(
     String label,
     String value,
-    List<String> items,
     ValueChanged<String> onChanged, {
-    bool isStudentDropdown = false,
-    List<Map<String, dynamic>> studentNames = const [],
+    List<String>? items,
   }) {
-    if (isStudentDropdown && studentNames.isNotEmpty) {
-      return DropdownButtonFormField<String>(
-        value: value.isEmpty ? null : value,
-        hint: const Text("Select Student"),
-        items:
-            studentNames.map((student) {
-              return DropdownMenuItem<String>(
-                value: student['id'],
-                child: Text("${student['rollNo']} - ${student['name']}"),
-              );
-            }).toList(),
-        onChanged: (v) => onChanged(v!),
-        decoration: InputDecoration(
-          labelText: label,
-          filled: true,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 12,
-          ),
-        ),
-      );
+    List<String> itemList;
+
+    if (label == "Class") {
+      itemList = _classes;
+    } else if (label == "Section") {
+      itemList = _sections;
+    } else if (label == "Fee Type") {
+      itemList = _feeTypes;
+    } else if (label == "Recurring Period") {
+      itemList = _recurringPeriods;
+    } else if (label == "Adjustment Type") {
+      itemList = _adjustmentTypes;
+    } else {
+      itemList = [];
     }
 
     return DropdownButtonFormField<String>(
-      value: value,
+      value: itemList.contains(value) ? value : null,
+      isExpanded: true,
       items:
-          items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+          itemList.map((item) {
+            return DropdownMenuItem<String>(value: item, child: Text(item));
+          }).toList(),
       onChanged: (v) => onChanged(v!),
       decoration: InputDecoration(
         labelText: label,
@@ -1125,8 +1335,7 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
     setState(() => _isLoading = true);
 
     try {
-      // Get student's current pending fees
-       var pendingFees =
+      var pendingFees =
           await FirebaseFirestore.instance
               .collection('schools')
               .doc(widget.schoolId)

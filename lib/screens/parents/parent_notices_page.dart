@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
+import 'package:schoolprojectjan/services/file_preview_service.dart';
+import '../../services/file_picker_service.dart';
 
 class ParentNoticesPage extends StatefulWidget {
   final String? className;
@@ -880,124 +882,311 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
     final isImage = attachment['type'] == 'image';
     final url = attachment['url'];
     final fileName = attachment['originalName'] ?? attachment['name'];
+    final fileSize = attachment['size'] ?? 0;
 
-    return GestureDetector(
-      onTap: () => _showAttachmentPreview(attachment),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isImage ? Colors.green.shade100 : Colors.blue.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                isImage ? Icons.image : Icons.insert_drive_file,
-                size: 24,
-                color: isImage ? Colors.green : Colors.blue,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                fileName,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: isImage ? Colors.green.shade100 : Colors.blue.shade100,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                isImage ? "View Image" : "View File",
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isImage ? Colors.green : Colors.blue,
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: () => _showAttachmentPreview(attachment),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              // File Icon
+              Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(
+                  color: FilePreviewService.getFileIconColor(fileName).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  FilePreviewService.getFileIcon(fileName),
+                  color: FilePreviewService.getFileIconColor(fileName),
+                  size: 25,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              // File Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fileName,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      FilePickerService.getReadableSize(fileSize),
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              // Action Buttons
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.visibility, color: Colors.blue, size: 20),
+                    onPressed: () => FilePreviewService.viewFile(
+                      url: url,
+                      fileName: fileName,
+                      context: context,
+                    ),
+                    tooltip: 'View',
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.download, color: Colors.green, size: 20),
+                    onPressed: () async {
+                      await FilePreviewService.viewFile(
+                        url: url,
+                        fileName: fileName,
+                        context: context,
+                      );
+                    },
+                    tooltip: 'Download',
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.share, color: Colors.orange, size: 20),
+                    onPressed: () => FilePreviewService.shareFile(
+                      url: url,
+                      fileName: fileName,
+                      context: context,
+                    ),
+                    tooltip: 'Share',
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
-
   void _showAttachmentPreview(Map<String, dynamic> attachment) {
     final isImage = attachment['type'] == 'image';
     final url = attachment['url'];
     final fileName = attachment['originalName'] ?? attachment['name'];
+    final fileSize = attachment['size'] ?? 0;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          width: double.maxFinite,
-          padding: const EdgeInsets.all(16),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => Container(
+          padding: const EdgeInsets.all(20),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (isImage)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: FilePreviewService.getFileIconColor(fileName).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      FilePreviewService.getFileIcon(fileName),
+                      color: FilePreviewService.getFileIconColor(fileName),
+                      size: 30,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          fileName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          FilePickerService.getReadableSize(fileSize),
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+
+              // File Preview
+              Expanded(
+                child: isImage
+                    ? ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
                   child: Image.network(
                     url,
                     fit: BoxFit.contain,
-                    height: 300,
+                    width: double.infinity,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                                  : null,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Loading image...',
+                              style: TextStyle(color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                     errorBuilder: (_, __, ___) => Container(
                       height: 200,
-                      color: Colors.grey.shade200,
-                      child: const Center(
-                        child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Failed to load image',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 )
-              else
-                Container(
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                    : Center(
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.insert_drive_file, size: 48, color: Colors.orange),
-                      const SizedBox(height: 12),
-                      Text(fileName, textAlign: TextAlign.center),
+                      Icon(
+                        FilePreviewService.getFileIcon(fileName),
+                        size: 80,
+                        color: FilePreviewService.getFileIconColor(fileName),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'File Type: ${fileName.split('.').last.toUpperCase()}',
+                        style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Size: ${FilePickerService.getReadableSize(fileSize)}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              await FilePreviewService.viewFile(
+                                url: url,
+                                fileName: fileName,
+                                context: context,
+                              );
+                              Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.visibility),
+                            label: const Text('Open'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              await FilePreviewService.shareFile(
+                                url: url,
+                                fileName: fileName,
+                                context: context,
+                              );
+                            },
+                            icon: const Icon(Icons.share),
+                            label: const Text('Share'),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
+              ),
+
               const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
+                    child: OutlinedButton.icon(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text("Close"),
+                      icon: const Icon(Icons.close),
+                      label: const Text('Close'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Download feature coming soon")),
-                      ),
+                      onPressed: () async {
+                        await FilePreviewService.viewFile(
+                          url: url,
+                          fileName: fileName,
+                          context: context,
+                        );
+                      },
                       icon: const Icon(Icons.download),
-                      label: const Text("Download"),
+                      label: const Text('Download'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
+                        backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -1009,7 +1198,6 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
       ),
     );
   }
-
   void _showFilterDialog() {
     showDialog(
       context: context,
