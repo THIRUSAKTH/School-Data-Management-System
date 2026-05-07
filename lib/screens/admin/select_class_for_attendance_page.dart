@@ -237,74 +237,80 @@ class _SelectClassForAttendancePageState
       child: Row(
         children: [
           Expanded(
-            child: DropdownButtonFormField<String>(
-              value: _selectedClassFilter,
-              hint: const Text("All Classes"),
-              isExpanded: true,
-              decoration: InputDecoration(
-                labelText: "Filter by Class",
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 56),
+              child: DropdownButtonFormField<String>(
+                value: _selectedClassFilter,
+                hint: const Text("All Classes"),
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: "Filter by Class",
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  prefixIcon: const Icon(Icons.filter_list, size: 20),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
-                prefixIcon: const Icon(Icons.filter_list, size: 20),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                items: [
+                  const DropdownMenuItem<String>(value: null, child: Text("All Classes")),
+                  ..._availableClasses.map((className) {
+                    return DropdownMenuItem<String>(
+                      value: className,
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 120),
+                        child: Text(className, overflow: TextOverflow.ellipsis),
+                      ),
+                    );
+                  }).toList(),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedClassFilter = value;
+                  });
+                },
               ),
-              items: [
-                const DropdownMenuItem<String>(
-                  value: null,
-                  child: Text("All Classes"),
-                ),
-                ..._availableClasses.map((className) {
-                  return DropdownMenuItem<String>(
-                    value: className,
-                    child: Text(className),
-                  );
-                }).toList(),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _selectedClassFilter = value;
-                });
-              },
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: DropdownButtonFormField<String>(
-              value: _selectedSectionFilter,
-              hint: const Text("All Sections"),
-              isExpanded: true,
-              decoration: InputDecoration(
-                labelText: "Filter by Section",
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 56),
+              child: DropdownButtonFormField<String>(
+                value: _selectedSectionFilter,
+                hint: const Text("All Sections"),
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: "Filter by Section",
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  prefixIcon: const Icon(Icons.group, size: 20),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
-                prefixIcon: const Icon(Icons.group, size: 20),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                items: [
+                  const DropdownMenuItem<String>(value: null, child: Text("All Sections")),
+                  ..._availableSections.map((section) {
+                    return DropdownMenuItem<String>(
+                      value: section,
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 80),
+                        child: Text("Section $section", overflow: TextOverflow.ellipsis),
+                      ),
+                    );
+                  }).toList(),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedSectionFilter = value;
+                  });
+                },
               ),
-              items: [
-                const DropdownMenuItem<String>(
-                  value: null,
-                  child: Text("All Sections"),
-                ),
-                ..._availableSections.map((section) {
-                  return DropdownMenuItem<String>(
-                    value: section,
-                    child: Text(section),
-                  );
-                }).toList(),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _selectedSectionFilter = value;
-                });
-              },
             ),
           ),
         ],
@@ -323,7 +329,7 @@ class _SelectClassForAttendancePageState
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -332,45 +338,55 @@ class _SelectClassForAttendancePageState
       child: Row(
         children: [
           Expanded(
-            child: DropdownButtonFormField<int>(
-              value: _selectedMonth,
-              decoration: InputDecoration(
-                labelText: "Month",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 56),
+              child: DropdownButtonFormField<int>(
+                value: _selectedMonth,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: "Month",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  prefixIcon: const Icon(Icons.calendar_month, size: 20),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
-                prefixIcon: const Icon(Icons.calendar_month, size: 20),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                items: List.generate(12, (i) {
+                  return DropdownMenuItem<int>(
+                    value: i + 1,
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 100),
+                      child: Text(
+                        _months[i],
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  );
+                }),
+                onChanged: (v) => setState(() => _selectedMonth = v!),
               ),
-              items: List.generate(12, (i) {
-                return DropdownMenuItem<int>(
-                  value: i + 1,
-                  child: Text(_months[i]),
-                );
-              }),
-              onChanged: (v) => setState(() => _selectedMonth = v!),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: DropdownButtonFormField<int>(
-              value: _selectedYear,
-              decoration: InputDecoration(
-                labelText: "Year",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 56),
+              child: DropdownButtonFormField<int>(
+                value: _selectedYear,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: "Year",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  prefixIcon: const Icon(Icons.calendar_today, size: 20),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
-                prefixIcon: const Icon(Icons.calendar_today, size: 20),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                items: [
+                  for (int i = -2; i <= 3; i++)
+                    DropdownMenuItem<int>(
+                      value: currentYear + i,
+                      child: Text((currentYear + i).toString()),
+                    ),
+                ],
+                onChanged: (v) => setState(() => _selectedYear = v!),
               ),
-              items: [
-                for (int i = -2; i <= 3; i++)
-                  DropdownMenuItem<int>(
-                    value: currentYear + i,
-                    child: Text((currentYear + i).toString()),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _selectedYear = v!),
             ),
           ),
         ],

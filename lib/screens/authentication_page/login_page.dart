@@ -20,20 +20,24 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  GlobalKey<FormState> formKey=GlobalKey<FormState>();
+  GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
   bool hidePassword = true;
   bool isLoading = false;
+
+  /// Default Admin Credentials (First time setup only)
+  final String defaultAdminEmail = "admin@school.com";
+  final String defaultAdminPassword = "Admin@123";
 
   /// ROLE COLOR
   Color get roleColor {
     switch (widget.role) {
       case "Admin":
-        return Colors.cyan;
+        return Colors.deepPurple;
       case "Teacher":
         return Colors.green;
       case "Parent":
-        return Color(0xff01285f);
+        return Colors.orange;
       default:
         return Colors.blue;
     }
@@ -60,6 +64,12 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  void _fillDefaultAdminCredentials() {
+    emailController.text = defaultAdminEmail;
+    passwordController.text = defaultAdminPassword;
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -75,7 +85,7 @@ class _LoginPageState extends State<LoginPage> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: Colors.white.withOpacity(0.2),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(roleIcon, size: 50, color: Colors.white),
@@ -93,11 +103,14 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  "Sign in to continue",
+                  widget.role == "Admin"
+                      ? "Use default credentials for first login"
+                      : "Login with credentials provided by admin",
                   style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 12,
+                    color: Colors.white.withOpacity(0.8),
                   ),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 30),
 
@@ -109,7 +122,7 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
+                        color: Colors.black.withOpacity(0.1),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -136,40 +149,81 @@ class _LoginPageState extends State<LoginPage> {
                           isPassword: true,
                         ),
                         const SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
+
+                        // Buttons
+                        if (widget.role == "Admin")
+                          Column(
+                            children: [
+                              SizedBox(
+                                width: double.infinity,
+                                child: TextButton(
+                                  onPressed: _fillDefaultAdminCredentials,
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: roleColor,
+                                  ),
+                                  child: const Text(
+                                    "Use Default Admin Credentials",
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () async {
+                                  if (emailController.text.trim().isEmpty) {
+                                    _showError(
+                                      "Please enter your email address first",
+                                    );
+                                    return;
+                                  }
+                                  try {
+                                    await FirebaseAuth.instance
+                                        .sendPasswordResetEmail(
+                                          email: emailController.text.trim(),
+                                        );
+                                    _showSuccess(
+                                      "Password reset link sent to your email",
+                                    );
+                                  } catch (e) {
+                                    _showError("Something went wrong");
+                                  }
+                                },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: roleColor,
+                                ),
+                                child: const Text("Forgot Password?"),
+                              ),
+                            ],
+                          )
+                        else
+                          SizedBox(
+                            width: double.infinity,
+                            child: TextButton(
                               onPressed: () async {
+                                if (emailController.text.trim().isEmpty) {
+                                  _showError(
+                                    "Please enter your email address first",
+                                  );
+                                  return;
+                                }
                                 try {
                                   await FirebaseAuth.instance
                                       .sendPasswordResetEmail(
-                                    email: emailController.text.trim(),
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        "Password reset link sent to your email",
-                                      ),
-                                      backgroundColor: Colors.green,
-                                    ),
+                                        email: emailController.text.trim(),
+                                      );
+                                  _showSuccess(
+                                    "Password reset link sent to your email",
                                   );
                                 } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text("Something Went Wrong"),
-                                    ),
-                                  );
+                                  _showError("Something went wrong");
                                 }
                               },
                               style: TextButton.styleFrom(
-                                foregroundColor: Colors.black,
+                                foregroundColor: roleColor,
                               ),
-                              child: Text("Forgot Password?"),
+                              child: const Text("Forgot Password?"),
                             ),
-                          ],
-                        ),
-                        SizedBox(height: 15,),
+                          ),
+                        const SizedBox(height: 15),
+
                         // Login Button
                         SizedBox(
                           width: double.infinity,
@@ -185,22 +239,22 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             onPressed: isLoading ? null : _loginUser,
                             child:
-                            isLoading
-                                ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                                : const Text(
-                              "Sign In",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                                isLoading
+                                    ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : const Text(
+                                      "Sign In",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                           ),
                         ),
                       ],
@@ -217,12 +271,12 @@ class _LoginPageState extends State<LoginPage> {
 
   /// ================= INPUT FIELD =================
   Widget _buildTextField(
-      TextEditingController controller,
-      String hint,
-      IconData icon, {
-        bool isPassword = false,
-        TextInputType keyboardType = TextInputType.text,
-      }) {
+    TextEditingController controller,
+    String hint,
+    IconData icon, {
+    bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
     return TextField(
       controller: controller,
       obscureText: isPassword ? hidePassword : false,
@@ -246,19 +300,19 @@ class _LoginPageState extends State<LoginPage> {
           borderSide: BorderSide(color: roleColor, width: 1),
         ),
         suffixIcon:
-        isPassword
-            ? IconButton(
-          icon: Icon(
-            hidePassword ? Icons.visibility_off : Icons.visibility,
-            color: Colors.grey,
-          ),
-          onPressed: () {
-            setState(() {
-              hidePassword = !hidePassword;
-            });
-          },
-        )
-            : null,
+            isPassword
+                ? IconButton(
+                  icon: Icon(
+                    hidePassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      hidePassword = !hidePassword;
+                    });
+                  },
+                )
+                : null,
       ),
     );
   }
@@ -268,7 +322,6 @@ class _LoginPageState extends State<LoginPage> {
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
-    // Validation
     if (email.isEmpty) {
       _showError("Please enter email address");
       return;
@@ -282,15 +335,25 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => isLoading = true);
 
     try {
-      // Sign in with Firebase Auth
-      final result = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      UserCredential? userCredential;
 
-      final uid = result.user!.uid;
+      // Try to sign in first
+      try {
+        userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } on FirebaseAuthException catch (e) {
+        // If user doesn't exist for Admin, create them
+        if (e.code == 'user-not-found' && widget.role == "Admin") {
+          userCredential = await FirebaseAuth.instance
+              .createUserWithEmailAndPassword(email: email, password: password);
+        } else {
+          rethrow;
+        }
+      }
 
-      // Get role collection name
+      final uid = userCredential!.user!.uid;
       final roleCollection = widget.role.toLowerCase() + "s";
 
       final roleRef = FirebaseFirestore.instance
@@ -301,32 +364,59 @@ class _LoginPageState extends State<LoginPage> {
 
       final roleDoc = await roleRef.get();
 
-      // Auto register user if not exists
-      if (!roleDoc.exists) {
-        await roleRef.set({
-          "email": email,
-          "role": widget.role,
-          "firstLogin": widget.role != "Admin",
-          "createdAt": FieldValue.serverTimestamp(),
-        });
-      }
-
-      // Check first login for Teacher/Parent
-      final data = roleDoc.data();
-      final bool firstLogin = data?['firstLogin'] == true;
-
       // ---------- ADMIN ----------
       if (widget.role == "Admin") {
+        final bool isFirstLogin =
+            !roleDoc.exists || roleDoc.data()?['firstLogin'] == true;
+
+        if (!roleDoc.exists) {
+          await roleRef.set({
+            "email": email,
+            "role": "Admin",
+            "firstLogin": true,
+            "createdAt": FieldValue.serverTimestamp(),
+          });
+        }
+
+        if (isFirstLogin) {
+          if (!mounted) return;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (_) => ChangePasswordScreen(
+                    schoolId: AppConfig.schoolId,
+                    userId: uid,
+                    role: "Admin",
+                  ),
+            ),
+          );
+          return;
+        }
+
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const AdminDashboard()),
+          MaterialPageRoute(
+            builder: (_) => AdminDashboard(schoolId: AppConfig.schoolId),
+          ),
         );
         return;
       }
 
       // ---------- TEACHER ----------
       if (widget.role == "Teacher") {
+        if (!roleDoc.exists) {
+          _showError(
+            "Your account has not been created by admin yet. Please contact school admin.",
+          );
+          setState(() => isLoading = false);
+          return;
+        }
+
+        final data = roleDoc.data();
+        final bool firstLogin = data?['firstLogin'] == true;
+
         if (firstLogin) {
           if (!mounted) return;
           Navigator.pushReplacement(
@@ -334,10 +424,10 @@ class _LoginPageState extends State<LoginPage> {
             MaterialPageRoute(
               builder:
                   (_) => ChangePasswordScreen(
-                schoolId: AppConfig.schoolId,
-                userId: uid,
-                role: "Teacher",
-              ),
+                    schoolId: AppConfig.schoolId,
+                    userId: uid,
+                    role: "Teacher",
+                  ),
             ),
           );
           return;
@@ -353,42 +443,47 @@ class _LoginPageState extends State<LoginPage> {
 
       // ---------- PARENT ----------
       if (widget.role == "Parent") {
+        if (!roleDoc.exists) {
+          _showError(
+            "Your account has not been created by admin yet. Please contact school admin.",
+          );
+          setState(() => isLoading = false);
+          return;
+        }
+
+        final data = roleDoc.data();
+        final bool firstLogin = data?['firstLogin'] == true;
+
         if (firstLogin) {
-          // First login - go to change password
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => ChangePasswordScreen(
-                schoolId: AppConfig.schoolId,
-                userId: uid,
-                role: "Parent",
-              ),
+              builder:
+                  (_) => ChangePasswordScreen(
+                    schoolId: AppConfig.schoolId,
+                    userId: uid,
+                    role: "Parent",
+                  ),
             ),
           );
         } else {
-          // Check number of children
-          final childrenSnapshot = await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('students')
-              .where('parentUid', isEqualTo: uid)
-              .get();
+          final childrenSnapshot =
+              await FirebaseFirestore.instance
+                  .collection('schools')
+                  .doc(AppConfig.schoolId)
+                  .collection('students')
+                  .where('parentUid', isEqualTo: uid)
+                  .get();
 
           if (childrenSnapshot.docs.length > 1) {
-            // Multiple children - show Select Child page
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (_) => const SelectChildPage(),
-              ),
+              MaterialPageRoute(builder: (_) => const SelectChildPage()),
             );
           } else {
-            // Single child - go directly to dashboard
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (_) => const ParentDashboard(),
-              ),
+              MaterialPageRoute(builder: (_) => const ParentDashboard()),
             );
           }
         }
@@ -409,6 +504,9 @@ class _LoginPageState extends State<LoginPage> {
         case 'user-disabled':
           message = "This account has been disabled";
           break;
+        case 'email-already-in-use':
+          message = "Email already in use";
+          break;
         default:
           message = "Login failed: ${e.message}";
       }
@@ -428,6 +526,18 @@ class _LoginPageState extends State<LoginPage> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  /// ================= SHOW SUCCESS =================
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
       ),

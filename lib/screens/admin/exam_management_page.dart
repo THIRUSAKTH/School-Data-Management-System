@@ -495,6 +495,7 @@ class _ExamManagementPageState extends State<ExamManagementPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // FIXED: Row with proper constraints
             Row(
               children: [
                 Expanded(
@@ -503,26 +504,20 @@ class _ExamManagementPageState extends State<ExamManagementPage>
                     children: [
                       Text(
                         data['examName'] ?? 'Unnamed Exam',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
                         "${data['className'] ?? 'Class'} • ${data['examType'] ?? 'Exam'}",
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                // FIXED: Wrapped the status container in a Flexible widget
+                // FIXED: Wrapped status container in Flexible
                 Flexible(
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
