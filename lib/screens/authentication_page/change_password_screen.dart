@@ -72,7 +72,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
 
                 const SizedBox(height: 12),
-
                 _passwordField(
                   controller: newPasswordController,
                   hint: "New Password",
@@ -171,7 +170,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       // ✅ Update Firestore firstLogin flag
       final collection =
       widget.role == "Teacher" ? "teachers" : "parents";
-
       await FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
@@ -191,7 +189,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
     setState(() => loading = false);
   }
-
   void _msg(String text) {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(text)));
