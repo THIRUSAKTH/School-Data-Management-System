@@ -25,8 +25,7 @@ class _LoginPageState extends State<LoginPage> {
   bool hidePassword = true;
   bool isLoading = false;
 
-  /// Default Admin Credentials - These ALWAYS work for ANY new admin
-  /// IMPORTANT: Never delete or modify this account in Firebase Auth
+  /// Default Admin Credentials - These ALWAYS work for demo/first-time login
   final String defaultAdminEmail = "admin@school.com";
   final String defaultAdminPassword = "Admin@123";
 
@@ -105,7 +104,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 10),
                 Text(
                   widget.role == "Admin"
-                      ? "Use default credentials for first login\n(Works for every new school admin)"
+                      ? "Use default credentials for demo\n(Works for first-time login)"
                       : "Login with credentials provided by admin",
                   style: TextStyle(
                     fontSize: 12,
@@ -151,7 +150,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 10),
 
-                        // Buttons
+                        // Buttons based on role
                         if (widget.role == "Admin")
                           Column(
                             children: [
@@ -338,33 +337,31 @@ class _LoginPageState extends State<LoginPage> {
     try {
       UserCredential? userCredential;
 
-      // Check if this is a default admin login attempt
+      // Check if this is a default admin login attempt (DEMO MODE)
       final isDefaultAdminLogin =
           (widget.role == "Admin" &&
               email == defaultAdminEmail &&
               password == defaultAdminPassword);
 
       if (isDefaultAdminLogin) {
-        // SPECIAL HANDLING FOR DEFAULT ADMIN LOGIN
-        // We ALWAYS create a NEW user account for each school that uses default credentials
-        // NEVER reuse or modify the existing default account
-
+        // DEMO MODE: First time admin login
         final String schoolId = AppConfig.schoolId;
 
-        // Check if this specific school already has an admin registered
+        // Check if there's already a REAL admin (not a demo/temporary one)
         final adminCheck =
             await FirebaseFirestore.instance
                 .collection('schools')
                 .doc(schoolId)
                 .collection('admins')
+                .where('isRealAdmin', isEqualTo: true)
                 .where('schoolRegistered', isEqualTo: true)
                 .limit(1)
                 .get();
 
         if (adminCheck.docs.isNotEmpty) {
-          // This school already has an admin registered
+          // This school already has a REAL admin registered
           _showError(
-            "❌ This school already has an admin registered.\n\n"
+            "⚠️ This school already has an admin registered.\n\n"
             "Please use your custom email/password to login.\n\n"
             "If you forgot your credentials, contact your school administrator.",
           );
@@ -372,50 +369,67 @@ class _LoginPageState extends State<LoginPage> {
           return;
         }
 
-        // Create a TEMPORARY unique user account for this school
-        // This temp account will be converted to the real admin account
-        final tempEmail =
-            "temp_${DateTime.now().millisecondsSinceEpoch}_$schoolId@school.local";
+        // Check if there's an existing DEMO admin from this session
+        final existingDemoAdmin =
+            await FirebaseFirestore.instance
+                .collection('schools')
+                .doc(schoolId)
+                .collection('admins')
+                .where('isTemporaryAccount', isEqualTo: true)
+                .where('isDemoAdmin', isEqualTo: true)
+                .get();
 
-        try {
-          // Create a new Firebase Auth user with temporary email
-          userCredential = await FirebaseAuth.instance
-              .createUserWithEmailAndPassword(
-                email: tempEmail,
-                password: defaultAdminPassword,
-              );
+        if (existingDemoAdmin.docs.isNotEmpty) {
+          // Use existing demo admin account
+          final demoDoc = existingDemoAdmin.docs.first;
+          final tempEmail = demoDoc.get('tempEmail') as String?;
 
-          // Store the temporary account info in Firestore
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(schoolId)
-              .collection('admins')
-              .doc(userCredential.user!.uid)
-              .set({
-                'tempEmail': tempEmail,
-                'realEmail': null, // Will be set when user changes email
-                'role': 'Admin',
-                'firstLogin': true,
-                'isTemporaryAccount': true,
-                'schoolRegistered': true,
-                'createdAt': FieldValue.serverTimestamp(),
-                'createdUsingDefault': true,
-              });
-        } catch (e) {
-          if (e.toString().contains('email-already-in-use')) {
-            _showError("System error. Please try again or contact support.");
+          if (tempEmail != null) {
+            try {
+              // Try to sign in with existing demo account
+              userCredential = await FirebaseAuth.instance
+                  .signInWithEmailAndPassword(
+                    email: tempEmail,
+                    password: defaultAdminPassword,
+                  );
+            } catch (e) {
+              // If sign-in fails, create new one
+              userCredential = await _createDemoAdminAccount(schoolId);
+            }
           } else {
-            rethrow;
+            userCredential = await _createDemoAdminAccount(schoolId);
           }
+        } else {
+          // Create new demo admin account
+          userCredential = await _createDemoAdminAccount(schoolId);
         }
       } else {
-        // NORMAL LOGIN FLOW for existing users (non-default credentials)
+        // NORMAL LOGIN FLOW for existing users
         try {
           userCredential = await FirebaseAuth.instance
               .signInWithEmailAndPassword(email: email, password: password);
         } on FirebaseAuthException catch (e) {
           // If user doesn't exist and it's an admin trying to create account normally
           if (e.code == 'user-not-found' && widget.role == "Admin") {
+            // Check if this is a real admin trying to create account
+            final schoolId = AppConfig.schoolId;
+            final adminCheck =
+                await FirebaseFirestore.instance
+                    .collection('schools')
+                    .doc(schoolId)
+                    .collection('admins')
+                    .where('isRealAdmin', isEqualTo: true)
+                    .get();
+
+            if (adminCheck.docs.isNotEmpty) {
+              _showError(
+                "Admin already exists. Please use your registered email.",
+              );
+              setState(() => isLoading = false);
+              return;
+            }
+
+            // Create new real admin account
             userCredential = await FirebaseAuth.instance
                 .createUserWithEmailAndPassword(
                   email: email,
@@ -427,7 +441,14 @@ class _LoginPageState extends State<LoginPage> {
         }
       }
 
-      final uid = userCredential!.user!.uid;
+      // Ensure userCredential and user are not null
+      if (userCredential == null || userCredential.user == null) {
+        _showError("Login failed. Please try again.");
+        setState(() => isLoading = false);
+        return;
+      }
+
+      final uid = userCredential.user!.uid;
       final roleCollection = widget.role.toLowerCase() + "s";
 
       final roleRef = FirebaseFirestore.instance
@@ -441,16 +462,53 @@ class _LoginPageState extends State<LoginPage> {
       // ---------- ADMIN ----------
       if (widget.role == "Admin") {
         final docData = roleDoc.data();
+
+        // Check if this document has been converted or has a new UID
+        if (docData != null &&
+            docData.containsKey('newUid') &&
+            docData['newUid'] != null) {
+          // This account has been converted, use the new UID
+          final newUid = docData['newUid'] as String;
+          final newRoleRef = FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('admins')
+              .doc(newUid);
+
+          final newRoleDoc = await newRoleRef.get();
+
+          if (newRoleDoc.exists) {
+            // Navigate to dashboard with new UID
+            if (!mounted) return;
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AdminDashboard(schoolId: AppConfig.schoolId),
+              ),
+            );
+            return;
+          }
+        }
+
         final bool isFirstLogin =
-            !roleDoc.exists || docData?['firstLogin'] == true;
-        final bool isTemporaryAccount = docData?['isTemporaryAccount'] == true;
+            !roleDoc.exists || (docData?['firstLogin'] == true);
+        final bool isTemporaryAccount =
+            (docData?['isTemporaryAccount'] == true) ||
+            (docData?['isDemoAdmin'] == true);
 
         if (!roleDoc.exists) {
-          // For normal admin creation (non-default)
+          // Determine if this is a real admin or demo
+          final isDemoAdmin =
+              email == defaultAdminEmail && password == defaultAdminPassword;
+
           await roleRef.set({
             "email": email,
             "role": "Admin",
             "firstLogin": true,
+            "isRealAdmin": !isDemoAdmin,
+            "isDemoAdmin": isDemoAdmin,
+            "isTemporaryAccount": isDemoAdmin,
+            "schoolRegistered": true,
             "createdAt": FieldValue.serverTimestamp(),
           });
         }
@@ -466,7 +524,7 @@ class _LoginPageState extends State<LoginPage> {
                     schoolId: AppConfig.schoolId,
                     userId: uid,
                     role: "Admin",
-                    isTemporaryAccount: isTemporaryAccount, // Pass this flag
+                    isTemporaryAccount: isTemporaryAccount,
                   ),
             ),
           );
@@ -494,7 +552,7 @@ class _LoginPageState extends State<LoginPage> {
         }
 
         final data = roleDoc.data();
-        final bool firstLogin = data?['firstLogin'] == true;
+        final bool firstLogin = data != null && data['firstLogin'] == true;
 
         if (firstLogin) {
           if (!mounted) return;
@@ -532,7 +590,7 @@ class _LoginPageState extends State<LoginPage> {
         }
 
         final data = roleDoc.data();
-        final bool firstLogin = data?['firstLogin'] == true;
+        final bool firstLogin = data != null && data['firstLogin'] == true;
 
         if (firstLogin) {
           Navigator.pushReplacement(
@@ -588,6 +646,9 @@ class _LoginPageState extends State<LoginPage> {
         case 'email-already-in-use':
           message = "Email already in use";
           break;
+        case 'network-request-failed':
+          message = "Network error. Please check your internet connection";
+          break;
         default:
           message = "Login failed: ${e.message}";
       }
@@ -601,6 +662,40 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Helper method to create demo admin account
+  Future<UserCredential> _createDemoAdminAccount(String schoolId) async {
+    final tempEmail =
+        "demo_${DateTime.now().millisecondsSinceEpoch}_$schoolId@temp.local";
+
+    // Create new Firebase Auth user
+    final userCredential = await FirebaseAuth.instance
+        .createUserWithEmailAndPassword(
+          email: tempEmail,
+          password: defaultAdminPassword,
+        );
+
+    // Store demo admin info
+    await FirebaseFirestore.instance
+        .collection('schools')
+        .doc(schoolId)
+        .collection('admins')
+        .doc(userCredential.user!.uid)
+        .set({
+          'tempEmail': tempEmail,
+          'realEmail': null,
+          'role': 'Admin',
+          'firstLogin': true,
+          'isTemporaryAccount': true,
+          'isDemoAdmin': true,
+          'isRealAdmin': false,
+          'schoolRegistered': true,
+          'createdAt': FieldValue.serverTimestamp(),
+          'createdUsingDefault': true,
+        });
+
+    return userCredential;
+  }
+
   /// ================= SHOW ERROR =================
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -608,7 +703,7 @@ class _LoginPageState extends State<LoginPage> {
         content: Text(message),
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 4),
       ),
     );
   }

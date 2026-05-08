@@ -6,8 +6,8 @@ import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
 class ChangePasswordScreen extends StatefulWidget {
   final String schoolId;
   final String userId;
-  final String role; // Admin, Teacher, or Parent
-  final bool isTemporaryAccount; // True for accounts created via default login
+  final String role;
+  final bool isTemporaryAccount;
 
   const ChangePasswordScreen({
     super.key,
@@ -45,7 +45,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     if (user != null && user.email != null) {
       setState(() {
         currentEmail = user.email!;
-        // For temporary accounts, don't pre-fill the email field
         if (!widget.isTemporaryAccount) {
           newEmailController.text = user.email!;
         }
@@ -90,7 +89,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 Text(
                   isAdmin
                       ? (isTempAccount
-                          ? "Setup Your Account"
+                          ? "Setup Your Admin Account"
                           : "Change Password & Email")
                       : "Change Your Password",
                   style: const TextStyle(
@@ -109,7 +108,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 const SizedBox(height: 18),
 
-                // Show special message for temporary accounts
                 if (isTempAccount && isAdmin) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -125,7 +123,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         Expanded(
                           child: Text(
                             "You're setting up a new admin account. "
-                            "Please set your email and password below.",
+                            "Please set your email and password below. "
+                            "You'll be logged out and need to login with your new credentials.",
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.amber.shade800,
@@ -138,10 +137,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                // For temporary accounts, don't ask for old password
                 if (!(isTempAccount && isAdmin)) ...[
-                  // Old Password Field
-                  _passwordField(
+                  _buildPasswordField(
                     controller: oldPasswordController,
                     hint: "Old Password",
                     hide: hide1,
@@ -150,90 +147,89 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   const SizedBox(height: 12),
                 ],
 
-                // Email Change Option (Admin only)
                 if (isAdmin) ...[
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.grey.shade50,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: ExpansionTile(
-                      title: Text(
-                        isTempAccount
-                            ? "Set Email Address"
-                            : "Change Email Address",
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
-                      leading: const Icon(
-                        Icons.email,
-                        color: Colors.deepPurple,
-                      ),
-                      trailing: const Icon(Icons.arrow_drop_down),
-                      initiallyExpanded: isTempAccount,
-                      // Auto-expand for temp accounts
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              if (currentEmail.isNotEmpty && !isTempAccount)
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.shade50,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.info_outline,
-                                        size: 16,
-                                        color: Colors.blue,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          "Current Email: $currentEmail",
-                                          style: const TextStyle(fontSize: 12),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              if (currentEmail.isNotEmpty && !isTempAccount)
-                                const SizedBox(height: 12),
-                              TextField(
-                                controller: newEmailController,
-                                keyboardType: TextInputType.emailAddress,
-                                decoration: InputDecoration(
-                                  labelText:
-                                      isTempAccount
-                                          ? "Your Email Address"
-                                          : "New Email Address",
-                                  hintText: "you@school.com",
-                                  prefixIcon: const Icon(Icons.email_outlined),
-                                  border: const OutlineInputBorder(
-                                    borderRadius: BorderRadius.all(
-                                      Radius.circular(10),
-                                    ),
-                                  ),
-                                  helperText:
-                                      isTempAccount
-                                          ? "This will be your permanent login email"
-                                          : null,
+                              Icon(Icons.email, color: Colors.deepPurple),
+                              const SizedBox(width: 8),
+                              Text(
+                                isTempAccount
+                                    ? "Email Address"
+                                    : "Change Email",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          if (currentEmail.isNotEmpty && !isTempAccount) ...[
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.info_outline,
+                                    size: 16,
+                                    color: Colors.blue,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      "Current Email: $currentEmail",
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          TextField(
+                            controller: newEmailController,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: InputDecoration(
+                              labelText:
+                                  isTempAccount
+                                      ? "Your Email Address"
+                                      : "New Email Address",
+                              hintText: "you@school.com",
+                              prefixIcon: const Icon(Icons.email_outlined),
+                              border: const OutlineInputBorder(
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(10),
+                                ),
+                              ),
+                              helperText:
+                                  isTempAccount
+                                      ? "This will be your permanent login email"
+                                      : null,
+                              errorText: _getEmailError(),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
                 ],
 
-                // New Password Field
-                _passwordField(
+                _buildPasswordField(
                   controller: newPasswordController,
                   hint: isTempAccount ? "Set Password" : "New Password",
                   hide: hide2,
@@ -241,8 +237,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // Confirm Password Field
-                _passwordField(
+                _buildPasswordField(
                   controller: confirmPasswordController,
                   hint: "Confirm Password",
                   hide: hide3,
@@ -250,24 +245,41 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 const SizedBox(height: 22),
 
+                if (isTempAccount && newPasswordController.text.isNotEmpty)
+                  _buildPasswordStrengthIndicator(newPasswordController.text),
+
+                const SizedBox(height: 12),
+
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.deepPurple,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     onPressed: loading ? null : _updateCredentials,
                     child:
                         loading
-                            ? const CircularProgressIndicator(
-                              color: Colors.white,
+                            ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
                             )
                             : Text(
                               isTempAccount
                                   ? "Complete Setup"
                                   : "Update Credentials",
-                              style: const TextStyle(color: Colors.white),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                   ),
                 ),
@@ -279,7 +291,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     );
   }
 
-  Widget _passwordField({
+  Widget _buildPasswordField({
     required TextEditingController controller,
     required String hint,
     required bool hide,
@@ -291,7 +303,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       decoration: InputDecoration(
         hintText: hint,
         filled: true,
-        fillColor: Colors.black12,
+        fillColor: Colors.grey.shade100,
         suffixIcon: IconButton(
           icon: Icon(hide ? Icons.visibility_off : Icons.visibility),
           onPressed: toggle,
@@ -300,8 +312,68 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Colors.deepPurple, width: 1),
+        ),
       ),
     );
+  }
+
+  Widget _buildPasswordStrengthIndicator(String password) {
+    int strength = _getPasswordStrength(password);
+    String strengthText = "";
+    Color strengthColor = Colors.red;
+
+    if (strength <= 2) {
+      strengthText = "Weak";
+      strengthColor = Colors.red;
+    } else if (strength <= 4) {
+      strengthText = "Medium";
+      strengthColor = Colors.orange;
+    } else {
+      strengthText = "Strong";
+      strengthColor = Colors.green;
+    }
+
+    return Column(
+      children: [
+        LinearProgressIndicator(
+          value: strength / 6,
+          backgroundColor: Colors.grey.shade200,
+          color: strengthColor,
+          minHeight: 4,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          "Password strength: $strengthText",
+          style: TextStyle(fontSize: 12, color: strengthColor),
+        ),
+      ],
+    );
+  }
+
+  int _getPasswordStrength(String password) {
+    int strength = 0;
+    if (password.length >= 6) strength++;
+    if (password.length >= 8) strength++;
+    if (RegExp(r'[A-Z]').hasMatch(password)) strength++;
+    if (RegExp(r'[a-z]').hasMatch(password)) strength++;
+    if (RegExp(r'[0-9]').hasMatch(password)) strength++;
+    if (RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) strength++;
+    return strength;
+  }
+
+  String? _getEmailError() {
+    final email = newEmailController.text.trim();
+    if (email.isNotEmpty && !_isValidEmail(email)) {
+      return "Please enter a valid email address";
+    }
+    return null;
   }
 
   Future<void> _updateCredentials() async {
@@ -315,52 +387,55 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     // Validation for temporary accounts
     if (isTempAccount && isAdmin) {
       if (newEmail.isEmpty) {
-        _msg("Please enter your email address");
+        _showMessage("Please enter your email address", isError: true);
         return;
       }
       if (!_isValidEmail(newEmail)) {
-        _msg("Please enter a valid email address");
+        _showMessage("Please enter a valid email address", isError: true);
         return;
       }
       if (newPass.isEmpty) {
-        _msg("Please set a password");
+        _showMessage("Please set a password", isError: true);
         return;
       }
       if (newPass.length < 6) {
-        _msg("Password must be at least 6 characters");
+        _showMessage("Password must be at least 6 characters", isError: true);
         return;
       }
       if (newPass != confirmPass) {
-        _msg("Passwords do not match");
+        _showMessage("Passwords do not match", isError: true);
         return;
       }
     } else {
       // Normal validation
       if (oldPass.isEmpty) {
-        _msg("Please enter old password");
+        _showMessage("Please enter old password", isError: true);
         return;
       }
 
       if (newPass.isEmpty &&
           (!isAdmin || newEmail.isEmpty || newEmail == currentEmail)) {
-        _msg("Please enter new password or new email to update");
+        _showMessage(
+          "Please enter new password or new email to update",
+          isError: true,
+        );
         return;
       }
 
       if (newPass.isNotEmpty) {
         if (newPass.length < 6) {
-          _msg("Password must be at least 6 characters");
+          _showMessage("Password must be at least 6 characters", isError: true);
           return;
         }
         if (newPass != confirmPass) {
-          _msg("Passwords do not match");
+          _showMessage("Passwords do not match", isError: true);
           return;
         }
       }
 
       if (isAdmin && newEmail.isNotEmpty && newEmail != currentEmail) {
         if (!_isValidEmail(newEmail)) {
-          _msg("Please enter a valid email address");
+          _showMessage("Please enter a valid email address", isError: true);
           return;
         }
       }
@@ -369,65 +444,110 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     setState(() => loading = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser!;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        _showMessage("User not found. Please login again.", isError: true);
+        return;
+      }
 
-      // For temporary accounts, we need to update email AND password
+      // For temporary accounts, create a completely new account with real credentials
       if (isTempAccount && isAdmin) {
         setState(() => isUpdatingEmail = true);
 
-        // Update email to real email
-        await user.verifyBeforeUpdateEmail(newEmail);
+        try {
+          // Try to create new account - if email exists, FirebaseAuth will throw an error
+          final newUserCredential = await FirebaseAuth.instance
+              .createUserWithEmailAndPassword(
+                email: newEmail,
+                password: newPass,
+              );
 
-        // Update password
-        if (newPass.isNotEmpty) {
-          await user.updatePassword(newPass);
+          // Copy data from old temp account to new real account
+          final oldAdminDoc =
+              await FirebaseFirestore.instance
+                  .collection('schools')
+                  .doc(widget.schoolId)
+                  .collection('admins')
+                  .doc(widget.userId)
+                  .get();
+
+          final oldData = oldAdminDoc.data() ?? {};
+
+          // Create new admin document with new UID
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('admins')
+              .doc(newUserCredential.user!.uid)
+              .set({
+                'email': newEmail,
+                'realEmail': newEmail,
+                'role': 'Admin',
+                'firstLogin': false,
+                'isRealAdmin': true,
+                'isTemporaryAccount': false,
+                'isDemoAdmin': false,
+                'schoolRegistered': true,
+                'createdAt': FieldValue.serverTimestamp(),
+                'convertedFromTemp': widget.userId,
+                'originalCreatedAt':
+                    oldData['createdAt'] ?? FieldValue.serverTimestamp(),
+              });
+
+          // Mark the old temp account as converted
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('admins')
+              .doc(widget.userId)
+              .update({
+                'convertedTo': newUserCredential.user!.uid,
+                'convertedAt': FieldValue.serverTimestamp(),
+                'isActive': false,
+              });
+
+          // Delete the temporary account
+          try {
+            await user.delete();
+          } catch (e) {
+            debugPrint("Could not delete temp account: $e");
+          }
+
+          _showMessage(
+            "✅ Account setup complete!\n\nPlease login with your new credentials: $newEmail",
+            isError: false,
+          );
+
+          await FirebaseAuth.instance.signOut();
+
+          if (!mounted) return;
+
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => LoginPage(role: widget.role)),
+                (route) => false,
+              );
+            }
+          });
+          return;
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'email-already-in-use') {
+            _showMessage(
+              "❌ This email is already registered.\n\nPlease use a different email or try logging in.",
+              isError: true,
+            );
+            setState(() => loading = false);
+            return;
+          }
+          rethrow;
         }
-
-        _msg(
-          "Verification email sent to $newEmail. Please verify to complete setup.",
-        );
-
-        // Update Firestore with real email
-        await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(widget.schoolId)
-            .collection('admins')
-            .doc(widget.userId)
-            .update({
-              'email': newEmail,
-              'realEmail': newEmail,
-              'firstLogin': false,
-              'isTemporaryAccount': false,
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
-
-        // Sign out to force login with new email
-        await FirebaseAuth.instance.signOut();
-
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Account setup complete! Please verify your email and login with your new credentials.",
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 4),
-          ),
-        );
-
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => LoginPage(role: widget.role)),
-          (route) => false,
-        );
-        return;
       }
 
       // Normal update flow (non-temporary accounts)
       final email = user.email!;
 
-      // Re-authentication (skip for temp accounts since no old password)
       if (!isTempAccount) {
         final credential = EmailAuthProvider.credential(
           email: email,
@@ -436,47 +556,44 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         await user.reauthenticateWithCredential(credential);
       }
 
-      // Update email (Admin only)
+      // Update email (Admin only, non-temp accounts)
       if (isAdmin &&
           newEmail.isNotEmpty &&
           newEmail != email &&
           !isTempAccount) {
-        await user.verifyBeforeUpdateEmail(newEmail);
-        _msg(
-          "Verification email sent to $newEmail. Please verify to complete email change.",
-        );
+        try {
+          await user.verifyBeforeUpdateEmail(newEmail);
+          _showMessage(
+            "✅ Verification email sent to $newEmail.\n\nPlease verify your email to complete the update.",
+            isError: false,
+          );
 
-        // Store pending email in Firestore
-        String collection;
-        switch (widget.role.toLowerCase()) {
-          case 'teacher':
-            collection = 'teachers';
-            break;
-          case 'parent':
-            collection = 'parents';
-            break;
-          case 'admin':
-            collection = 'admins';
-            break;
-          default:
-            collection = 'teachers';
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('admins')
+              .doc(widget.userId)
+              .update({
+                'pendingEmail': newEmail,
+                'updatedAt': FieldValue.serverTimestamp(),
+              });
+        } on FirebaseAuthException catch (e) {
+          if (e.code == 'email-already-in-use') {
+            _showMessage(
+              "This email is already in use by another account",
+              isError: true,
+            );
+            setState(() => loading = false);
+            return;
+          }
+          rethrow;
         }
-
-        await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(widget.schoolId)
-            .collection(collection)
-            .doc(widget.userId)
-            .update({
-              'pendingEmail': newEmail,
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
       }
 
       // Update password if provided
       if (newPass.isNotEmpty) {
         await user.updatePassword(newPass);
-        _msg("Password updated successfully!");
+        _showMessage("✅ Password updated successfully!", isError: false);
       }
 
       // Update Firestore firstLogin flag
@@ -500,44 +617,61 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           .doc(widget.schoolId)
           .collection(collection)
           .doc(widget.userId)
-          .update({'firstLogin': false});
+          .update({
+            'firstLogin': false,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
-      // Sign out the user to force login with new credentials
       await FirebaseAuth.instance.signOut();
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Credentials updated! Please login with your new credentials.",
-          ),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        ),
+      _showMessage(
+        "✅ Credentials updated successfully!\n\nPlease login with your new credentials.",
+        isError: false,
       );
 
-      // Navigate to login page
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => LoginPage(role: widget.role)),
-        (route) => false,
-      );
-    } catch (e) {
-      String errorMessage = "Error: ${e.toString()}";
-      if (e.toString().contains("wrong-password")) {
-        errorMessage = "Old password is incorrect";
-      } else if (e.toString().contains("weak-password")) {
-        errorMessage = "Password is too weak";
-      } else if (e.toString().contains("requires-recent-login")) {
-        errorMessage = "Please login again before changing credentials";
-      } else if (e.toString().contains("email-already-in-use")) {
-        errorMessage =
-            "This email address is already in use by another account";
-      } else if (e.toString().contains("invalid-email")) {
-        errorMessage = "Invalid email address format";
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => LoginPage(role: widget.role)),
+            (route) => false,
+          );
+        }
+      });
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = "Error: ${e.message}";
+      switch (e.code) {
+        case 'wrong-password':
+          errorMessage = "❌ Old password is incorrect";
+          break;
+        case 'weak-password':
+          errorMessage =
+              "❌ Password is too weak. Use at least 6 characters with letters and numbers";
+          break;
+        case 'requires-recent-login':
+          errorMessage = "❌ Please login again before changing credentials";
+          break;
+        case 'email-already-in-use':
+          errorMessage =
+              "❌ This email address is already in use by another account";
+          break;
+        case 'invalid-email':
+          errorMessage = "❌ Invalid email address format";
+          break;
+        case 'network-request-failed':
+          errorMessage = "❌ Network error. Please check your connection";
+          break;
+        case 'user-not-found':
+          errorMessage = "❌ User account not found";
+          break;
+        default:
+          errorMessage = "❌ ${e.message}";
       }
-      _msg(errorMessage);
+      _showMessage(errorMessage, isError: true);
+    } catch (e) {
+      _showMessage("❌ Login failed: ${e.toString()}", isError: true);
     } finally {
       if (mounted) {
         setState(() {
@@ -552,7 +686,16 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
-  void _msg(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  void _showMessage(String text, {required bool isError}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text, style: const TextStyle(fontSize: 14)),
+        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        margin: const EdgeInsets.all(10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 }
