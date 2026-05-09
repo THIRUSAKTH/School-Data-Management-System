@@ -300,8 +300,8 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
             ? IconButton(
           icon: Icon(
             (label.contains('Temporary') ? _showPassword : _showConfirmPassword)
-                ? Icons.visibility_off
-                : Icons.visibility,
+                ? Icons.visibility
+                : Icons.visibility_off,
             color: Colors.grey,
           ),
           onPressed: () {
@@ -690,12 +690,6 @@ class _AdminAddTeacherPageState extends State<AdminAddTeacherPage> {
           .collection('teachers')
           .doc(uid)
           .set(teacherData);
-
-      // Also add to global teachers collection for easier querying
-      await FirebaseFirestore.instance.collection('teachers').doc(uid).set({
-        ...teacherData,
-        'schoolId': widget.schoolId,
-      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
