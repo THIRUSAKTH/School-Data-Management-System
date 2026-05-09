@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
+import 'package:schoolprojectjan/services/notification_service.dart';
 
 class AdminFeeUploadPage extends StatefulWidget {
   final String schoolId;
@@ -1335,14 +1336,26 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
     setState(() => _isLoading = true);
 
     try {
-      var pendingFees =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(widget.schoolId)
-              .collection('student_fees')
-              .where('studentId', isEqualTo: _selectedStudentId)
-              .where('status', isEqualTo: 'pending')
-              .get();
+      // Get student details first to get parentUid and studentName
+      final studentDoc = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('students')
+          .doc(_selectedStudentId)
+          .get();
+
+      final studentData = studentDoc.data();
+      final parentUid = studentData?['parentUid'];
+      final studentName = studentData?['name'] ?? 'Student';
+      final studentRollNo = studentData?['rollNo'] ?? '';
+
+      var pendingFees = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('student_fees')
+          .where('studentId', isEqualTo: _selectedStudentId)
+          .where('status', isEqualTo: 'pending')
+          .get();
 
       if (pendingFees.docs.isEmpty) {
         _showMessage("No pending fees for this student", isError: true);
@@ -1353,6 +1366,8 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
       final batch = FirebaseFirestore.instance.batch();
       double amount = double.tryParse(_individualAmountController.text) ?? 0;
       double percentage = double.tryParse(_discountController.text) ?? 0;
+      double totalDiscount = 0;
+      String adjustmentDescription = '';
 
       for (var doc in pendingFees.docs) {
         final data = doc.data();
@@ -1360,20 +1375,67 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
         double newAmount = originalAmount;
 
         if (percentage > 0) {
-          newAmount = originalAmount * (1 - percentage / 100);
+          totalDiscount = originalAmount * percentage / 100;
+          newAmount = originalAmount - totalDiscount;
+          adjustmentDescription = '${percentage.toStringAsFixed(0)}% discount applied';
         } else if (amount > 0) {
+          totalDiscount = amount;
           newAmount = originalAmount - amount;
+          adjustmentDescription = '₹${amount.toStringAsFixed(0)} adjustment applied';
         }
 
         batch.update(doc.reference, {
           'remainingAmount': newAmount,
-          'discount': amount + (originalAmount * percentage / 100),
+          'discount': FieldValue.increment(totalDiscount),
           'remarks': _remarksController.text.trim(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
 
       await batch.commit();
+
+      // =============================================
+      // SEND PUSH NOTIFICATION TO PARENT
+      // =============================================
+      if (parentUid != null && parentUid.isNotEmpty) {
+        final notificationTitle = "💰 Fee Adjustment: $studentName";
+        final notificationBody = "$adjustmentDescription for Roll No: $studentRollNo";
+
+        await NotificationService.sendToUser(
+          userId: parentUid,
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'fee',
+          data: {
+            'studentId': _selectedStudentId,
+            'studentName': studentName,
+            'adjustmentType': percentage > 0 ? 'percentage' : 'amount',
+            'adjustmentValue': percentage > 0 ? percentage : amount,
+            'remarks': _remarksController.text.trim(),
+          },
+        );
+
+        // Also create in-app notification
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(widget.schoolId)
+            .collection('notifications')
+            .add({
+          'studentId': _selectedStudentId,
+          'title': notificationTitle,
+          'message': notificationBody,
+          'type': 'fee',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+          'deletedFor': [],
+          'additionalData': {
+            'adjustmentType': percentage > 0 ? 'percentage' : 'amount',
+            'adjustmentValue': percentage > 0 ? percentage : amount,
+          },
+        });
+
+        print('✅ Fee adjustment notification sent to parent');
+      }
 
       _showMessage("Fee adjustment applied successfully", isError: false);
 
@@ -1436,19 +1498,25 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
       });
 
       // Get all students in the class/section
-      final students =
-          await schoolRef
-              .collection('students')
-              .where('class', isEqualTo: _selectedClass)
-              .where('section', isEqualTo: _selectedSection)
-              .get();
+      final students = await schoolRef
+          .collection('students')
+          .where('class', isEqualTo: _selectedClass)
+          .where('section', isEqualTo: _selectedSection)
+          .get();
 
-      // Create individual fee records for each student
+      // Create individual fee records for each student AND collect parent UIDs for notifications
       final batch = FirebaseFirestore.instance.batch();
+      final List<Map<String, dynamic>> studentInfoList = []; // Store student info for notifications
 
       for (var student in students.docs) {
         final studentData = student.data();
         final finalAmount = amount - _bulkDiscount;
+
+        studentInfoList.add({
+          'studentId': student.id,
+          'studentName': studentData['name'] ?? 'Unknown',
+          'parentUid': studentData['parentUid'],
+        });
 
         final studentFeeRef = schoolRef.collection('student_fees').doc();
 
@@ -1473,8 +1541,68 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
 
       await batch.commit();
 
+      // =============================================
+      // SEND PUSH NOTIFICATIONS TO PARENTS
+      // =============================================
+
+      final formattedDueDate = DateFormat('dd MMM yyyy').format(_dueDate!);
+      final feeType = _selectedFeeType;
+      final feeAmount = (amount - _bulkDiscount).toStringAsFixed(0);
+
+      // Create notification title and body
+      final notificationTitle = "💰 Fee Alert: $feeType";
+      final notificationBody = "Amount: ₹$feeAmount | Due: $formattedDueDate | Class: $_selectedClass-$_selectedSection";
+
+      // Also create in-app notification for each student in the notifications collection
+      int notificationSentCount = 0;
+      for (var studentInfo in studentInfoList) {
+        final parentUid = studentInfo['parentUid'];
+        final studentId = studentInfo['studentId'];
+        final studentName = studentInfo['studentName'];
+
+        // Send push notification to parent
+        if (parentUid != null && parentUid.isNotEmpty) {
+          await NotificationService.sendToUser(
+            userId: parentUid,
+            title: notificationTitle,
+            body: notificationBody,
+            type: 'fee',
+            data: {
+              'feeId': feeDoc.id,
+              'feeType': feeType,
+              'amount': feeAmount,
+              'dueDate': _dueDate!.toIso8601String(),
+              'className': _selectedClass,
+              'section': _selectedSection,
+              'studentId': studentId,
+              'studentName': studentName,
+            },
+          );
+          notificationSentCount++;
+        }
+
+        // Also create in-app notification record
+        await schoolRef.collection('notifications').add({
+          'studentId': studentId,
+          'title': notificationTitle,
+          'message': notificationBody,
+          'type': 'fee',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+          'deletedFor': [],
+          'additionalData': {
+            'feeId': feeDoc.id,
+            'feeType': feeType,
+            'amount': feeAmount,
+            'dueDate': _dueDate!.toIso8601String(),
+          },
+        });
+      }
+
+      print('✅ Fee notifications sent to $notificationSentCount parents');
+
       _showMessage(
-        "Fee published successfully for $_studentCount students",
+        "✅ Fee published successfully!\nNotifications sent to $notificationSentCount parents.",
         isError: false,
       );
 
@@ -1493,7 +1621,6 @@ class _AdminFeeUploadPageState extends State<AdminFeeUploadPage>
       setState(() => _isLoading = false);
     }
   }
-
   void _showMessage(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

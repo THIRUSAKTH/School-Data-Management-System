@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/services/file_picker_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:schoolprojectjan/services/notification_service.dart';
 
 class AdminNoticePostPage extends StatefulWidget {
   const AdminNoticePostPage({super.key});
@@ -845,15 +846,15 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
         "description": _messageController.text.trim(),
         "priority": _priority,
         "category":
-            _priority == "Urgent"
-                ? "Urgent"
-                : (_priority == "Important" ? "Important" : "General"),
+        _priority == "Urgent"
+            ? "Urgent"
+            : (_priority == "Important" ? "Important" : "General"),
         "targetAudience": _targetAudience,
         "selectedClasses":
-            _targetAudience == "Specific Class" ? _selectedClasses : [],
+        _targetAudience == "Specific Class" ? _selectedClasses : [],
         "isPinned": _isPinned,
         "expiryDate":
-            _expiryDate != null ? Timestamp.fromDate(_expiryDate!) : null,
+        _expiryDate != null ? Timestamp.fromDate(_expiryDate!) : null,
         "createdBy": adminName,
         "createdByUid": adminUser?.uid,
         "createdAt": FieldValue.serverTimestamp(),
@@ -863,16 +864,91 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
         "attachments": _attachments,
       };
 
-      await FirebaseFirestore.instance
+      // Save notice to Firestore
+      final docRef = await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('notices')
           .add(noticeData);
 
+      // =============================================
+      // SEND PUSH NOTIFICATIONS BASED ON TARGET AUDIENCE
+      // =============================================
+
+      final title = _titleController.text.trim();
+      final message = _messageController.text.trim();
+      final priority = _priority;
+
+      // Truncate message for notification body (max 100 chars)
+      String notificationBody = message.length > 100
+          ? '${message.substring(0, 100)}...'
+          : message;
+
+      // Add priority prefix
+      String priorityPrefix = '';
+      if (priority == 'Urgent') {
+        priorityPrefix = '🔴 URGENT: ';
+      } else if (priority == 'Important') {
+        priorityPrefix = '🟠 IMPORTANT: ';
+      } else {
+        priorityPrefix = '📢 ';
+      }
+
+      final notificationTitle = '$priorityPrefix$title';
+
+      if (_targetAudience == "All") {
+        // Send to both parents and teachers
+        await Future.wait([
+          NotificationService.sendToAllParents(
+            title: notificationTitle,
+            body: notificationBody,
+            type: 'notice',
+            data: {'noticeId': docRef.id, 'priority': priority},
+          ),
+          NotificationService.sendToAllTeachers(
+            title: notificationTitle,
+            body: notificationBody,
+            type: 'notice',
+            data: {'noticeId': docRef.id, 'priority': priority},
+          ),
+        ]);
+        print('✅ Notifications sent to ALL parents and teachers');
+
+      } else if (_targetAudience == "Parents") {
+        await NotificationService.sendToAllParents(
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'notice',
+          data: {'noticeId': docRef.id, 'priority': priority},
+        );
+        print('✅ Notifications sent to ALL parents');
+
+      } else if (_targetAudience == "Teachers") {
+        await NotificationService.sendToAllTeachers(
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'notice',
+          data: {'noticeId': docRef.id, 'priority': priority},
+        );
+        print('✅ Notifications sent to ALL teachers');
+
+      } else if (_targetAudience == "Specific Class") {
+        for (var className in _selectedClasses) {
+          await NotificationService.sendToClass(
+            className: className,
+            title: notificationTitle,
+            body: notificationBody,
+            type: 'notice',
+            data: {'noticeId': docRef.id, 'priority': priority, 'className': className},
+          );
+          print('✅ Notifications sent to parents of class: $className');
+        }
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Notice published successfully!"),
+            content: Text("Notice published successfully! Notifications sent."),
             backgroundColor: Colors.green,
           ),
         );

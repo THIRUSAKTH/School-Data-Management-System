@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:schoolprojectjan/services/notification_service.dart';
 
 class ExamManagementPage extends StatefulWidget {
   final String schoolId;
@@ -940,14 +941,14 @@ class _ExamManagementPageState extends State<ExamManagementPage>
 
   // ================= DATABASE OPERATIONS =================
   Future<void> _saveExam(
-    String name,
-    String type,
-    String className,
-    DateTime startDate,
-    DateTime endDate,
-    List<String> subjects,
-    List<int> maxMarks,
-  ) async {
+      String name,
+      String type,
+      String className,
+      DateTime startDate,
+      DateTime endDate,
+      List<String> subjects,
+      List<int> maxMarks,
+      ) async {
     setState(() => _isLoading = true);
 
     final examData = {
@@ -965,11 +966,16 @@ class _ExamManagementPageState extends State<ExamManagementPage>
       'createdAt': FieldValue.serverTimestamp(),
     };
 
-    await FirebaseFirestore.instance
+    final examRef = await FirebaseFirestore.instance
         .collection('schools')
         .doc(widget.schoolId)
         .collection('exams')
         .add(examData);
+
+    // =============================================
+    // SEND EXAM SCHEDULE NOTIFICATION TO PARENTS
+    // =============================================
+    await _sendExamScheduleNotification(examRef.id, name, type, className, startDate, endDate);
 
     setState(() => _isLoading = false);
     if (mounted) {
@@ -981,6 +987,63 @@ class _ExamManagementPageState extends State<ExamManagementPage>
       );
     }
   }
+
+// New method to send exam schedule notification
+  Future<void> _sendExamScheduleNotification(
+      String examId,
+      String examName,
+      String examType,
+      String className,
+      DateTime startDate,
+      DateTime endDate,
+      ) async {
+    try {
+      // Get all students in the class
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('students')
+          .where('class', isEqualTo: className)
+          .get();
+
+      final Set<String> parentUids = {};
+      for (var student in studentsSnapshot.docs) {
+        final parentUid = student.data()['parentUid'];
+        if (parentUid != null && parentUid.isNotEmpty) {
+          parentUids.add(parentUid);
+        }
+      }
+
+      final startDateFormatted = DateFormat('dd MMM yyyy').format(startDate);
+      final endDateFormatted = DateFormat('dd MMM yyyy').format(endDate);
+
+      final notificationTitle = "📝 New Exam Scheduled";
+      final notificationBody = "$examName ($examType) from $startDateFormatted to $endDateFormatted";
+
+      for (var parentUid in parentUids) {
+        await NotificationService.sendToUser(
+          userId: parentUid,
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'exam',
+          data: {
+            'examId': examId,
+            'examName': examName,
+            'examType': examType,
+            'className': className,
+            'startDate': startDate.toIso8601String(),
+            'endDate': endDate.toIso8601String(),
+          },
+        );
+      }
+
+      print('✅ Exam schedule notifications sent to ${parentUids.length} parents');
+
+    } catch (e) {
+      print('Error sending exam schedule notifications: $e');
+    }
+  }
+
 
   Future<void> _deleteExam(String examId) async {
     final confirm = await showDialog<bool>(
@@ -1490,6 +1553,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
 
     try {
       final batch = FirebaseFirestore.instance.batch();
+      final List<Map<String, dynamic>> savedMarks = [];
 
       for (var entry in _controllers.entries) {
         final studentId = entry.key;
@@ -1528,6 +1592,13 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
           'remark': _remarks[studentId] ?? '',
           'updatedAt': FieldValue.serverTimestamp(),
         });
+
+        savedMarks.add({
+          'studentId': studentId,
+          'marks': marks,
+          'percentage': percentage,
+          'grade': grade,
+        });
       }
 
       await batch.commit();
@@ -1543,12 +1614,24 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
         examDoc.data()?['completedSubjects'] ?? [],
       );
 
-      if (!completedSubjects.contains(widget.subject)) {
+      bool isNewSubject = !completedSubjects.contains(widget.subject);
+      if (isNewSubject) {
         completedSubjects.add(widget.subject);
         await examRef.update({
           'completedSubjects': completedSubjects,
           'marksEntered': completedSubjects.length,
         });
+      }
+
+      // =============================================
+      // CHECK IF ALL SUBJECTS ARE COMPLETED AND SEND NOTIFICATIONS
+      // =============================================
+      final totalSubjects = examDoc.data()?['totalMarks'] ?? 0;
+      final allSubjectsCompleted = completedSubjects.length >= totalSubjects;
+
+      if (allSubjectsCompleted && isNewSubject) {
+        // All subjects are now complete - send result notifications to parents
+        await _sendResultNotifications(examRef, savedMarks);
       }
 
       if (mounted) {
@@ -1568,6 +1651,121 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       }
     } finally {
       setState(() => _isSaving = false);
+    }
+  }
+
+// New method to send result notifications
+  Future<void> _sendResultNotifications(DocumentReference examRef, List<Map<String, dynamic>> savedMarks) async {
+    try {
+      final examDoc = await examRef.get();
+      final examData = examDoc.data() as Map<String, dynamic>;
+      final examName = examData['examName'] ?? 'Exam';
+      final className = examData['className'] ?? '';
+
+      // Get all students in the class
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('students')
+          .where('class', isEqualTo: className)
+          .get();
+
+      // Create a map of studentId to student data
+      final Map<String, Map<String, dynamic>> studentMap = {};
+      for (var student in studentsSnapshot.docs) {
+        final studentData = student.data();
+        studentMap[student.id] = {
+          'name': studentData['name'] ?? 'Student',
+          'parentUid': studentData['parentUid'],
+          'rollNo': studentData['rollNo'] ?? '',
+        };
+      }
+
+      // Get all marks for this exam to calculate overall results
+      final allMarksSnapshot = await examRef.collection('marks').get();
+
+      // Group marks by student
+      final Map<String, Map<String, dynamic>> studentMarksMap = {};
+      for (var markDoc in allMarksSnapshot.docs) {
+        final markData = markDoc.data();
+        final studentId = markDoc.id;
+        final subject = markData['subject'];
+        final marks = markData['marks'];
+        final maxMarks = markData['maxMarks'];
+
+        if (!studentMarksMap.containsKey(studentId)) {
+          studentMarksMap[studentId] = {'totalObtained': 0, 'totalMax': 0, 'subjects': {}};
+        }
+
+        studentMarksMap[studentId]!['totalObtained'] += marks;
+        studentMarksMap[studentId]!['totalMax'] += maxMarks;
+        studentMarksMap[studentId]!['subjects'][subject] = marks;
+      }
+
+      // Send notification to each parent
+      int notificationCount = 0;
+      for (var entry in studentMarksMap.entries) {
+        final studentId = entry.key;
+        final marksData = entry.value;
+        final studentInfo = studentMap[studentId];
+        final parentUid = studentInfo?['parentUid'];
+        final studentName = studentInfo?['name'] ?? 'Student';
+
+        if (parentUid != null && parentUid.isNotEmpty) {
+          final totalObtained = marksData['totalObtained'];
+          final totalMax = marksData['totalMax'];
+          final percentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
+          final grade = _calculateGrade(percentage);
+
+          final notificationTitle = "📊 Exam Results Published";
+          final notificationBody = "$examName: $studentName scored ${percentage.toStringAsFixed(1)}% ($grade)";
+
+          await NotificationService.sendToUser(
+            userId: parentUid,
+            title: notificationTitle,
+            body: notificationBody,
+            type: 'result',
+            data: {
+              'examId': widget.examId,
+              'examName': examName,
+              'studentId': studentId,
+              'studentName': studentName,
+              'percentage': percentage,
+              'grade': grade,
+              'totalObtained': totalObtained,
+              'totalMax': totalMax,
+            },
+          );
+
+          // Also create in-app notification
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('notifications')
+              .add({
+            'studentId': studentId,
+            'title': notificationTitle,
+            'message': notificationBody,
+            'type': 'result',
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'deletedFor': [],
+            'additionalData': {
+              'examId': widget.examId,
+              'examName': examName,
+              'percentage': percentage,
+              'grade': grade,
+            },
+          });
+
+          notificationCount++;
+        }
+      }
+
+      print('✅ Result notifications sent to $notificationCount parents');
+
+    } catch (e) {
+      print('Error sending result notifications: $e');
     }
   }
 

@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/services/file_picker_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:schoolprojectjan/services/notification_service.dart';
 
 class TeacherHomeworkPostPage extends StatefulWidget {
   final String? editHomeworkId;
@@ -1202,13 +1203,12 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
     try {
       final teacherUid = FirebaseAuth.instance.currentUser!.uid;
 
-      final teacherDoc =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('teachers')
-              .where('uid', isEqualTo: teacherUid)
-              .get();
+      final teacherDoc = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('teachers')
+          .where('uid', isEqualTo: teacherUid)
+          .get();
 
       String teacherName = "Teacher";
       if (teacherDoc.docs.isNotEmpty) {
@@ -1230,10 +1230,9 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         "section": selectedSection,
         "subject": selectedSubject,
         "dueDate": Timestamp.fromDate(dueDateTime),
-        "dueTime":
-            dueTime != null
-                ? "${dueTime!.hour.toString().padLeft(2, '0')}:${dueTime!.minute.toString().padLeft(2, '0')}"
-                : null,
+        "dueTime": dueTime != null
+            ? "${dueTime!.hour.toString().padLeft(2, '0')}:${dueTime!.minute.toString().padLeft(2, '0')}"
+            : null,
         "isUrgent": isUrgent,
         "createdAt": FieldValue.serverTimestamp(),
         "updatedAt": FieldValue.serverTimestamp(),
@@ -1245,6 +1244,8 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         "isActive": true,
       };
 
+      String homeworkId;
+
       if (isEditing && editingHomeworkId != null) {
         await FirebaseFirestore.instance
             .collection('schools')
@@ -1252,15 +1253,31 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             .collection('homework')
             .doc(editingHomeworkId)
             .update(homeworkData);
+        homeworkId = editingHomeworkId!;
         _showSuccess("Homework updated successfully");
       } else {
-        await FirebaseFirestore.instance
+        final docRef = await FirebaseFirestore.instance
             .collection('schools')
             .doc(AppConfig.schoolId)
             .collection('homework')
             .add(homeworkData);
+        homeworkId = docRef.id;
         _showSuccess("Homework published successfully");
       }
+
+      // =============================================
+      // SEND PUSH NOTIFICATIONS TO PARENTS
+      // =============================================
+      await _sendHomeworkNotifications(
+        homeworkId: homeworkId,
+        title: _titleController.text.trim(),
+        description: _homeworkController.text.trim(),
+        className: selectedClass,
+        section: selectedSection,
+        subject: selectedSubject,
+        dueDate: dueDateTime,
+        isUrgent: isUrgent,
+      );
 
       _clearForm();
       if (mounted) Navigator.pop(context, true);
@@ -1271,41 +1288,170 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
     }
   }
 
+// New method to send homework notifications to parents
+  Future<void> _sendHomeworkNotifications({
+    required String homeworkId,
+    required String title,
+    required String description,
+    required String className,
+    required String section,
+    required String subject,
+    required DateTime dueDate,
+    required bool isUrgent,
+  }) async {
+    try {
+      // Get all students in the class
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('students')
+          .where('class', isEqualTo: className)
+          .where('section', isEqualTo: section)
+          .get();
+
+      if (studentsSnapshot.docs.isEmpty) {
+        print('No students found in class $className-$section');
+        return;
+      }
+
+      final formattedDueDate = DateFormat('dd MMM yyyy').format(dueDate);
+      final urgencyPrefix = isUrgent ? '🔴 URGENT: ' : '📚 ';
+      final notificationTitle = "$urgencyPrefix$title";
+
+      // Truncate description for notification body (max 100 chars)
+      String notificationBody = description.length > 100
+          ? '${description.substring(0, 100)}...'
+          : description;
+      notificationBody = "$subject - $notificationBody (Due: $formattedDueDate)";
+
+      int notificationCount = 0;
+
+      for (var studentDoc in studentsSnapshot.docs) {
+        final studentData = studentDoc.data();
+        final studentId = studentDoc.id;
+        final parentUid = studentData['parentUid'];
+        final studentName = studentData['name'] ?? 'Student';
+
+        if (parentUid != null && parentUid.isNotEmpty) {
+          // Send push notification to parent
+          await NotificationService.sendToUser(
+            userId: parentUid,
+            title: notificationTitle,
+            body: notificationBody,
+            type: 'homework',
+            data: {
+              'homeworkId': homeworkId,
+              'title': title,
+              'subject': subject,
+              'dueDate': dueDate.toIso8601String(),
+              'className': className,
+              'section': section,
+              'studentId': studentId,
+              'studentName': studentName,
+              'isUrgent': isUrgent,
+            },
+          );
+
+          // Also create in-app notification
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('notifications')
+              .add({
+            'studentId': studentId,
+            'title': notificationTitle,
+            'message': notificationBody,
+            'type': 'homework',
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'deletedFor': [],
+            'additionalData': {
+              'homeworkId': homeworkId,
+              'subject': subject,
+              'dueDate': dueDate.toIso8601String(),
+              'isUrgent': isUrgent,
+            },
+          });
+
+          notificationCount++;
+        }
+      }
+
+      print('✅ Homework notifications sent to $notificationCount parents');
+
+      // Show success message with notification count
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("✅ Homework published! Notifications sent to $notificationCount parents."),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+    } catch (e) {
+      print('Error sending homework notifications: $e');
+    }
+  }
+
   Future<void> _deleteHomework() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text("Delete Homework"),
-            content: const Text(
-              "Are you sure you want to delete this homework? This cannot be undone.",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text("Delete"),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text("Delete Homework"),
+        content: const Text(
+          "Are you sure you want to delete this homework? This cannot be undone.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
     );
 
     if (confirm == true && editingHomeworkId != null) {
       setState(() => isLoading = true);
       try {
+        // Get homework details before deleting to send notification
+        final homeworkDoc = await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('homework')
+            .doc(editingHomeworkId)
+            .get();
+
+        final homeworkData = homeworkDoc.data();
+        final className = homeworkData?['className'];
+        final section = homeworkData?['section'];
+        final title = homeworkData?['title'] ?? 'Homework';
+
         await FirebaseFirestore.instance
             .collection('schools')
             .doc(AppConfig.schoolId)
             .collection('homework')
             .doc(editingHomeworkId)
             .delete();
+
+        // Send notification to parents about deletion
+        if (className != null && section != null) {
+          await _sendHomeworkDeletionNotification(
+            className: className,
+            section: section,
+            title: title,
+          );
+        }
+
         _showSuccess("Homework deleted successfully");
         if (mounted) Navigator.pop(context, true);
       } catch (e) {
@@ -1316,6 +1462,43 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
     }
   }
 
+// New method to send deletion notification
+  Future<void> _sendHomeworkDeletionNotification({
+    required String className,
+    required String section,
+    required String title,
+  }) async {
+    try {
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('students')
+          .where('class', isEqualTo: className)
+          .where('section', isEqualTo: section)
+          .get();
+
+      for (var studentDoc in studentsSnapshot.docs) {
+        final parentUid = studentDoc.data()['parentUid'];
+
+        if (parentUid != null && parentUid.isNotEmpty) {
+          await NotificationService.sendToUser(
+            userId: parentUid,
+            title: "❌ Homework Cancelled",
+            body: "The homework '$title' has been cancelled/deleted.",
+            type: 'homework',
+            data: {
+              'title': title,
+              'action': 'deleted',
+            },
+          );
+        }
+      }
+
+      print('✅ Deletion notifications sent');
+    } catch (e) {
+      print('Error sending deletion notifications: $e');
+    }
+  }
   void _clearForm() {
     _titleController.clear();
     _homeworkController.clear();

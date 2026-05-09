@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:schoolprojectjan/services/notification_service.dart';
 import '../../app_config.dart';
 import 'dart:async';
 
@@ -31,6 +32,88 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
     "resolved",
     "rejected",
   ];
+
+  Future<void> _sendParentNotification(
+      String studentId,
+      String complaintTitle,
+      String status,
+      String response,
+      ) async {
+    try {
+      // Get student details to find parent UID
+      final studentDoc = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('students')
+          .doc(studentId)
+          .get();
+
+      final parentUid = studentDoc.data()?['parentUid'];
+      final studentName = studentDoc.data()?['name'] ?? 'Student';
+
+      if (parentUid != null && parentUid.isNotEmpty) {
+        String statusText = '';
+        Color statusColor = Colors.green;
+
+        switch (status) {
+          case 'resolved':
+            statusText = 'RESOLVED';
+            statusColor = Colors.green;
+            break;
+          case 'rejected':
+            statusText = 'REJECTED';
+            statusColor = Colors.red;
+            break;
+          case 'in_progress':
+            statusText = 'IN PROGRESS';
+            statusColor = Colors.blue;
+            break;
+          default:
+            statusText = status.toUpperCase();
+        }
+
+        final notificationTitle = "📝 Complaint Update: $complaintTitle";
+        final notificationBody = "Your complaint has been $statusText.\n\nResponse: ${response.length > 80 ? response.substring(0, 80) + '...' : response}";
+
+        await NotificationService.sendToUser(
+          userId: parentUid,
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'complaint',
+          data: {
+            'status': status,
+            'response': response,
+            'complaintTitle': complaintTitle,
+          },
+        );
+
+        // Also create in-app notification
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('notifications')
+            .add({
+          'studentId': studentId,
+          'title': notificationTitle,
+          'message': notificationBody,
+          'type': 'complaint',
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+          'deletedFor': [],
+          'additionalData': {
+            'status': status,
+            'complaintTitle': complaintTitle,
+          },
+        });
+
+        print('✅ Parent notification sent for complaint: $complaintTitle');
+      }
+    } catch (e) {
+      print('Error sending parent notification: $e');
+    }
+  }
+
+
 
   @override
   void initState() {
@@ -942,24 +1025,46 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
   }
 
   Future<void> _updateComplaintStatus(
-    String complaintId,
-    String newStatus,
-  ) async {
+      String complaintId,
+      String newStatus,
+      ) async {
     try {
+      // Get complaint details before updating
+      final complaintDoc = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('complaints')
+          .doc(complaintId)
+          .get();
+
+      final complaintData = complaintDoc.data();
+      final studentId = complaintData?['studentId'];
+      final complaintTitle = complaintData?['title'] ?? 'Complaint';
+
       await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('complaints')
           .doc(complaintId)
           .update({
-            'status': newStatus,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+        'status': newStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Send notification to parent about status change
+      if (studentId != null) {
+        await _sendParentNotification(
+          studentId,
+          complaintTitle,
+          newStatus,
+          "Status updated to ${newStatus.toUpperCase()}",
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Status updated to ${newStatus.toUpperCase()}"),
+            content: Text("Status updated to ${newStatus.toUpperCase()} - Parent notified"),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -975,10 +1080,10 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
   }
 
   Future<void> _submitResponse(
-    String complaintId,
-    String response,
-    String currentStatus,
-  ) async {
+      String complaintId,
+      String response,
+      String currentStatus,
+      ) async {
     if (response.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -995,25 +1100,49 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
         newStatus = 'resolved';
       }
 
+      // Get complaint details before updating to get studentId and title
+      final complaintDoc = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('complaints')
+          .doc(complaintId)
+          .get();
+
+      final complaintData = complaintDoc.data();
+      final studentId = complaintData?['studentId'];
+      final complaintTitle = complaintData?['title'] ?? 'Complaint';
+
       await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('complaints')
           .doc(complaintId)
           .update({
-            'response': response,
-            'status': newStatus,
-            'respondedBy': 'Admin',
-            'respondedAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+        'response': response,
+        'status': newStatus,
+        'respondedBy': 'Admin',
+        'respondedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // =============================================
+      // SEND NOTIFICATION TO PARENT
+      // =============================================
+      if (studentId != null) {
+        await _sendParentNotification(
+          studentId,
+          complaintTitle,
+          newStatus,
+          response,
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Response sent successfully!"),
+          SnackBar(
+            content: Text("Response sent successfully! Parent notified."),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 3),
           ),
         );
       }

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:schoolprojectjan/services/notification_service.dart';
 import '../../services/attendance_service.dart';
 
 class MarkAttendancePage extends StatefulWidget {
@@ -139,6 +140,7 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
 
     try {
       final attendanceData = <String, Map<String, dynamic>>{};
+      final List<Map<String, dynamic>> absentLateStudents = [];
 
       for (var student in _students) {
         final studentId = student.id;
@@ -150,15 +152,30 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
           'rollNo': _studentRollNos[studentId] ?? '',
           'status': status,
           'remark':
-              status == 'Absent'
-                  ? (_remarks[studentId] ?? '')
-                  : (status == 'Late'
-                      ? (_remarks[studentId] ?? 'Late arrival')
-                      : ''),
+          status == 'Absent'
+              ? (_remarks[studentId] ?? '')
+              : (status == 'Late'
+              ? (_remarks[studentId] ?? 'Late arrival')
+              : ''),
           'checkInTime': _checkInTimes[studentId] ?? '',
           'checkOutTime': _checkOutTimes[studentId] ?? '',
           'updatedBy': FirebaseAuth.instance.currentUser?.uid ?? '',
         };
+
+        // Track absent and late students for notifications
+        if (status == 'Absent' || status == 'Late') {
+          absentLateStudents.add({
+            'studentId': studentId,
+            'studentName': _studentNames[studentId] ?? 'Student',
+            'rollNo': _studentRollNos[studentId] ?? '',
+            'status': status,
+            'remark': status == 'Absent'
+                ? (_remarks[studentId] ?? 'No reason provided')
+                : (_remarks[studentId] ?? 'Late arrival'),
+            'checkInTime': _checkInTimes[studentId] ?? '',
+            'checkOutTime': _checkOutTimes[studentId] ?? '',
+          });
+        }
       }
 
       final success = await AttendanceService.saveAttendance(
@@ -170,9 +187,16 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
       );
 
       if (mounted && success) {
+        // =============================================
+        // SEND NOTIFICATIONS FOR ABSENT/LATE STUDENTS
+        // =============================================
+        await _sendAttendanceNotifications(absentLateStudents);
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Attendance saved successfully!'),
+          SnackBar(
+            content: Text(
+              'Attendance saved! ${absentLateStudents.length} notification(s) sent.',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -194,6 +218,111 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+// New method to send attendance notifications to parents
+  Future<void> _sendAttendanceNotifications(List<Map<String, dynamic>> absentLateStudents) async {
+    if (absentLateStudents.isEmpty) {
+      print('No absent or late students to notify');
+      return;
+    }
+
+    final formattedDate = DateFormat('dd MMM yyyy').format(_selectedDate);
+    final dayName = DateFormat('EEEE').format(_selectedDate);
+
+    int notificationCount = 0;
+
+    for (var student in absentLateStudents) {
+      final studentId = student['studentId'];
+      final studentName = student['studentName'];
+      final status = student['status'];
+      final remark = student['remark'];
+      final rollNo = student['rollNo'];
+      final checkInTime = student['checkInTime'];
+
+      try {
+        // Get parent UID from student document
+        final studentDoc = await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(widget.schoolId)
+            .collection('students')
+            .doc(studentId)
+            .get();
+
+        final parentUid = studentDoc.data()?['parentUid'];
+
+        if (parentUid != null && parentUid.isNotEmpty) {
+          String notificationTitle;
+          String notificationBody;
+
+          if (status == 'Absent') {
+            notificationTitle = "⚠️ Absent Alert";
+            notificationBody = "$studentName (Roll No: $rollNo) was marked ABSENT on $dayName, $formattedDate.";
+            if (remark.isNotEmpty && remark != 'No reason provided') {
+              notificationBody += "\nReason: $remark";
+            }
+          } else {
+            // Late status
+            notificationTitle = "⏰ Late Arrival Alert";
+            notificationBody = "$studentName (Roll No: $rollNo) was marked LATE on $dayName, $formattedDate.";
+            if (remark.isNotEmpty && remark != 'Late arrival') {
+              notificationBody += "\nReason: $remark";
+            }
+            if (checkInTime.isNotEmpty) {
+              notificationBody += "\nCheck-in Time: $checkInTime";
+            }
+          }
+
+          // Send push notification to parent
+          await NotificationService.sendToUser(
+            userId: parentUid,
+            title: notificationTitle,
+            body: notificationBody,
+            type: 'attendance',
+            data: {
+              'studentId': studentId,
+              'studentName': studentName,
+              'status': status,
+              'date': _selectedDate.toIso8601String(),
+              'className': widget.className,
+              'section': widget.section,
+              'remark': remark,
+              'checkInTime': checkInTime,
+            },
+          );
+
+          // Also create in-app notification
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('notifications')
+              .add({
+            'studentId': studentId,
+            'title': notificationTitle,
+            'message': notificationBody,
+            'type': 'attendance',
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'deletedFor': [],
+            'additionalData': {
+              'status': status,
+              'date': _selectedDate.toIso8601String(),
+              'className': widget.className,
+              'section': widget.section,
+            },
+          });
+
+          notificationCount++;
+          print('✅ Attendance notification sent to parent of $studentName');
+        } else {
+          print('❌ No parent UID found for student: $studentName');
+        }
+      } catch (e) {
+        print('Error sending notification for student $studentName: $e');
+      }
+    }
+
+    print('✅ Sent $notificationCount attendance notifications');
   }
 
   Future<void> _selectDate() async {

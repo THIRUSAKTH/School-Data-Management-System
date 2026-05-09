@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
+import 'package:schoolprojectjan/services/notification_service.dart';
 
 class ParentComplaintPage extends StatefulWidget {
   final String? studentId;
@@ -908,25 +909,78 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
     setState(() => _isSubmitting = true);
 
     try {
-      await FirebaseFirestore.instance
+      final complaintRef = await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('complaints')
           .add({
-            'studentId': _selectedStudentId,
+        'studentId': _selectedStudentId,
+        'studentName': _selectedStudentName,
+        'studentClass': _selectedClass,
+        'studentSection': _selectedSection,
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'category': _selectedCategory,
+        'status': 'pending',
+        'response': null,
+        'respondedBy': null,
+        'respondedAt': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // =============================================
+      // SEND NOTIFICATION TO ADMINS
+      // =============================================
+      final notificationTitle = "📋 New Complaint: ${_titleController.text.trim()}";
+      final notificationBody = "From: $_selectedStudentName ($_selectedClass-$_selectedSection) | Category: $_selectedCategory";
+
+      // Get all admin users
+      final adminsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('users')
+          .where('role', isEqualTo: 'admin')
+          .get();
+
+      for (var adminDoc in adminsSnapshot.docs) {
+        final adminUid = adminDoc.id;
+        await NotificationService.sendToUser(
+          userId: adminUid,
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'complaint',
+          data: {
+            'complaintId': complaintRef.id,
+            'title': _titleController.text.trim(),
+            'category': _selectedCategory,
             'studentName': _selectedStudentName,
             'studentClass': _selectedClass,
             'studentSection': _selectedSection,
-            'title': _titleController.text.trim(),
-            'description': _descriptionController.text.trim(),
-            'category': _selectedCategory,
-            'status': 'pending',
-            'response': null,
-            'respondedBy': null,
-            'respondedAt': null,
-            'createdAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+          },
+        );
+      }
+
+      print('✅ Complaint notification sent to ${adminsSnapshot.docs.length} admins');
+
+      // Also create in-app notification for the parent (confirmation)
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('notifications')
+          .add({
+        'studentId': _selectedStudentId,
+        'title': "✅ Complaint Submitted",
+        'message': "Your complaint '${_titleController.text.trim()}' has been submitted successfully. You will receive a response within 2-3 days.",
+        'type': 'complaint',
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        'deletedFor': [],
+        'additionalData': {
+          'complaintId': complaintRef.id,
+          'category': _selectedCategory,
+        },
+      });
 
       _titleController.clear();
       _descriptionController.clear();
@@ -935,7 +989,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("✅ Complaint submitted successfully!"),
+            content: Text("✅ Complaint submitted successfully! Admin will be notified."),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 3),
           ),
@@ -957,6 +1011,7 @@ class _ParentComplaintPageState extends State<ParentComplaintPage>
       }
     }
   }
+
 
   BoxDecoration _cardDecoration() {
     return BoxDecoration(

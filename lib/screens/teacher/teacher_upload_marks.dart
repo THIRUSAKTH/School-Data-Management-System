@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:schoolprojectjan/services/notification_service.dart';
 import '../../app_config.dart';
 
 class TeacherUploadMarksPage extends StatefulWidget {
@@ -330,13 +331,12 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       final batch = FirebaseFirestore.instance.batch();
 
       // Get exam details for max marks
-      final examDoc =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('exams')
-              .doc(_selectedExam)
-              .get();
+      final examDoc = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('exams')
+          .doc(_selectedExam)
+          .get();
 
       if (!examDoc.exists) {
         throw Exception('Exam not found');
@@ -345,13 +345,11 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       final examData = examDoc.data()!;
       final subjects = List<String>.from(examData['subjects'] ?? []);
       final maxMarksRaw = examData['maxMarks'] ?? [];
-      final List<int> maxMarks =
-          maxMarksRaw.map<int>((e) => (e as num).toInt()).toList();
+      final List<int> maxMarks = maxMarksRaw.map<int>((e) => (e as num).toInt()).toList();
       final subjectIndex = subjects.indexOf(_selectedSubject!);
-      final maxMark =
-          subjectIndex >= 0 && subjectIndex < maxMarks.length
-              ? maxMarks[subjectIndex]
-              : 100;
+      final maxMark = subjectIndex >= 0 && subjectIndex < maxMarks.length
+          ? maxMarks[subjectIndex]
+          : 100;
 
       // Get exam name
       String examName = '';
@@ -363,14 +361,13 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       }
 
       // Get existing results to check for updates vs inserts
-      final existingResultsSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('exam_results')
-              .where('examId', isEqualTo: _selectedExam)
-              .where('subject', isEqualTo: _selectedSubject)
-              .get();
+      final existingResultsSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('exam_results')
+          .where('examId', isEqualTo: _selectedExam)
+          .where('subject', isEqualTo: _selectedSubject)
+          .get();
 
       final Map<String, QueryDocumentSnapshot> existingResultsMap = {};
       for (var doc in existingResultsSnapshot.docs) {
@@ -380,7 +377,10 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
         }
       }
 
+      // Store saved marks for notifications
+      final List<Map<String, dynamic>> savedMarksList = [];
       int savedCount = 0;
+
       for (var student in _students) {
         final studentId = student['id'];
         final marksText = _marksControllers[studentId]?.text.trim() ?? '';
@@ -442,23 +442,45 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
         if (existingResultsMap.containsKey(studentId)) {
           batch.update(existingResultsMap[studentId]!.reference, resultData);
         } else {
-          final resultRef =
-              FirebaseFirestore.instance
-                  .collection('schools')
-                  .doc(AppConfig.schoolId)
-                  .collection('exam_results')
-                  .doc();
+          final resultRef = FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('exam_results')
+              .doc();
           batch.set(resultRef, resultData);
         }
+
+        savedMarksList.add({
+          'studentId': studentId,
+          'studentName': student['name'],
+          'rollNo': student['rollNo'],
+          'marksObtained': marksObtained,
+          'maxMarks': maxMark,
+          'percentage': percentage,
+          'grade': grade,
+          'remarks': remarks,
+        });
         savedCount++;
       }
 
       await batch.commit();
 
+      // =============================================
+      // SEND RESULT NOTIFICATIONS TO PARENTS
+      // =============================================
+      await _sendResultNotifications(
+        examId: _selectedExam!,
+        examName: examName,
+        subject: _selectedSubject!,
+        className: _selectedClass!,
+        section: _selectedSection!,
+        savedMarks: savedMarksList,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ $savedCount marks saved successfully!'),
+            content: Text('✅ $savedCount marks saved! Notifications sent to parents.'),
             backgroundColor: Colors.green,
           ),
         );
@@ -472,13 +494,134 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
-    }
-
-    if (mounted) {
-      setState(() => _isSaving = false);
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
+// New method to send result notifications to parents
+  Future<void> _sendResultNotifications({
+    required String examId,
+    required String examName,
+    required String subject,
+    required String className,
+    required String section,
+    required List<Map<String, dynamic>> savedMarks,
+  }) async {
+    if (savedMarks.isEmpty) {
+      print('No marks to notify');
+      return;
+    }
+
+    int notificationCount = 0;
+
+    for (var mark in savedMarks) {
+      final studentId = mark['studentId'];
+      final studentName = mark['studentName'];
+      final rollNo = mark['rollNo'];
+      final marksObtained = mark['marksObtained'];
+      final maxMarks = mark['maxMarks'];
+      final percentage = mark['percentage'];
+      final grade = mark['grade'];
+      final remarks = mark['remarks'];
+
+      try {
+        // Get parent UID from student document
+        final studentDoc = await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('students')
+            .doc(studentId)
+            .get();
+
+        final parentUid = studentDoc.data()?['parentUid'];
+
+        if (parentUid != null && parentUid.isNotEmpty) {
+          // Create notification message
+          final percentageFormatted = percentage.toStringAsFixed(1);
+          final gradeEmoji = _getGradeEmoji(grade);
+
+          final notificationTitle = "📊 Exam Result Published";
+          final notificationBody = "$studentName (Roll No: $rollNo) - $examName\n"
+              "$subject: $marksObtained/$maxMarks ($percentageFormatted%) $gradeEmoji ($grade)";
+
+          // Send push notification to parent
+          await NotificationService.sendToUser(
+            userId: parentUid,
+            title: notificationTitle,
+            body: notificationBody,
+            type: 'result',
+            data: {
+              'examId': examId,
+              'examName': examName,
+              'subject': subject,
+              'studentId': studentId,
+              'studentName': studentName,
+              'marksObtained': marksObtained,
+              'maxMarks': maxMarks,
+              'percentage': percentage,
+              'grade': grade,
+              'className': className,
+              'section': section,
+            },
+          );
+
+          // Also create in-app notification
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('notifications')
+              .add({
+            'studentId': studentId,
+            'title': notificationTitle,
+            'message': "Your child $studentName scored $marksObtained/$maxMarks ($percentageFormatted%) in $subject ($examName). Grade: $grade",
+            'type': 'result',
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'deletedFor': [],
+            'additionalData': {
+              'examId': examId,
+              'examName': examName,
+              'subject': subject,
+              'marksObtained': marksObtained,
+              'maxMarks': maxMarks,
+              'percentage': percentage,
+              'grade': grade,
+            },
+          });
+
+          notificationCount++;
+          print('✅ Result notification sent to parent of $studentName');
+        } else {
+          print('❌ No parent UID found for student: $studentName');
+        }
+      } catch (e) {
+        print('Error sending notification for student $studentName: $e');
+      }
+    }
+
+    print('✅ Sent $notificationCount result notifications');
+  }
+
+// Helper method to get emoji based on grade
+  String _getGradeEmoji(String grade) {
+    switch (grade) {
+      case 'A+':
+        return 'Outstanding';
+      case 'A':
+        return 'Excellent';
+      case 'B':
+        return 'Very Good';
+      case 'C':
+        return 'Good';
+      case 'D':
+        return 'Average';
+      default:
+        return 'Learn More';
+    }
+  }
   String _calculateGrade(double percentage) {
     if (percentage >= 90) return 'A+';
     if (percentage >= 80) return 'A';
