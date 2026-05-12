@@ -19,7 +19,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.skiez.schoolprojectjan"
+    namespace = "com.skiez.smartschoolapp"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -34,11 +34,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.skiez.schoolprojectjan"
+        applicationId = "com.skiez.smartschoolapp"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionCode = 3
+        versionName = "1.0.3"
         multiDexEnabled = true
     }
 
