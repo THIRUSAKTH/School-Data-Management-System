@@ -55,7 +55,7 @@ class NotificationService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      // Get all students with parentUid
+      // Get all students with parentUID (capital D)
       final students = await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
@@ -64,7 +64,7 @@ class NotificationService {
 
       final Set<String> parentUids = {};
       for (var doc in students.docs) {
-        final parentUid = doc.data()['parentUid'];
+        final parentUid = doc.data()['parentUID'];  // ← parentUID (capital D)
         if (parentUid != null && parentUid.isNotEmpty) {
           parentUids.add(parentUid);
         }
@@ -139,7 +139,7 @@ class NotificationService {
 
       final Set<String> parentUids = {};
       for (var doc in students.docs) {
-        final parentUid = doc.data()['parentUid'];
+        final parentUid = doc.data()['parentUID'];  // ← parentUID (capital D)
         if (parentUid != null && parentUid.isNotEmpty) {
           parentUids.add(parentUid);
         }

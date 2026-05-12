@@ -5,11 +5,15 @@ import 'package:schoolprojectjan/screens/get_started.dart';
 import 'package:schoolprojectjan/screens/parents/parent_home_page.dart';
 import 'package:schoolprojectjan/screens/parents/parent_login_page.dart';
 import 'package:schoolprojectjan/screens/parents/select_child_page.dart';
+import 'package:schoolprojectjan/services/fcm_service.dart';  // ADD THIS
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // ADD THIS - Initialize FCM
+  await FCMService.initialize();
 
   runApp(MyApp());
 }
