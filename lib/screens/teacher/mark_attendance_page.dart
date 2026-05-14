@@ -22,8 +22,7 @@ class MarkAttendancePage extends StatefulWidget {
 }
 
 class _MarkAttendancePageState extends State<MarkAttendancePage> {
-  final Map<String, String> _attendanceStatus =
-      {}; // studentId -> Present/Absent/Late
+  final Map<String, String> _attendanceStatus = {};
   final Map<String, String> _remarks = {};
   final Map<String, String> _checkInTimes = {};
   final Map<String, String> _checkOutTimes = {};
@@ -152,11 +151,11 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
           'rollNo': _studentRollNos[studentId] ?? '',
           'status': status,
           'remark':
-          status == 'Absent'
-              ? (_remarks[studentId] ?? '')
-              : (status == 'Late'
-              ? (_remarks[studentId] ?? 'Late arrival')
-              : ''),
+              status == 'Absent'
+                  ? (_remarks[studentId] ?? '')
+                  : (status == 'Late'
+                      ? (_remarks[studentId] ?? 'Late arrival')
+                      : ''),
           'checkInTime': _checkInTimes[studentId] ?? '',
           'checkOutTime': _checkOutTimes[studentId] ?? '',
           'updatedBy': FirebaseAuth.instance.currentUser?.uid ?? '',
@@ -164,16 +163,31 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
 
         // Track absent and late students for notifications
         if (status == 'Absent' || status == 'Late') {
+          // Get parent UID from student document
+          final studentDoc =
+              await FirebaseFirestore.instance
+                  .collection('schools')
+                  .doc(widget.schoolId)
+                  .collection('students')
+                  .doc(studentId)
+                  .get();
+
+          final parentUid =
+              studentDoc
+                  .data()?['parentUID']; // Using capital UID to match Firestore
+
           absentLateStudents.add({
             'studentId': studentId,
             'studentName': _studentNames[studentId] ?? 'Student',
             'rollNo': _studentRollNos[studentId] ?? '',
             'status': status,
-            'remark': status == 'Absent'
-                ? (_remarks[studentId] ?? 'No reason provided')
-                : (_remarks[studentId] ?? 'Late arrival'),
+            'remark':
+                status == 'Absent'
+                    ? (_remarks[studentId] ?? 'No reason provided')
+                    : (_remarks[studentId] ?? 'Late arrival'),
             'checkInTime': _checkInTimes[studentId] ?? '',
             'checkOutTime': _checkOutTimes[studentId] ?? '',
+            'parentUid': parentUid,
           });
         }
       }
@@ -187,9 +201,7 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
       );
 
       if (mounted && success) {
-        // =============================================
-        // SEND NOTIFICATIONS FOR ABSENT/LATE STUDENTS
-        // =============================================
+        // Send notifications for absent/late students
         await _sendAttendanceNotifications(absentLateStudents);
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -220,8 +232,10 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
     }
   }
 
-// New method to send attendance notifications to parents
-  Future<void> _sendAttendanceNotifications(List<Map<String, dynamic>> absentLateStudents) async {
+  // Method to send attendance notifications to parents
+  Future<void> _sendAttendanceNotifications(
+    List<Map<String, dynamic>> absentLateStudents,
+  ) async {
     if (absentLateStudents.isEmpty) {
       print('No absent or late students to notify');
       return;
@@ -239,84 +253,78 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
       final remark = student['remark'];
       final rollNo = student['rollNo'];
       final checkInTime = student['checkInTime'];
+      final parentUid = student['parentUid'];
+
+      if (parentUid == null || parentUid.isEmpty) {
+        print('❌ No parent UID found for student: $studentName');
+        continue;
+      }
 
       try {
-        // Get parent UID from student document
-        final studentDoc = await FirebaseFirestore.instance
+        String notificationTitle;
+        String notificationBody;
+
+        if (status == 'Absent') {
+          notificationTitle = "⚠️ Absent Alert";
+          notificationBody =
+              "$studentName (Roll No: $rollNo) was marked ABSENT on $dayName, $formattedDate.";
+          if (remark.isNotEmpty && remark != 'No reason provided') {
+            notificationBody += "\nReason: $remark";
+          }
+        } else {
+          // Late status
+          notificationTitle = "⏰ Late Arrival Alert";
+          notificationBody =
+              "$studentName (Roll No: $rollNo) was marked LATE on $dayName, $formattedDate.";
+          if (remark.isNotEmpty && remark != 'Late arrival') {
+            notificationBody += "\nReason: $remark";
+          }
+          if (checkInTime.isNotEmpty) {
+            notificationBody += "\nCheck-in Time: $checkInTime";
+          }
+        }
+
+        // Send push notification to parent
+        await NotificationService.sendToUser(
+          userId: parentUid,
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'attendance',
+          data: {
+            'studentId': studentId,
+            'studentName': studentName,
+            'status': status,
+            'date': _selectedDate.toIso8601String(),
+            'className': widget.className,
+            'section': widget.section,
+            'remark': remark,
+            'checkInTime': checkInTime,
+          },
+        );
+
+        // Also create in-app notification
+        await FirebaseFirestore.instance
             .collection('schools')
             .doc(widget.schoolId)
-            .collection('students')
-            .doc(studentId)
-            .get();
-
-        final parentUid = studentDoc.data()?['parentUid'];
-
-        if (parentUid != null && parentUid.isNotEmpty) {
-          String notificationTitle;
-          String notificationBody;
-
-          if (status == 'Absent') {
-            notificationTitle = "⚠️ Absent Alert";
-            notificationBody = "$studentName (Roll No: $rollNo) was marked ABSENT on $dayName, $formattedDate.";
-            if (remark.isNotEmpty && remark != 'No reason provided') {
-              notificationBody += "\nReason: $remark";
-            }
-          } else {
-            // Late status
-            notificationTitle = "⏰ Late Arrival Alert";
-            notificationBody = "$studentName (Roll No: $rollNo) was marked LATE on $dayName, $formattedDate.";
-            if (remark.isNotEmpty && remark != 'Late arrival') {
-              notificationBody += "\nReason: $remark";
-            }
-            if (checkInTime.isNotEmpty) {
-              notificationBody += "\nCheck-in Time: $checkInTime";
-            }
-          }
-
-          // Send push notification to parent
-          await NotificationService.sendToUser(
-            userId: parentUid,
-            title: notificationTitle,
-            body: notificationBody,
-            type: 'attendance',
-            data: {
+            .collection('notifications')
+            .add({
               'studentId': studentId,
-              'studentName': studentName,
-              'status': status,
-              'date': _selectedDate.toIso8601String(),
-              'className': widget.className,
-              'section': widget.section,
-              'remark': remark,
-              'checkInTime': checkInTime,
-            },
-          );
+              'title': notificationTitle,
+              'message': notificationBody,
+              'type': 'attendance',
+              'isRead': false,
+              'createdAt': FieldValue.serverTimestamp(),
+              'deletedFor': [],
+              'additionalData': {
+                'status': status,
+                'date': _selectedDate.toIso8601String(),
+                'className': widget.className,
+                'section': widget.section,
+              },
+            });
 
-          // Also create in-app notification
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(widget.schoolId)
-              .collection('notifications')
-              .add({
-            'studentId': studentId,
-            'title': notificationTitle,
-            'message': notificationBody,
-            'type': 'attendance',
-            'isRead': false,
-            'createdAt': FieldValue.serverTimestamp(),
-            'deletedFor': [],
-            'additionalData': {
-              'status': status,
-              'date': _selectedDate.toIso8601String(),
-              'className': widget.className,
-              'section': widget.section,
-            },
-          });
-
-          notificationCount++;
-          print('✅ Attendance notification sent to parent of $studentName');
-        } else {
-          print('❌ No parent UID found for student: $studentName');
-        }
+        notificationCount++;
+        print('✅ Attendance notification sent to parent of $studentName');
       } catch (e) {
         print('Error sending notification for student $studentName: $e');
       }
