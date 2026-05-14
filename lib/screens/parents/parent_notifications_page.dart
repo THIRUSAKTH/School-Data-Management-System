@@ -14,13 +14,17 @@ class ParentNotificationsPage extends StatefulWidget {
       _ParentNotificationsPageState();
 }
 
-class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
+class _ParentNotificationsPageState extends State<ParentNotificationsPage>
+    with AutomaticKeepAliveClientMixin {
   String? _selectedStudentId;
   String? _selectedStudentName;
   List<Map<String, dynamic>> _students = [];
   bool _isLoading = true;
   bool _isMarkingAll = false;
   String? _errorMessage;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -35,7 +39,12 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
     });
 
     try {
-      final parentUid = FirebaseAuth.instance.currentUser!.uid;
+      final parentUid = FirebaseAuth.instance.currentUser?.uid;
+      if (parentUid == null) {
+        _errorMessage = "Please login again";
+        return;
+      }
+
       final snapshot =
           await FirebaseFirestore.instance
               .collection('schools')
@@ -75,12 +84,15 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
       debugPrint('Error loading students: $e');
       _errorMessage = "Error loading students. Please try again.";
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
@@ -242,7 +254,6 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
                       (s) => s['id'] == value,
                     );
                     _selectedStudentName = selected['name'];
-                    // No need to reload notifications, stream will update
                   });
                 },
               ),
@@ -269,6 +280,11 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
         }
 
         if (snapshot.hasError) {
+          final errorMsg = snapshot.error.toString();
+          final isIndexError =
+              errorMsg.contains('index') ||
+              errorMsg.contains('FAILED_PRECONDITION');
+
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -276,6 +292,27 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
                 Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
                 const SizedBox(height: 16),
                 const Text("Error loading notifications"),
+                const SizedBox(height: 8),
+                if (isIndexError)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Column(
+                      children: [
+                        Icon(Icons.build, color: Colors.blue),
+                        SizedBox(height: 8),
+                        Text(
+                          "Firestore index required.\nPlease contact administrator.",
+                          style: TextStyle(fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () => setState(() {}),
@@ -568,7 +605,7 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
           .collection('notifications')
           .doc(notificationId)
           .update({'isRead': true, 'readAt': FieldValue.serverTimestamp()});
-      setState(() {});
+      if (mounted) setState(() {});
     } catch (e) {
       debugPrint('Error marking notification as read: $e');
     }
@@ -794,7 +831,6 @@ class _ParentNotificationsPageState extends State<ParentNotificationsPage> {
       final DateTime date = timestamp.toDate();
       final DateTime now = DateTime.now();
       final Duration diff = now.difference(date);
-
       if (diff.inDays > 0) return '${diff.inDays}d ago';
       if (diff.inHours > 0) return '${diff.inHours}h ago';
       if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';

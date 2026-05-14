@@ -672,7 +672,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
               'className': item['class'],
               'section': item['section'],
               'subject': item['subject'],
-              'assignedAt': FieldValue.serverTimestamp(),
+              'assignedAt': Timestamp.now(),
             };
           }).toList();
 
@@ -683,7 +683,7 @@ class _AssignClassToTeacherPageState extends State<AssignClassToTeacherPage> {
           .doc(widget.teacherId)
           .update({
             'assignedClasses': formattedAssignments,
-            'updatedAt': FieldValue.serverTimestamp(),
+            'updatedAt': Timestamp.now(),
           });
 
       if (mounted) {
