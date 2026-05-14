@@ -8,14 +8,12 @@ import 'package:schoolprojectjan/screens/authentication_page/change_password_scr
 import 'package:schoolprojectjan/screens/parents/parent_dashboard.dart';
 import 'package:schoolprojectjan/screens/parents/select_child_page.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
+import 'package:schoolprojectjan/services/fcm_service.dart'; // IMPORTANT
 
 class LoginPage extends StatefulWidget {
   final String role;
 
-  const LoginPage({
-    super.key,
-    required this.role,
-  });
+  const LoginPage({super.key, required this.role});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -28,39 +26,30 @@ class _LoginPageState extends State<LoginPage> {
   bool hidePassword = true;
   bool isLoading = false;
 
-  /// DEMO ADMIN
   final String defaultAdminEmail = "admin@school.com";
   final String defaultAdminPassword = "Admin@123";
 
-  /// ROLE COLOR
   Color get roleColor {
     switch (widget.role) {
       case "Admin":
         return Colors.deepPurple;
-
       case "Teacher":
         return Colors.green;
-
       case "Parent":
         return Colors.orange;
-
       default:
         return Colors.blue;
     }
   }
 
-  /// ROLE ICON
   IconData get roleIcon {
     switch (widget.role) {
       case "Admin":
         return Icons.admin_panel_settings;
-
       case "Teacher":
         return Icons.school;
-
       case "Parent":
         return Icons.family_restroom;
-
       default:
         return Icons.lock_outline;
     }
@@ -73,11 +62,9 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  /// ================= DEMO ADMIN FILL =================
   void _fillDefaultAdminCredentials() {
     emailController.text = defaultAdminEmail;
     passwordController.text = defaultAdminPassword;
-
     setState(() {});
   }
 
@@ -92,24 +79,15 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-
-                /// ROLE ICON
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    roleIcon,
-                    size: 50,
-                    color: Colors.white,
-                  ),
+                  child: Icon(roleIcon, size: 50, color: Colors.white),
                 ),
-
                 const SizedBox(height: 20),
-
-                /// TITLE
                 Text(
                   "${widget.role} Login",
                   style: const TextStyle(
@@ -118,9 +96,7 @@ class _LoginPageState extends State<LoginPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 10),
-
                 Text(
                   widget.role == "Admin"
                       ? "Continue as Demo Admin or login with your credentials"
@@ -131,10 +107,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-
                 const SizedBox(height: 30),
-
-                /// LOGIN CARD
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -150,40 +123,28 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   child: Column(
                     children: [
-
-                      /// EMAIL
                       _buildTextField(
                         emailController,
                         "Email Address",
                         Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
                       ),
-
                       const SizedBox(height: 16),
-
-                      /// PASSWORD
                       _buildTextField(
                         passwordController,
                         "Password",
                         Icons.lock_outline,
                         isPassword: true,
                       ),
-
                       const SizedBox(height: 10),
-
-                      /// DEMO BUTTON
                       if (widget.role == "Admin")
                         SizedBox(
                           width: double.infinity,
                           child: TextButton(
                             onPressed: _fillDefaultAdminCredentials,
-                            child: const Text(
-                              "Continue as Demo Admin",
-                            ),
+                            child: const Text("Continue as Demo Admin"),
                           ),
                         ),
-
-                      /// FORGOT PASSWORD
                       SizedBox(
                         width: double.infinity,
                         child: TextButton(
@@ -191,10 +152,7 @@ class _LoginPageState extends State<LoginPage> {
                           child: const Text("Forgot Password?"),
                         ),
                       ),
-
                       const SizedBox(height: 15),
-
-                      /// LOGIN BUTTON
                       SizedBox(
                         width: double.infinity,
                         height: 50,
@@ -207,22 +165,23 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           onPressed: isLoading ? null : _loginUser,
-                          child: isLoading
-                              ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                              : const Text(
-                            "Sign In",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child:
+                              isLoading
+                                  ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                  : const Text(
+                                    "Sign In",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                         ),
                       ),
                     ],
@@ -236,14 +195,13 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  /// ================= TEXT FIELD =================
   Widget _buildTextField(
-      TextEditingController controller,
-      String hint,
-      IconData icon, {
-        bool isPassword = false,
-        TextInputType keyboardType = TextInputType.text,
-      }) {
+    TextEditingController controller,
+    String hint,
+    IconData icon, {
+    bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
     return TextField(
       controller: controller,
       obscureText: isPassword ? hidePassword : false,
@@ -253,70 +211,50 @@ class _LoginPageState extends State<LoginPage> {
         prefixIcon: Icon(icon, color: roleColor),
         filled: true,
         fillColor: Colors.grey.shade50,
-
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
-
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
-
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: roleColor,
-            width: 1,
-          ),
+          borderSide: BorderSide(color: roleColor, width: 1),
         ),
-
-        suffixIcon: isPassword
-            ? IconButton(
-          icon: Icon(
-            hidePassword
-                ? Icons.visibility_off
-                : Icons.visibility,
-          ),
-          onPressed: () {
-            setState(() {
-              hidePassword = !hidePassword;
-            });
-          },
-        )
-            : null,
+        suffixIcon:
+            isPassword
+                ? IconButton(
+                  icon: Icon(
+                    hidePassword ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      hidePassword = !hidePassword;
+                    });
+                  },
+                )
+                : null,
       ),
     );
   }
 
-  /// ================= FORGOT PASSWORD =================
   Future<void> _forgotPassword() async {
     final email = emailController.text.trim();
-
     if (email.isEmpty) {
       _showError("Please enter your email first");
       return;
     }
-
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(
-        email: email,
-      );
-
-      _showSuccess(
-        "Password reset link sent to your email",
-      );
-
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      _showSuccess("Password reset link sent to your email");
     } catch (e) {
-
       _showError("Failed to send reset email");
     }
   }
 
-  /// ================= LOGIN FUNCTION =================
   Future<void> _loginUser() async {
-
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
@@ -324,7 +262,6 @@ class _LoginPageState extends State<LoginPage> {
       _showError("Please enter email");
       return;
     }
-
     if (password.isEmpty) {
       _showError("Please enter password");
       return;
@@ -333,27 +270,17 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => isLoading = true);
 
     try {
-
-      /// ================= FIREBASE AUTH =================
       final userCredential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+          .signInWithEmailAndPassword(email: email, password: password);
 
       final user = userCredential.user;
-
       if (user == null) {
         _showError("Login failed");
         return;
       }
 
       final uid = user.uid;
-
-      /// ================= COLLECTION =================
-      final roleCollection =
-          widget.role.toLowerCase() + "s";
-
+      final roleCollection = widget.role.toLowerCase() + "s";
       final roleRef = FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
@@ -362,223 +289,175 @@ class _LoginPageState extends State<LoginPage> {
 
       final roleDoc = await roleRef.get();
 
-      /// ================= DOCUMENT CHECK =================
       if (!roleDoc.exists) {
-
         await FirebaseAuth.instance.signOut();
-
-        _showError(
-          "No ${widget.role} account found",
-        );
-
+        _showError("No ${widget.role} account found");
         return;
       }
 
       final data = roleDoc.data()!;
+      final bool firstLogin = data['firstLogin'] == true;
+      final bool isDemoAccount = data['isDemoAccount'] == true;
 
-      final bool firstLogin =
-          data['firstLogin'] == true;
+      // =============================================
+      // SAVE USER TO USERS COLLECTION (ALL ROLES)
+      // =============================================
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('users')
+          .doc(uid)
+          .set({
+            'email': email,
+            'role': widget.role.toLowerCase(),
+            'lastLogin': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
-      final bool isDemoAccount =
-          data['isDemoAccount'] == true;
+      // =============================================
+      // INITIALIZE FCM FOR ALL ROLES
+      // =============================================
+      await FCMService.initialize();
 
-      /// =================================================
-      /// ================= ADMIN =========================
-      /// =================================================
+      // =============================================
+      // ADMIN LOGIN
+      // =============================================
       if (widget.role == "Admin") {
-
-        /// DEMO ADMIN
         if (isDemoAccount) {
-
           if (!mounted) return;
-
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => AdminDashboard(
-                schoolId: AppConfig.schoolId,
-              ),
+              builder: (_) => AdminDashboard(schoolId: AppConfig.schoolId),
             ),
           );
-
           return;
         }
-
-        /// REAL ADMIN FIRST LOGIN
         if (firstLogin) {
-
           if (!mounted) return;
-
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => ChangePasswordScreen(
-                schoolId: AppConfig.schoolId,
-                userId: uid,
-                role: "Admin",
-              ),
+              builder:
+                  (_) => ChangePasswordScreen(
+                    schoolId: AppConfig.schoolId,
+                    userId: uid,
+                    role: "Admin",
+                  ),
             ),
           );
-
           return;
         }
-
-        /// NORMAL ADMIN
         if (!mounted) return;
-
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => AdminDashboard(
-              schoolId: AppConfig.schoolId,
-            ),
+            builder: (_) => AdminDashboard(schoolId: AppConfig.schoolId),
           ),
         );
-
         return;
       }
 
-      /// =================================================
-      /// ================= TEACHER =======================
-      /// =================================================
+      // =============================================
+      // TEACHER LOGIN
+      // =============================================
       if (widget.role == "Teacher") {
-
-        /// FIRST LOGIN
         if (firstLogin) {
-
           if (!mounted) return;
-
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => ChangePasswordScreen(
-                schoolId: AppConfig.schoolId,
-                userId: uid,
-                role: "Teacher",
-              ),
+              builder:
+                  (_) => ChangePasswordScreen(
+                    schoolId: AppConfig.schoolId,
+                    userId: uid,
+                    role: "Teacher",
+                  ),
             ),
           );
-
           return;
         }
-
-        /// NORMAL LOGIN
         if (!mounted) return;
-
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (_) => const TeacherHome(),
-          ),
+          MaterialPageRoute(builder: (_) => const TeacherHome()),
         );
-
         return;
       }
 
-      /// =================================================
-      /// ================= PARENT ========================
-      /// =================================================
+      // =============================================
+      // PARENT LOGIN
+      // =============================================
       if (widget.role == "Parent") {
-
-        /// FIRST LOGIN
         if (firstLogin) {
-
           if (!mounted) return;
-
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => ChangePasswordScreen(
-                schoolId: AppConfig.schoolId,
-                userId: uid,
-                role: "Parent",
-              ),
+              builder:
+                  (_) => ChangePasswordScreen(
+                    schoolId: AppConfig.schoolId,
+                    userId: uid,
+                    role: "Parent",
+                  ),
             ),
           );
-
           return;
         }
 
-        /// CHECK CHILD COUNT
         final childrenSnapshot =
-        await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(AppConfig.schoolId)
-            .collection('students')
-            .where('parentUid', isEqualTo: uid)
-            .get();
+            await FirebaseFirestore.instance
+                .collection('schools')
+                .doc(AppConfig.schoolId)
+                .collection('students')
+                .where('parentUid', isEqualTo: uid)
+                .get();
 
         if (!mounted) return;
 
         if (childrenSnapshot.docs.length > 1) {
-
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (_) => const SelectChildPage(),
-            ),
+            MaterialPageRoute(builder: (_) => const SelectChildPage()),
           );
-
         } else {
-
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (_) => const ParentDashboard(),
-            ),
+            MaterialPageRoute(builder: (_) => const ParentDashboard()),
           );
         }
-
         return;
       }
-
     } on FirebaseAuthException catch (e) {
-
       String message;
-
       switch (e.code) {
-
         case 'user-not-found':
           message = "No user found with this email";
           break;
-
         case 'wrong-password':
           message = "Incorrect password";
           break;
-
         case 'invalid-email':
           message = "Invalid email address";
           break;
-
         case 'user-disabled':
           message = "This account has been disabled";
           break;
-
         case 'network-request-failed':
           message = "Please check internet connection";
           break;
-
         default:
           message = e.message ?? "Login failed";
       }
-
       _showError(message);
-
     } catch (e) {
-
-      _showError(
-        "Something went wrong",
-      );
-
+      _showError("Something went wrong");
     } finally {
-
       if (mounted) {
         setState(() => isLoading = false);
       }
     }
   }
 
-  /// ================= ERROR =================
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -589,7 +468,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  /// ================= SUCCESS =================
   void _showSuccess(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

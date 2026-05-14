@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:schoolprojectjan/app_config.dart';
+import 'package:schoolprojectjan/services/fcm_service.dart';
 
 class ParentLoginPage extends StatefulWidget {
   const ParentLoginPage({super.key});
@@ -18,16 +21,36 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
     setState(() => loading = true);
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
 
-      Navigator.pushReplacementNamed(context, '/parentHome');
+      final userId = userCredential.user!.uid;
 
+      // Save parent to 'users' collection
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('users')
+          .doc(userId)
+          .set({
+        'email': emailController.text.trim(),
+        'role': 'parent',
+        'lastLogin': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Initialize FCM to save token
+      await FCMService.initialize();
+
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/parent_home');
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.toString())));
+      }
     }
 
     setState(() => loading = false);
@@ -52,7 +75,6 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
               obscureText: true,
             ),
             const SizedBox(height: 20),
-
             ElevatedButton(
               onPressed: loading ? null : _login,
               child: loading

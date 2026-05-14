@@ -11,6 +11,8 @@ class NotificationService {
     Map<String, dynamic>? data,
   }) async {
     try {
+      print('📤 Sending to user: $userId');
+
       // Get user's FCM token
       final userDoc = await FirebaseFirestore.instance
           .collection('schools')
@@ -22,9 +24,11 @@ class NotificationService {
       final token = userDoc.data()?['fcmToken'];
 
       if (token == null || token.isEmpty) {
-        print('No FCM token for user: $userId');
+        print('❌ No FCM token for user: $userId');
         return;
       }
+
+      print('✅ Token found: ${token.substring(0, 20)}...');
 
       // Add to notification queue for Cloud Function to process
       await FirebaseFirestore.instance
@@ -41,13 +45,13 @@ class NotificationService {
         'status': 'pending',
       });
 
-      print('Notification queued for user: $userId');
+      print('✅ Notification queued for user: $userId');
     } catch (e) {
-      print('Error sending notification to user: $e');
+      print('❌ Error sending notification to user: $e');
     }
   }
 
-  // Send notification to all parents (for "All" or "Parents" audience)
+  // Send notification to all parents
   static Future<void> sendToAllParents({
     required String title,
     required String body,
@@ -55,20 +59,29 @@ class NotificationService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      // Get all students with parentUID (capital D)
+      print('📢 Sending to all parents...');
+
+      // Get all students - NOTE: using 'parentUID' (capital UID) to match Firestore
       final students = await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('students')
           .get();
 
+      print('📚 Found ${students.docs.length} students');
+
       final Set<String> parentUids = {};
       for (var doc in students.docs) {
-        final parentUid = doc.data()['parentUID'];  // ← parentUID (capital D)
+        final parentUid = doc.data()['parentUID']; // ← CHANGED: capital UID
         if (parentUid != null && parentUid.isNotEmpty) {
           parentUids.add(parentUid);
+          print('👨‍👩‍👧 Student has parent: $parentUid');
+        } else {
+          print('⚠️ Student ${doc.id} has no parentUID');
         }
       }
+
+      print('👪 Found ${parentUids.length} unique parents');
 
       // Send notification to each parent
       for (var parentUid in parentUids) {
@@ -81,9 +94,9 @@ class NotificationService {
         );
       }
 
-      print('Notifications queued for ${parentUids.length} parents');
+      print('✅ Notifications queued for ${parentUids.length} parents');
     } catch (e) {
-      print('Error sending to all parents: $e');
+      print('❌ Error sending to all parents: $e');
     }
   }
 
@@ -95,11 +108,15 @@ class NotificationService {
     Map<String, dynamic>? data,
   }) async {
     try {
+      print('👨‍🏫 Sending to all teachers...');
+
       final teachers = await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('teachers')
           .get();
+
+      print('📚 Found ${teachers.docs.length} teachers');
 
       for (var doc in teachers.docs) {
         final teacherUid = doc.data()['uid'];
@@ -114,9 +131,9 @@ class NotificationService {
         }
       }
 
-      print('Notifications queued for ${teachers.docs.length} teachers');
+      print('✅ Notifications queued for ${teachers.docs.length} teachers');
     } catch (e) {
-      print('Error sending to all teachers: $e');
+      print('❌ Error sending to all teachers: $e');
     }
   }
 
@@ -129,7 +146,8 @@ class NotificationService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      // Get all students in the specific class
+      print('📚 Sending to class: $className');
+
       final students = await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
@@ -139,13 +157,12 @@ class NotificationService {
 
       final Set<String> parentUids = {};
       for (var doc in students.docs) {
-        final parentUid = doc.data()['parentUID'];  // ← parentUID (capital D)
+        final parentUid = doc.data()['parentUID']; // ← CHANGED: capital UID
         if (parentUid != null && parentUid.isNotEmpty) {
           parentUids.add(parentUid);
         }
       }
 
-      // Send notification to each parent
       for (var parentUid in parentUids) {
         await sendToUser(
           userId: parentUid,
@@ -156,9 +173,9 @@ class NotificationService {
         );
       }
 
-      print('Notifications queued for ${parentUids.length} parents in class $className');
+      print('✅ Notifications queued for ${parentUids.length} parents in class $className');
     } catch (e) {
-      print('Error sending to class: $e');
+      print('❌ Error sending to class: $e');
     }
   }
 }
