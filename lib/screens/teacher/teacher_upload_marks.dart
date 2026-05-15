@@ -38,6 +38,7 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
   bool _isSaving = false;
   bool _isLoadingExams = false;
   bool _isLoadingStudents = false;
+  bool _isPublishing = false;
 
   @override
   void initState() {
@@ -74,7 +75,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       if (teacherDoc.docs.isNotEmpty) {
         final teacherData = teacherDoc.docs.first.data();
 
-        // Try multiple field names for assigned classes
         List assignedClasses =
             teacherData['assignedClasses'] ??
             teacherData['classes'] ??
@@ -97,7 +97,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
         _availableClasses.sort();
       }
 
-      // Set from widget params if provided
       if (widget.selectedClass != null &&
           _availableClasses.contains(widget.selectedClass)) {
         _selectedClass = widget.selectedClass;
@@ -166,7 +165,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
             };
           }).toList();
 
-      // Sort exams by date (newest first or by creation)
       _exams.sort((a, b) {
         final aDate = a['startDate'] as Timestamp?;
         final bDate = b['startDate'] as Timestamp?;
@@ -228,7 +226,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
     if (!mounted) return;
     setState(() => _isLoadingStudents = true);
 
-    // Dispose old controllers
     for (var controller in _marksControllers.values) {
       controller.dispose();
     }
@@ -239,7 +236,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
     _remarksControllers.clear();
 
     try {
-      // Load students
       final studentsSnapshot =
           await FirebaseFirestore.instance
               .collection('schools')
@@ -249,7 +245,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
               .where('section', isEqualTo: _selectedSection)
               .get();
 
-      // Load existing marks from exam_results collection
       final marksSnapshot =
           await FirebaseFirestore.instance
               .collection('schools')
@@ -259,7 +254,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
               .where('subject', isEqualTo: _selectedSubject)
               .get();
 
-      // Create a map of existing marks by studentId
       final Map<String, Map<String, dynamic>> existingMarksMap = {};
       for (var doc in marksSnapshot.docs) {
         final data = doc.data();
@@ -314,6 +308,209 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
     }
   }
 
+  // Check if all subjects are completed
+  Future<bool> _areAllSubjectsCompleted() async {
+    if (_selectedExam == null) return false;
+
+    final examDoc =
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('exams')
+            .doc(_selectedExam)
+            .get();
+
+    if (!examDoc.exists) return false;
+
+    final examData = examDoc.data()!;
+    final totalSubjects = (examData['subjects'] as List).length;
+    final completedSubjects =
+        (examData['completedSubjects'] as List?)?.length ?? 0;
+
+    return completedSubjects >= totalSubjects;
+  }
+
+  // Publish final results after all subjects are entered
+  Future<void> _publishFinalResults() async {
+    setState(() => _isPublishing = true);
+
+    try {
+      final examDoc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('exams')
+              .doc(_selectedExam)
+              .get();
+
+      final examData = examDoc.data()!;
+      final subjects = List<String>.from(examData['subjects'] ?? []);
+      final examName = examData['examName'] ?? 'Exam';
+
+      // Get all students in the class
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('class', isEqualTo: _selectedClass)
+              .where('section', isEqualTo: _selectedSection)
+              .get();
+
+      // Collect all marks for all students
+      final Map<String, Map<String, dynamic>> allMarks = {};
+
+      for (var subject in subjects) {
+        final marksSnapshot =
+            await FirebaseFirestore.instance
+                .collection('schools')
+                .doc(AppConfig.schoolId)
+                .collection('exam_results')
+                .where('examId', isEqualTo: _selectedExam)
+                .where('subject', isEqualTo: subject)
+                .get();
+
+        for (var doc in marksSnapshot.docs) {
+          final data = doc.data();
+          final studentId = data['studentId'];
+          if (!allMarks.containsKey(studentId)) {
+            allMarks[studentId] = {};
+          }
+          allMarks[studentId]![subject] = data;
+        }
+      }
+
+      // Send final result notifications
+      await _sendFinalResultNotifications(allMarks, examName: examName);
+
+      // Update exam status to published
+      await examDoc.reference.update({
+        'status': 'published',
+        'publishedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '✅ Results published successfully! Parents notified.',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error publishing results: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isPublishing = false);
+    }
+  }
+
+  // Send final result notifications to parents
+  Future<void> _sendFinalResultNotifications(
+    Map<String, Map<String, dynamic>> allMarks, {
+    required String examName,
+  }) async {
+    int notificationCount = 0;
+
+    for (var entry in allMarks.entries) {
+      final studentId = entry.key;
+      final subjectMarks = entry.value;
+
+      final studentDoc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .doc(studentId)
+              .get();
+
+      final parentUid =
+          studentDoc.data()?['parentUID']; // Capital UID to match Firestore
+      final studentName = studentDoc.data()?['name'] ?? 'Student';
+      final rollNo = studentDoc.data()?['rollNo']?.toString() ?? 'N/A';
+
+      if (parentUid == null || parentUid.isEmpty) {
+        print('❌ No parent UID for student: $studentName');
+        continue;
+      }
+
+      // Calculate total marks
+      int totalObtained = 0;
+      int totalMax = 0;
+
+      for (var mark in subjectMarks.values) {
+        totalObtained += (mark['marksObtained'] as int?) ?? 0;
+        totalMax += (mark['maxMarks'] as int?) ?? 0;
+      }
+
+      final percentage = totalMax > 0 ? (totalObtained / totalMax) * 100.0 : 0;
+      final grade = _calculateGrade(percentage);
+      final percentageFormatted = percentage.toStringAsFixed(1);
+      final gradeEmoji = _getGradeEmoji(grade);
+
+      final notificationTitle = "📊 Final Exam Results Published";
+      final notificationBody =
+          "$studentName (Roll No: $rollNo) - $examName\n"
+          "Total: $totalObtained/$totalMax ($percentageFormatted%) $gradeEmoji ($grade)";
+
+      // Send push notification
+      await NotificationService.sendToUser(
+        userId: parentUid,
+        title: notificationTitle,
+        body: notificationBody,
+        type: 'result',
+        data: {
+          'examId': _selectedExam,
+          'examName': examName,
+          'studentId': studentId,
+          'studentName': studentName,
+          'totalObtained': totalObtained,
+          'totalMax': totalMax,
+          'percentage': percentage,
+          'grade': grade,
+        },
+      );
+
+      // Create in-app notification
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('notifications')
+          .add({
+            'studentId': studentId,
+            'title': notificationTitle,
+            'message':
+                "Your child $studentName scored $totalObtained/$totalMax ($percentageFormatted%) in $examName. Grade: $grade",
+            'type': 'result',
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'deletedFor': [],
+            'additionalData': {
+              'examId': _selectedExam,
+              'examName': examName,
+              'totalObtained': totalObtained,
+              'totalMax': totalMax,
+              'percentage': percentage,
+              'grade': grade,
+            },
+          });
+
+      notificationCount++;
+      print('✅ Final result notification sent to parent of $studentName');
+    }
+
+    print('✅ Sent $notificationCount final result notifications');
+  }
+
   Future<void> _saveMarks() async {
     if (_selectedExam == null || _selectedSubject == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -330,7 +527,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
     try {
       final batch = FirebaseFirestore.instance.batch();
 
-      // Get exam details for max marks
       final examDoc = await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
@@ -351,7 +547,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
           ? maxMarks[subjectIndex]
           : 100;
 
-      // Get exam name
       String examName = '';
       for (var exam in _exams) {
         if (exam['id'] == _selectedExam) {
@@ -360,7 +555,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
         }
       }
 
-      // Get existing results to check for updates vs inserts
       final existingResultsSnapshot = await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
@@ -377,8 +571,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
         }
       }
 
-      // Store saved marks for notifications
-      final List<Map<String, dynamic>> savedMarksList = [];
       int savedCount = 0;
 
       for (var student in _students) {
@@ -400,14 +592,11 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
           continue;
         }
 
-        // Validate marks range
         if (marksObtained < 0 || marksObtained > maxMark) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(
-                  'Marks must be between 0 and $maxMark for ${student['name']}',
-                ),
+                content: Text('Marks must be between 0 and $maxMark for ${student['name']}'),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -416,7 +605,11 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
         }
 
         final remarks = _remarksControllers[studentId]?.text.trim() ?? '';
-        final percentage = (marksObtained / maxMark) * 100;
+
+        // =============================================
+        // FIXED LINE 456 - Convert to double explicitly
+        // =============================================
+        final percentage = (marksObtained / maxMark) * 100.0;
         final grade = _calculateGrade(percentage);
 
         final resultData = {
@@ -449,42 +642,35 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
               .doc();
           batch.set(resultRef, resultData);
         }
-
-        savedMarksList.add({
-          'studentId': studentId,
-          'studentName': student['name'],
-          'rollNo': student['rollNo'],
-          'marksObtained': marksObtained,
-          'maxMarks': maxMark,
-          'percentage': percentage,
-          'grade': grade,
-          'remarks': remarks,
-        });
         savedCount++;
       }
 
       await batch.commit();
 
-      // =============================================
-      // SEND RESULT NOTIFICATIONS TO PARENTS
-      // =============================================
-      await _sendResultNotifications(
-        examId: _selectedExam!,
-        examName: examName,
-        subject: _selectedSubject!,
-        className: _selectedClass!,
-        section: _selectedSection!,
-        savedMarks: savedMarksList,
-      );
+      final examRef = FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('exams')
+          .doc(_selectedExam);
+
+      final examSnapshot = await examRef.get();
+      List<String> completedSubjects = List.from(examSnapshot.data()?['completedSubjects'] ?? []);
+
+      if (!completedSubjects.contains(_selectedSubject)) {
+        completedSubjects.add(_selectedSubject!);
+        await examRef.update({
+          'completedSubjects': completedSubjects,
+          'marksEntered': completedSubjects.length,
+        });
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ $savedCount marks saved! Notifications sent to parents.'),
+            content: Text('✅ $savedCount marks saved!'),
             backgroundColor: Colors.green,
           ),
         );
-        // Refresh the data to show updated marks
         await _loadStudents();
       }
     } catch (e) {
@@ -500,112 +686,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       }
     }
   }
-
-// New method to send result notifications to parents
-  Future<void> _sendResultNotifications({
-    required String examId,
-    required String examName,
-    required String subject,
-    required String className,
-    required String section,
-    required List<Map<String, dynamic>> savedMarks,
-  }) async {
-    if (savedMarks.isEmpty) {
-      print('No marks to notify');
-      return;
-    }
-
-    int notificationCount = 0;
-
-    for (var mark in savedMarks) {
-      final studentId = mark['studentId'];
-      final studentName = mark['studentName'];
-      final rollNo = mark['rollNo'];
-      final marksObtained = mark['marksObtained'];
-      final maxMarks = mark['maxMarks'];
-      final percentage = mark['percentage'];
-      final grade = mark['grade'];
-      final remarks = mark['remarks'];
-
-      try {
-        // Get parent UID from student document
-        final studentDoc = await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(AppConfig.schoolId)
-            .collection('students')
-            .doc(studentId)
-            .get();
-
-        final parentUid = studentDoc.data()?['parentUid'];
-
-        if (parentUid != null && parentUid.isNotEmpty) {
-          // Create notification message
-          final percentageFormatted = percentage.toStringAsFixed(1);
-          final gradeEmoji = _getGradeEmoji(grade);
-
-          final notificationTitle = "📊 Exam Result Published";
-          final notificationBody = "$studentName (Roll No: $rollNo) - $examName\n"
-              "$subject: $marksObtained/$maxMarks ($percentageFormatted%) $gradeEmoji ($grade)";
-
-          // Send push notification to parent
-          await NotificationService.sendToUser(
-            userId: parentUid,
-            title: notificationTitle,
-            body: notificationBody,
-            type: 'result',
-            data: {
-              'examId': examId,
-              'examName': examName,
-              'subject': subject,
-              'studentId': studentId,
-              'studentName': studentName,
-              'marksObtained': marksObtained,
-              'maxMarks': maxMarks,
-              'percentage': percentage,
-              'grade': grade,
-              'className': className,
-              'section': section,
-            },
-          );
-
-          // Also create in-app notification
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('notifications')
-              .add({
-            'studentId': studentId,
-            'title': notificationTitle,
-            'message': "Your child $studentName scored $marksObtained/$maxMarks ($percentageFormatted%) in $subject ($examName). Grade: $grade",
-            'type': 'result',
-            'isRead': false,
-            'createdAt': FieldValue.serverTimestamp(),
-            'deletedFor': [],
-            'additionalData': {
-              'examId': examId,
-              'examName': examName,
-              'subject': subject,
-              'marksObtained': marksObtained,
-              'maxMarks': maxMarks,
-              'percentage': percentage,
-              'grade': grade,
-            },
-          });
-
-          notificationCount++;
-          print('✅ Result notification sent to parent of $studentName');
-        } else {
-          print('❌ No parent UID found for student: $studentName');
-        }
-      } catch (e) {
-        print('Error sending notification for student $studentName: $e');
-      }
-    }
-
-    print('✅ Sent $notificationCount result notifications');
-  }
-
-// Helper method to get emoji based on grade
   String _getGradeEmoji(String grade) {
     switch (grade) {
       case 'A+':
@@ -619,18 +699,18 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
       case 'D':
         return 'Average';
       default:
-        return 'Learn More';
+        return 'Keep Trying';
     }
   }
-  String _calculateGrade(double percentage) {
-    if (percentage >= 90) return 'A+';
-    if (percentage >= 80) return 'A';
-    if (percentage >= 70) return 'B';
-    if (percentage >= 60) return 'C';
-    if (percentage >= 50) return 'D';
+
+  String _calculateGrade(num percentage) {
+    if (percentage >= 90.0) return 'A+';
+    if (percentage >= 80.0) return 'A';
+    if (percentage >= 70.0) return 'B';
+    if (percentage >= 60.0) return 'C';
+    if (percentage >= 50.0) return 'D';
     return 'F';
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -683,6 +763,61 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
                         _students.isNotEmpty &&
                         !_isLoadingStudents)
                       _buildSaveButton(),
+                    // Publish Final Results Button (appears when all subjects completed)
+                    if (_selectedExam != null && !_isLoadingStudents)
+                      FutureBuilder<bool>(
+                        future: _areAllSubjectsCompleted(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const SizedBox();
+                          }
+                          final allCompleted = snapshot.data == true;
+                          if (allCompleted) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: SizedBox(
+                                width: double.infinity,
+                                height: 50,
+                                child: ElevatedButton.icon(
+                                  onPressed:
+                                      _isPublishing
+                                          ? null
+                                          : _publishFinalResults,
+                                  icon:
+                                      _isPublishing
+                                          ? const SizedBox(
+                                            height: 20,
+                                            width: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                          : const Icon(Icons.send),
+                                  label: Text(
+                                    _isPublishing
+                                        ? "Publishing..."
+                                        : "📢 Publish Final Results",
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.deepPurple,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          return const SizedBox();
+                        },
+                      ),
                     if (_selectedSubject != null &&
                         _students.isEmpty &&
                         !_isLoading &&
@@ -709,6 +844,9 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
               ),
     );
   }
+
+  // Rest of the UI methods (_buildClassSelector, _buildSectionSelector, etc.)
+  // ... (keep all your existing UI methods)
 
   Widget _buildClassSelector() {
     if (_availableClasses.isEmpty && !_isLoading) {
@@ -980,7 +1118,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
   }
 
   Widget _buildMarksTable() {
-    // Get max marks for the selected subject
     int maxMark = 100;
     for (var exam in _exams) {
       if (exam['id'] == _selectedExam) {
@@ -1043,8 +1180,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
             ],
           ),
           const SizedBox(height: 16),
-
-          // Table Header
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
             decoration: BoxDecoration(
@@ -1086,8 +1221,6 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
             ),
           ),
           const SizedBox(height: 12),
-
-          // Student List
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -1154,10 +1287,7 @@ class _TeacherUploadMarksPageState extends State<TeacherUploadMarksPage> {
               );
             },
           ),
-
           const SizedBox(height: 16),
-
-          // Instructions
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
