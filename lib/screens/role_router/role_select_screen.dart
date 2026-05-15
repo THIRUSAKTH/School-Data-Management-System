@@ -19,7 +19,7 @@ class RoleSelectScreen extends StatelessWidget {
       "text": "Sign in as Teacher",
     },
     {
-      "color": Color(0xff01285f),
+      "color": Colors.orangeAccent,
       "role": "Parent",
       "roleDescription": "Track your child's progress",
       "text": "Sign in as Parent",

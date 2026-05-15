@@ -8,7 +8,7 @@ import 'package:schoolprojectjan/screens/authentication_page/change_password_scr
 import 'package:schoolprojectjan/screens/parents/parent_dashboard.dart';
 import 'package:schoolprojectjan/screens/parents/select_child_page.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_home.dart';
-import 'package:schoolprojectjan/services/fcm_service.dart'; // IMPORTANT
+import 'package:schoolprojectjan/services/fcm_service.dart';
 
 class LoginPage extends StatefulWidget {
   final String role;
@@ -36,7 +36,7 @@ class _LoginPageState extends State<LoginPage> {
       case "Teacher":
         return Colors.green;
       case "Parent":
-        return Colors.orange;
+        return Colors.orangeAccent;
       default:
         return Colors.blue;
     }
@@ -65,7 +65,7 @@ class _LoginPageState extends State<LoginPage> {
   void _fillDefaultAdminCredentials() {
     emailController.text = defaultAdminEmail;
     passwordController.text = defaultAdminPassword;
-    setState(() {});
+    _loginUser();
   }
 
   @override
@@ -141,7 +141,7 @@ class _LoginPageState extends State<LoginPage> {
                         SizedBox(
                           width: double.infinity,
                           child: TextButton(
-                            onPressed: _fillDefaultAdminCredentials,
+                            onPressed: isLoading ? null : _fillDefaultAdminCredentials,
                             child: const Text("Continue as Demo Admin"),
                           ),
                         ),
@@ -165,23 +165,22 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           onPressed: isLoading ? null : _loginUser,
-                          child:
-                              isLoading
-                                  ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                  : const Text(
-                                    "Sign In",
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                          child: isLoading
+                              ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                              : const Text(
+                            "Sign In",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -196,12 +195,12 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildTextField(
-    TextEditingController controller,
-    String hint,
-    IconData icon, {
-    bool isPassword = false,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
+      TextEditingController controller,
+      String hint,
+      IconData icon, {
+        bool isPassword = false,
+        TextInputType keyboardType = TextInputType.text,
+      }) {
     return TextField(
       controller: controller,
       obscureText: isPassword ? hidePassword : false,
@@ -223,19 +222,18 @@ class _LoginPageState extends State<LoginPage> {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: roleColor, width: 1),
         ),
-        suffixIcon:
-            isPassword
-                ? IconButton(
-                  icon: Icon(
-                    hidePassword ? Icons.visibility_off : Icons.visibility,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      hidePassword = !hidePassword;
-                    });
-                  },
-                )
-                : null,
+        suffixIcon: isPassword
+            ? IconButton(
+          icon: Icon(
+            hidePassword ? Icons.visibility_off : Icons.visibility,
+          ),
+          onPressed: () {
+            setState(() {
+              hidePassword = !hidePassword;
+            });
+          },
+        )
+            : null,
       ),
     );
   }
@@ -251,6 +249,29 @@ class _LoginPageState extends State<LoginPage> {
       _showSuccess("Password reset link sent to your email");
     } catch (e) {
       _showError("Failed to send reset email");
+    }
+  }
+
+  // Helper method to create demo admin account if it doesn't exist
+  Future<void> _ensureDemoAdminExists(String uid) async {
+    final adminDocRef = FirebaseFirestore.instance
+        .collection('schools')
+        .doc(AppConfig.schoolId)
+        .collection('admins')
+        .doc(uid);
+
+    final doc = await adminDocRef.get();
+
+    if (!doc.exists) {
+      // Create the admin document
+      await adminDocRef.set({
+        'email': defaultAdminEmail,
+        'firstLogin': true,
+        'isDemoAccount': true,
+        'name': 'Admin User',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      print("Demo admin account created successfully");
     }
   }
 
@@ -289,15 +310,36 @@ class _LoginPageState extends State<LoginPage> {
 
       final roleDoc = await roleRef.get();
 
-      if (!roleDoc.exists) {
+      // If admin account doesn't exist in Firestore, create it
+      if (!roleDoc.exists && widget.role == "Admin") {
+        await _ensureDemoAdminExists(uid);
+        // Fetch the document again after creation
+        final newRoleDoc = await roleRef.get();
+        if (!newRoleDoc.exists) {
+          await FirebaseAuth.instance.signOut();
+          _showError("Failed to create admin account");
+          return;
+        }
+      } else if (!roleDoc.exists) {
         await FirebaseAuth.instance.signOut();
         _showError("No ${widget.role} account found");
         return;
       }
 
-      final data = roleDoc.data()!;
-      final bool firstLogin = data['firstLogin'] == true;
+      // Re-fetch the document data
+      final finalRoleDoc = await roleRef.get();
+      final data = finalRoleDoc.data()!;
+
+      // Check if firstLogin field exists, default to true if not set
+      bool firstLogin = data['firstLogin'] == true;
+
+      // For demo admin account, also check if it's first time using demo
       final bool isDemoAccount = data['isDemoAccount'] == true;
+
+      // Force first login for demo account if firstLogin is not explicitly set to false
+      if (isDemoAccount && !data.containsKey('firstLogin')) {
+        firstLogin = true;
+      }
 
       // =============================================
       // SAVE USER TO USERS COLLECTION (ALL ROLES)
@@ -308,10 +350,10 @@ class _LoginPageState extends State<LoginPage> {
           .collection('users')
           .doc(uid)
           .set({
-            'email': email,
-            'role': widget.role.toLowerCase(),
-            'lastLogin': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+        'email': email,
+        'role': widget.role.toLowerCase(),
+        'lastLogin': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       // =============================================
       // INITIALIZE FCM FOR ALL ROLES
@@ -319,30 +361,19 @@ class _LoginPageState extends State<LoginPage> {
       await FCMService.initialize();
 
       // =============================================
-      // ADMIN LOGIN
+      // ADMIN LOGIN - FORCE PASSWORD CHANGE FOR FIRST LOGIN
       // =============================================
       if (widget.role == "Admin") {
-        if (isDemoAccount) {
-          if (!mounted) return;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AdminDashboard(schoolId: AppConfig.schoolId),
-            ),
-          );
-          return;
-        }
         if (firstLogin) {
           if (!mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder:
-                  (_) => ChangePasswordScreen(
-                    schoolId: AppConfig.schoolId,
-                    userId: uid,
-                    role: "Admin",
-                  ),
+              builder: (_) => ChangePasswordScreen(
+                schoolId: AppConfig.schoolId,
+                userId: uid,
+                role: "Admin",
+              ),
             ),
           );
           return;
@@ -366,12 +397,11 @@ class _LoginPageState extends State<LoginPage> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder:
-                  (_) => ChangePasswordScreen(
-                    schoolId: AppConfig.schoolId,
-                    userId: uid,
-                    role: "Teacher",
-                  ),
+              builder: (_) => ChangePasswordScreen(
+                schoolId: AppConfig.schoolId,
+                userId: uid,
+                role: "Teacher",
+              ),
             ),
           );
           return;
@@ -393,24 +423,22 @@ class _LoginPageState extends State<LoginPage> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder:
-                  (_) => ChangePasswordScreen(
-                    schoolId: AppConfig.schoolId,
-                    userId: uid,
-                    role: "Parent",
-                  ),
+              builder: (_) => ChangePasswordScreen(
+                schoolId: AppConfig.schoolId,
+                userId: uid,
+                role: "Parent",
+              ),
             ),
           );
           return;
         }
 
-        final childrenSnapshot =
-            await FirebaseFirestore.instance
-                .collection('schools')
-                .doc(AppConfig.schoolId)
-                .collection('students')
-                .where('parentUid', isEqualTo: uid)
-                .get();
+        final childrenSnapshot = await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('students')
+            .where('parentUid', isEqualTo: uid)
+            .get();
 
         if (!mounted) return;
 
@@ -450,7 +478,7 @@ class _LoginPageState extends State<LoginPage> {
       }
       _showError(message);
     } catch (e) {
-      _showError("Something went wrong");
+      _showError("Something went wrong: $e");
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
