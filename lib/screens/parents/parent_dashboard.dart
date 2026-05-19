@@ -116,7 +116,7 @@ class _ParentDashboardState extends State<ParentDashboard>
                 if (mounted) {
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(
-                      builder: (context) => const LoginPage(role: 'Parent'),
+                      builder: (context) =>  LoginPage(role: 'Parent'),
                     ),
                         (route) => false,
                   );

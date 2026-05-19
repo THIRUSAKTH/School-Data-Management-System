@@ -13,7 +13,7 @@ import 'package:schoolprojectjan/services/fcm_service.dart';
 class LoginPage extends StatefulWidget {
   final String role;
 
-  const LoginPage({super.key, required this.role});
+  LoginPage({super.key, required this.role});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -25,9 +25,11 @@ class _LoginPageState extends State<LoginPage> {
 
   bool hidePassword = true;
   bool isLoading = false;
+  bool isInitializing = true; // Track initialization state
 
-  final String defaultAdminEmail = "admin@school.com";
-  final String defaultAdminPassword = "Admin@123";
+  // Default demo credentials - these NEVER change
+  final String defaultAdminEmail = "demo@school.com";
+  final String defaultAdminPassword = "Demo@123";
 
   Color get roleColor {
     switch (widget.role) {
@@ -62,14 +64,118 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  // Ensure demo account exists in Firebase
+  Future<void> _ensureDemoAccountExists() async {
+    try {
+      // Try to sign in with demo credentials
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: defaultAdminEmail,
+        password: defaultAdminPassword,
+      );
+      print("Demo account already exists and is accessible");
+
+      // Sign out immediately after checking
+      await FirebaseAuth.instance.signOut();
+      return;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        // Create the demo account
+        print("Creating demo account...");
+        try {
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: defaultAdminEmail,
+            password: defaultAdminPassword,
+          );
+
+          // Create Firestore document for demo admin
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            await FirebaseFirestore.instance
+                .collection('schools')
+                .doc(AppConfig.schoolId)
+                .collection('admins')
+                .doc(user.uid)
+                .set({
+                  'email': defaultAdminEmail,
+                  'firstLogin': true,
+                  'isDemoAccount': true,
+                  'name': 'Demo Admin',
+                  'createdAt': FieldValue.serverTimestamp(),
+                });
+
+            // Sign out after creating
+            await FirebaseAuth.instance.signOut();
+          }
+          print("Demo account created successfully");
+        } catch (createError) {
+          print("Error creating demo account: $createError");
+        }
+      } else {
+        print("Error checking demo account: ${e.message}");
+      }
+    } catch (e) {
+      print("Unexpected error: $e");
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeDemoAccount();
+  }
+
+  Future<void> _initializeDemoAccount() async {
+    setState(() {
+      isInitializing = true;
+    });
+
+    await _ensureDemoAccountExists();
+
+    setState(() {
+      isInitializing = false;
+    });
+  }
+
+  // ONLY FILLS credentials - NO auto-login
   void _fillDefaultAdminCredentials() {
-    emailController.text = defaultAdminEmail;
-    passwordController.text = defaultAdminPassword;
-    _loginUser();
+    setState(() {
+      emailController.text = defaultAdminEmail;
+      passwordController.text = defaultAdminPassword;
+    });
+
+    // Show info message
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Demo credentials filled. Click Sign In to continue."),
+        backgroundColor: Colors.blue,
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Show loading indicator while initializing
+    if (isInitializing) {
+      return Scaffold(
+        backgroundColor: roleColor,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: Colors.white),
+              const SizedBox(height: 20),
+              Text(
+                "Initializing demo account...",
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: roleColor,
       body: SafeArea(
@@ -99,7 +205,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 10),
                 Text(
                   widget.role == "Admin"
-                      ? "Continue as Demo Admin or login with your credentials"
+                      ? "Use demo@school.com / Demo@123 for demo access"
                       : "Login with credentials provided by admin",
                   style: TextStyle(
                     fontSize: 13,
@@ -141,7 +247,8 @@ class _LoginPageState extends State<LoginPage> {
                         SizedBox(
                           width: double.infinity,
                           child: TextButton(
-                            onPressed: isLoading ? null : _fillDefaultAdminCredentials,
+                            onPressed:
+                                isLoading ? null : _fillDefaultAdminCredentials,
                             child: const Text("Continue as Demo Admin"),
                           ),
                         ),
@@ -165,22 +272,23 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           onPressed: isLoading ? null : _loginUser,
-                          child: isLoading
-                              ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                              : const Text(
-                            "Sign In",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child:
+                              isLoading
+                                  ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                  : const Text(
+                                    "Sign In",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                         ),
                       ),
                     ],
@@ -195,12 +303,12 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Widget _buildTextField(
-      TextEditingController controller,
-      String hint,
-      IconData icon, {
-        bool isPassword = false,
-        TextInputType keyboardType = TextInputType.text,
-      }) {
+    TextEditingController controller,
+    String hint,
+    IconData icon, {
+    bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
     return TextField(
       controller: controller,
       obscureText: isPassword ? hidePassword : false,
@@ -222,18 +330,19 @@ class _LoginPageState extends State<LoginPage> {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: roleColor, width: 1),
         ),
-        suffixIcon: isPassword
-            ? IconButton(
-          icon: Icon(
-            hidePassword ? Icons.visibility_off : Icons.visibility,
-          ),
-          onPressed: () {
-            setState(() {
-              hidePassword = !hidePassword;
-            });
-          },
-        )
-            : null,
+        suffixIcon:
+            isPassword
+                ? IconButton(
+                  icon: Icon(
+                    hidePassword ? Icons.visibility_off : Icons.visibility,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      hidePassword = !hidePassword;
+                    });
+                  },
+                )
+                : null,
       ),
     );
   }
@@ -249,29 +358,6 @@ class _LoginPageState extends State<LoginPage> {
       _showSuccess("Password reset link sent to your email");
     } catch (e) {
       _showError("Failed to send reset email");
-    }
-  }
-
-  // Helper method to create demo admin account if it doesn't exist
-  Future<void> _ensureDemoAdminExists(String uid) async {
-    final adminDocRef = FirebaseFirestore.instance
-        .collection('schools')
-        .doc(AppConfig.schoolId)
-        .collection('admins')
-        .doc(uid);
-
-    final doc = await adminDocRef.get();
-
-    if (!doc.exists) {
-      // Create the admin document
-      await adminDocRef.set({
-        'email': defaultAdminEmail,
-        'firstLogin': true,
-        'isDemoAccount': true,
-        'name': 'Admin User',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      print("Demo admin account created successfully");
     }
   }
 
@@ -310,58 +396,31 @@ class _LoginPageState extends State<LoginPage> {
 
       final roleDoc = await roleRef.get();
 
-      // If admin account doesn't exist in Firestore, create it
-      if (!roleDoc.exists && widget.role == "Admin") {
-        await _ensureDemoAdminExists(uid);
-        // Fetch the document again after creation
-        final newRoleDoc = await roleRef.get();
-        if (!newRoleDoc.exists) {
-          await FirebaseAuth.instance.signOut();
-          _showError("Failed to create admin account");
-          return;
-        }
-      } else if (!roleDoc.exists) {
+      if (!roleDoc.exists) {
         await FirebaseAuth.instance.signOut();
-        _showError("No ${widget.role} account found");
+        _showError("No ${widget.role} account found. Please contact admin.");
         return;
       }
 
-      // Re-fetch the document data
-      final finalRoleDoc = await roleRef.get();
-      final data = finalRoleDoc.data()!;
-
-      // Check if firstLogin field exists, default to true if not set
+      final data = roleDoc.data()!;
       bool firstLogin = data['firstLogin'] == true;
 
-      // For demo admin account, also check if it's first time using demo
-      final bool isDemoAccount = data['isDemoAccount'] == true;
-
-      // Force first login for demo account if firstLogin is not explicitly set to false
-      if (isDemoAccount && !data.containsKey('firstLogin')) {
-        firstLogin = true;
-      }
-
-      // =============================================
-      // SAVE USER TO USERS COLLECTION (ALL ROLES)
-      // =============================================
+      // Save user to users collection
       await FirebaseFirestore.instance
           .collection('schools')
           .doc(AppConfig.schoolId)
           .collection('users')
           .doc(uid)
           .set({
-        'email': email,
-        'role': widget.role.toLowerCase(),
-        'lastLogin': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+            'email': email,
+            'role': widget.role.toLowerCase(),
+            'lastLogin': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
-      // =============================================
-      // INITIALIZE FCM FOR ALL ROLES
-      // =============================================
       await FCMService.initialize();
 
       // =============================================
-      // ADMIN LOGIN - FORCE PASSWORD CHANGE FOR FIRST LOGIN
+      // ADMIN LOGIN - Force password change for demo account
       // =============================================
       if (widget.role == "Admin") {
         if (firstLogin) {
@@ -369,11 +428,12 @@ class _LoginPageState extends State<LoginPage> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => ChangePasswordScreen(
-                schoolId: AppConfig.schoolId,
-                userId: uid,
-                role: "Admin",
-              ),
+              builder:
+                  (_) => ChangePasswordScreen(
+                    schoolId: AppConfig.schoolId,
+                    userId: uid,
+                    role: "Admin",
+                  ),
             ),
           );
           return;
@@ -397,11 +457,12 @@ class _LoginPageState extends State<LoginPage> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => ChangePasswordScreen(
-                schoolId: AppConfig.schoolId,
-                userId: uid,
-                role: "Teacher",
-              ),
+              builder:
+                  (_) => ChangePasswordScreen(
+                    schoolId: AppConfig.schoolId,
+                    userId: uid,
+                    role: "Teacher",
+                  ),
             ),
           );
           return;
@@ -423,22 +484,24 @@ class _LoginPageState extends State<LoginPage> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => ChangePasswordScreen(
-                schoolId: AppConfig.schoolId,
-                userId: uid,
-                role: "Parent",
-              ),
+              builder:
+                  (_) => ChangePasswordScreen(
+                    schoolId: AppConfig.schoolId,
+                    userId: uid,
+                    role: "Parent",
+                  ),
             ),
           );
           return;
         }
 
-        final childrenSnapshot = await FirebaseFirestore.instance
-            .collection('schools')
-            .doc(AppConfig.schoolId)
-            .collection('students')
-            .where('parentUid', isEqualTo: uid)
-            .get();
+        final childrenSnapshot =
+            await FirebaseFirestore.instance
+                .collection('schools')
+                .doc(AppConfig.schoolId)
+                .collection('students')
+                .where('parentUid', isEqualTo: uid)
+                .get();
 
         if (!mounted) return;
 
