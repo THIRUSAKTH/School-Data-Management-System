@@ -27,7 +27,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final confirmPasswordController = TextEditingController();
 
   bool loading = false;
-  bool isDemoAccount = false; // Track if this is the demo account
+  bool isDemoAccount = false;
 
   bool hideOld = true;
   bool hideNew = true;
@@ -100,28 +100,27 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 /// TITLE
                 const Text(
                   "Change Password",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
 
+                /// SUBTITLE
                 Text(
                   isDemoAccount
-                      ? "⚠️ Demo Account - Cannot be modified"
+                      ? "🔒 Demo Account - Read Only"
                       : (widget.role == "Admin"
-                      ? "Update your admin email and password"
-                      : "Please change your temporary email and password"),
+                          ? "Update your admin email and password"
+                          : "Please change your temporary email and password"),
                   style: TextStyle(
                     color: isDemoAccount ? Colors.red : Colors.black54,
-                    fontWeight: isDemoAccount ? FontWeight.bold : FontWeight.normal,
+                    fontWeight:
+                        isDemoAccount ? FontWeight.bold : FontWeight.normal,
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 25),
 
-                /// DEMO ACCOUNT WARNING
+                /// DEMO ACCOUNT WARNING BOX
                 if (isDemoAccount)
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -131,30 +130,44 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.red.shade200),
                     ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        Icon(Icons.warning_amber_rounded, color: Colors.red.shade700),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Demo account cannot be modified. Please sign out and create your own admin account.",
-                            style: TextStyle(
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
                               color: Colors.red.shade700,
-                              fontSize: 12,
                             ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "This is a shared demo account for testing purposes.",
+                                style: TextStyle(
+                                  color: Colors.red.shade700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "It cannot be modified. Please sign out and create your own school account.",
+                          style: TextStyle(
+                            color: Colors.red.shade700,
+                            fontSize: 12,
                           ),
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
                   ),
 
-                /// =============================================
-                /// EMAIL FIELD - Disabled for demo account
-                /// =============================================
+                /// EMAIL FIELD
                 _buildEmailField(),
                 const SizedBox(height: 14),
 
-                /// OLD PASSWORD - Disabled for demo account
+                /// OLD PASSWORD
                 _buildPasswordField(
                   controller: oldPasswordController,
                   hint: "Old Password",
@@ -168,7 +181,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                /// NEW PASSWORD - Disabled for demo account
+                /// NEW PASSWORD
                 _buildPasswordField(
                   controller: newPasswordController,
                   hint: "New Password",
@@ -182,7 +195,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
                 const SizedBox(height: 14),
 
-                /// CONFIRM PASSWORD - Disabled for demo account
+                /// CONFIRM PASSWORD
                 _buildPasswordField(
                   controller: confirmPasswordController,
                   hint: "Confirm Password",
@@ -201,39 +214,44 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   _buildPasswordStrength(newPasswordController.text),
                 const SizedBox(height: 25),
 
-                /// BUTTON - Disabled for demo account
+                /// UPDATE BUTTON
                 SizedBox(
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isDemoAccount ? Colors.grey : Colors.deepPurple,
+                      backgroundColor:
+                          isDemoAccount ? Colors.grey : Colors.deepPurple,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: (loading || isDemoAccount) ? null : _changePassword,
-                    child: loading
-                        ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                        : Text(
-                      isDemoAccount ? "Demo Account Protected" : "Update Password",
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    onPressed:
+                        (loading || isDemoAccount) ? null : _changePassword,
+                    child:
+                        loading
+                            ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                            : Text(
+                              isDemoAccount
+                                  ? "Demo Account Protected"
+                                  : "Update Password",
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                   ),
                 ),
 
-                /// Sign out button for demo account
+                /// SIGN OUT BUTTON (for demo account)
                 if (isDemoAccount)
                   Padding(
                     padding: const EdgeInsets.only(top: 16),
@@ -246,7 +264,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                             MaterialPageRoute(
                               builder: (_) => LoginPage(role: widget.role),
                             ),
-                                (route) => false,
+                            (route) => false,
                           );
                         }
                       },
@@ -269,7 +287,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return TextField(
       controller: emailController,
       keyboardType: TextInputType.emailAddress,
-      enabled: !isDemoAccount, // Disable for demo account
+      enabled: !isDemoAccount,
       decoration: InputDecoration(
         hintText: "Email Address",
         labelText: "Email Address",
@@ -286,9 +304,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Colors.deepPurple,
-          ),
+          borderSide: const BorderSide(color: Colors.deepPurple),
         ),
       ),
     );
@@ -312,14 +328,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         prefixIcon: const Icon(Icons.lock_outline, color: Colors.deepPurple),
         filled: true,
         fillColor: enabled ? Colors.grey.shade100 : Colors.grey.shade200,
-        suffixIcon: enabled
-            ? IconButton(
-          icon: Icon(
-            hide ? Icons.visibility_off : Icons.visibility,
-          ),
-          onPressed: toggle,
-        )
-            : null,
+        suffixIcon:
+            enabled
+                ? IconButton(
+                  icon: Icon(hide ? Icons.visibility_off : Icons.visibility),
+                  onPressed: toggle,
+                )
+                : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -330,9 +345,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Colors.deepPurple,
-          ),
+          borderSide: const BorderSide(color: Colors.deepPurple),
         ),
       ),
     );
@@ -366,10 +379,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         const SizedBox(height: 5),
         Text(
           "Password Strength: $text",
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-          ),
+          style: TextStyle(color: color, fontSize: 12),
         ),
       ],
     );
@@ -400,9 +410,21 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     if (currentUser?.email == "demo@school.com") {
       _showMessage(
         "⚠️ Demo account cannot be modified.\n\n"
-            "Please sign out and create your own admin account.",
+        "Please sign out and create your own admin account.",
         isError: true,
       );
+
+      // Auto sign out after 2 seconds
+      Future.delayed(const Duration(seconds: 2), () async {
+        await FirebaseAuth.instance.signOut();
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => LoginPage(role: widget.role)),
+            (route) => false,
+          );
+        }
+      });
       return;
     }
 
@@ -462,10 +484,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         if (mounted) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(
-              builder: (_) => LoginPage(role: widget.role),
-            ),
-                (route) => false,
+            MaterialPageRoute(builder: (_) => LoginPage(role: widget.role)),
+            (route) => false,
           );
         }
         return;
@@ -510,10 +530,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           .collection(collection)
           .doc(widget.userId)
           .update({
-        'firstLogin': false,
-        'email': email,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+            'firstLogin': false,
+            'email': email,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
       // Update users collection as well
       await FirebaseFirestore.instance
@@ -535,19 +555,14 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         isError: false,
       );
 
-      Future.delayed(
-        const Duration(seconds: 2),
-            () {
-          if (!mounted) return;
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(
-              builder: (_) => LoginPage(role: widget.role),
-            ),
-                (route) => false,
-          );
-        },
-      );
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => LoginPage(role: widget.role)),
+          (route) => false,
+        );
+      });
     } on FirebaseAuthException catch (e) {
       String message;
       switch (e.code) {
@@ -583,6 +598,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       }
     }
   }
+
   /// ================= SNACKBAR =================
   void _showMessage(String message, {required bool isError}) {
     ScaffoldMessenger.of(context).showSnackBar(
