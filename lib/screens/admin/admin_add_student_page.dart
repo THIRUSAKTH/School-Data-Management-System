@@ -34,16 +34,29 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
 
   // Default classes as fallback
   List<String> _availableClasses = [
-    "LKG", "UKG",
-    "CLASS 1", "CLASS 2", "CLASS 3", "CLASS 4", "CLASS 5",
-    "CLASS 6", "CLASS 7", "CLASS 8", "CLASS 9", "CLASS 10",
-    "CLASS 11", "CLASS 12",
+    "LKG",
+    "UKG",
+    "CLASS 1",
+    "CLASS 2",
+    "CLASS 3",
+    "CLASS 4",
+    "CLASS 5",
+    "CLASS 6",
+    "CLASS 7",
+    "CLASS 8",
+    "CLASS 9",
+    "CLASS 10",
+    "CLASS 11",
+    "CLASS 12",
   ];
 
   List<String> _availableSections = ['A', 'B', 'C', 'D'];
 
   // Default password for new parent accounts
   static const String defaultParentPassword = "Parent@123";
+
+  // Get theme color from AppConfig or use default
+  Color get _primaryColor => AppConfig.primaryColor;
 
   @override
   void initState() {
@@ -70,20 +83,26 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
     setState(() => _isLoadingClasses = true);
 
     try {
-      final classesSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('classes')
-          .get();
+      final classesSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('classes')
+              .get();
 
       if (classesSnapshot.docs.isNotEmpty) {
-        final loadedClasses = classesSnapshot.docs
-            .map((doc) {
-          final data = doc.data();
-          return (data['class'] ?? data['className'] ?? '').toString();
-        })
-            .where((name) => name.isNotEmpty)
-            .toList();
+        final loadedClasses =
+            classesSnapshot.docs
+                .map((doc) {
+                  final data = doc.data();
+                  return (data['class'] ??
+                          data['className'] ??
+                          data['name'] ??
+                          '')
+                      .toString();
+                })
+                .where((name) => name.isNotEmpty)
+                .toList();
 
         if (loadedClasses.isNotEmpty) {
           setState(() {
@@ -107,7 +126,7 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           "Add New Student",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.blue,
+        backgroundColor: _primaryColor,
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
@@ -139,11 +158,7 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
               const SizedBox(height: 12),
               _buildSectionDropdown(),
               const SizedBox(height: 12),
-              _buildTextField(
-                _rollController,
-                "Roll Number *",
-                Icons.numbers,
-              ),
+              _buildTextField(_rollController, "Roll Number *", Icons.numbers),
               const SizedBox(height: 12),
               _buildTextField(
                 _admissionNoController,
@@ -206,18 +221,18 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: Colors.blue.withValues(alpha: 0.1),
+            color: _primaryColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: Colors.blue, size: 20),
+          child: Icon(icon, color: _primaryColor, size: 20),
         ),
         const SizedBox(width: 10),
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.blue,
+            color: _primaryColor,
           ),
         ),
       ],
@@ -225,12 +240,12 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
   }
 
   Widget _buildTextField(
-      TextEditingController controller,
-      String label,
-      IconData icon, {
-        TextInputType keyboardType = TextInputType.text,
-        int maxLines = 1,
-      }) {
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+  }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
@@ -250,7 +265,9 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
             return "Enter a valid phone number (min 10 digits)";
           }
         }
-        if (label.contains('Roll Number') && value != null && value.isNotEmpty) {
+        if (label.contains('Roll Number') &&
+            value != null &&
+            value.isNotEmpty) {
           if (!RegExp(r'^[0-9]+$').hasMatch(value)) {
             return "Roll number should contain only numbers";
           }
@@ -260,17 +277,15 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(fontSize: 13),
-        prefixIcon: Icon(icon, color: Colors.blue, size: 20),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        prefixIcon: Icon(icon, color: _primaryColor, size: 20),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.blue, width: 2),
+          borderSide: BorderSide(color: _primaryColor, width: 2),
         ),
         filled: true,
         fillColor: Colors.white,
@@ -301,17 +316,15 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
       hint: const Text("Select Class *"),
       isExpanded: true,
       decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.class_, color: Colors.blue, size: 20),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        prefixIcon: Icon(Icons.class_, color: _primaryColor, size: 20),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.blue, width: 2),
+          borderSide: BorderSide(color: _primaryColor, width: 2),
         ),
         filled: true,
         fillColor: Colors.white,
@@ -357,17 +370,15 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
       hint: const Text("Select Section *"),
       isExpanded: true,
       decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.group, color: Colors.blue, size: 20),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        prefixIcon: Icon(Icons.group, color: _primaryColor, size: 20),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.blue, width: 2),
+          borderSide: BorderSide(color: _primaryColor, width: 2),
         ),
         filled: true,
         fillColor: Colors.white,
@@ -382,10 +393,7 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           child: Text("Select Section"),
         ),
         ..._availableSections.map((section) {
-          return DropdownMenuItem<String>(
-            value: section,
-            child: Text(section),
-          );
+          return DropdownMenuItem<String>(value: section, child: Text(section));
         }).toList(),
       ],
       onChanged: (value) {
@@ -418,7 +426,8 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
         );
         if (picked != null) {
           setState(() {
-            _dobController.text = "${picked.day}/${picked.month}/${picked.year}";
+            _dobController.text =
+                "${picked.day}/${picked.month}/${picked.year}";
           });
         }
       },
@@ -427,17 +436,15 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           controller: _dobController,
           decoration: InputDecoration(
             labelText: "Date of Birth",
-            prefixIcon: const Icon(Icons.cake, color: Colors.blue, size: 20),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
+            prefixIcon: Icon(Icons.cake, color: _primaryColor, size: 20),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.grey.shade300),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.blue, width: 2),
+              borderSide: BorderSide(color: _primaryColor, width: 2),
             ),
             filled: true,
             fillColor: Colors.white,
@@ -456,12 +463,15 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.blue.shade50, Colors.blue.shade100],
+          colors: [
+            _primaryColor.withValues(alpha: 0.1),
+            _primaryColor.withValues(alpha: 0.2),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue.shade200),
+        border: Border.all(color: _primaryColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -471,7 +481,7 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.info_outline, color: Colors.blue.shade700, size: 24),
+            child: Icon(Icons.info_outline, color: _primaryColor, size: 24),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -480,10 +490,7 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
               children: [
                 const Text(
                   "Parent Account Information",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                 ),
                 const SizedBox(height: 4),
                 RichText(
@@ -497,7 +504,7 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
                       TextSpan(
                         text: defaultParentPassword,
                         style: TextStyle(
-                          color: Colors.blue.shade700,
+                          color: _primaryColor,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -507,10 +514,7 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
                 const SizedBox(height: 2),
                 const Text(
                   "Parent can change password after first login",
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 10, color: Colors.grey),
                 ),
               ],
             ),
@@ -527,26 +531,27 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : _addStudent,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blue,
+          backgroundColor: _primaryColor,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           elevation: 2,
         ),
-        child: _isLoading
-            ? const SizedBox(
-          height: 20,
-          width: 20,
-          child: CircularProgressIndicator(
-            color: Colors.white,
-            strokeWidth: 2,
-          ),
-        )
-            : const Text(
-          "Create Student & Parent Account",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
+        child:
+            _isLoading
+                ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+                : const Text(
+                  "Create Student & Parent Account",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
       ),
     );
   }
@@ -594,11 +599,12 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
       bool isNewParent = false;
 
       // Check if parent already exists
-      final parentQuery = await schoolRef
-          .collection('parents')
-          .where('email', isEqualTo: parentEmail)
-          .limit(1)
-          .get();
+      final parentQuery =
+          await schoolRef
+              .collection('parents')
+              .where('email', isEqualTo: parentEmail)
+              .limit(1)
+              .get();
 
       if (parentQuery.docs.isEmpty) {
         isNewParent = true;
@@ -606,9 +612,9 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
         try {
           final userCredential = await FirebaseAuth.instance
               .createUserWithEmailAndPassword(
-            email: parentEmail,
-            password: defaultParentPassword,
-          );
+                email: parentEmail,
+                password: defaultParentPassword,
+              );
           parentUid = userCredential.user!.uid;
           await userCredential.user!.sendEmailVerification();
         } catch (authError) {
@@ -661,24 +667,22 @@ class _AdminAddStudentPageState extends State<AdminAddStudentPage> {
           .collection('students')
           .doc(studentRef.id)
           .set({
-        'studentId': studentRef.id,
-        'name': _nameController.text.trim(),
-        'rollNo': _rollController.text.trim(),
-        'parentUid': parentUid,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+            'studentId': studentRef.id,
+            'name': _nameController.text.trim(),
+            'rollNo': _rollController.text.trim(),
+            'parentUid': parentUid,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
 
       if (mounted) {
-        String successMessage = isNewParent
-            ? "Student created successfully!\n\nParent Login Details:\nEmail: $parentEmail\nPassword: $defaultParentPassword"
-            : "Student linked to existing parent successfully!";
+        String successMessage =
+            isNewParent
+                ? "Student created successfully!\n\nParent Login Details:\nEmail: $parentEmail\nPassword: $defaultParentPassword"
+                : "Student linked to existing parent successfully!";
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              successMessage,
-              style: const TextStyle(fontSize: 13),
-            ),
+            content: Text(successMessage, style: const TextStyle(fontSize: 13)),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 5),
           ),

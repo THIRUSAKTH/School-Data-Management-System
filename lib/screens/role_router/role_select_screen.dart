@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:schoolprojectjan/screens/authentication_page/login_page.dart';
-import 'demo_screen.dart'; // Add this import for back navigation
+import 'demo_screen.dart';
 
 class RoleSelectScreen extends StatelessWidget {
   const RoleSelectScreen({super.key});
 
   final List<Map<String, dynamic>> details = const [
     {
-      "color": Colors.cyan,
+      "color": Colors.deepPurple,
       "role": "Admin",
       "roleDescription": "School Management & Administration",
       "text": "Sign in as Admin",
@@ -32,15 +32,14 @@ class RoleSelectScreen extends StatelessWidget {
 
     return WillPopScope(
       onWillPop: () async {
-        // When back button is pressed, go back to DemoScreen
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const DemoScreen()),
         );
-        return false; // Prevent default back behavior
+        return false;
       },
       child: Scaffold(
-        backgroundColor: Colors.cyan,
+        backgroundColor: Colors.deepPurple,
         body: SafeArea(
           child: SingleChildScrollView(
             child: Center(
@@ -50,15 +49,19 @@ class RoleSelectScreen extends StatelessWidget {
                   padding: EdgeInsets.all(isWeb ? 32 : 16),
                   child: Column(
                     children: [
-                      // Back Button Row
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            icon: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.white,
+                            ),
                             onPressed: () {
                               Navigator.pushReplacement(
                                 context,
-                                MaterialPageRoute(builder: (_) => const DemoScreen()),
+                                MaterialPageRoute(
+                                  builder: (_) => const DemoScreen(),
+                                ),
                               );
                             },
                             tooltip: "Back to Demo",
@@ -66,19 +69,16 @@ class RoleSelectScreen extends StatelessWidget {
                           const Spacer(),
                         ],
                       ),
-
                       const CircleAvatar(
                         radius: 50,
-                        backgroundColor: Colors.cyanAccent,
+                        backgroundColor: Colors.white24,
                         child: Icon(
                           Icons.school_outlined,
                           color: Colors.white,
                           size: 40,
                         ),
                       ),
-
                       const SizedBox(height: 16),
-
                       const FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
@@ -90,35 +90,34 @@ class RoleSelectScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 6),
                       const Text(
                         "Select your role to continue",
                         style: TextStyle(color: Colors.white),
                       ),
-
                       const SizedBox(height: 30),
-
                       isWeb
                           ? GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: details.length,
-                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 520,
-                          mainAxisSpacing: 16,
-                          crossAxisSpacing: 16,
-                          childAspectRatio: 1.75,
-                        ),
-                        itemBuilder: (_, i) => RoleCard(data: details[i]),
-                      )
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: details.length,
+                            gridDelegate:
+                                const SliverGridDelegateWithMaxCrossAxisExtent(
+                                  maxCrossAxisExtent: 520,
+                                  mainAxisSpacing: 16,
+                                  crossAxisSpacing: 16,
+                                  childAspectRatio: 1.75,
+                                ),
+                            itemBuilder: (_, i) => RoleCard(data: details[i]),
+                          )
                           : ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: details.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 15),
-                        itemBuilder: (_, i) => RoleCard(data: details[i]),
-                      ),
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: details.length,
+                            separatorBuilder:
+                                (_, __) => const SizedBox(height: 15),
+                            itemBuilder: (_, i) => RoleCard(data: details[i]),
+                          ),
                     ],
                   ),
                 ),
@@ -131,15 +130,10 @@ class RoleSelectScreen extends StatelessWidget {
   }
 }
 
-/// ================= ROLE CARD =================
-
 class RoleCard extends StatelessWidget {
   final Map<String, dynamic> data;
 
-  const RoleCard({
-    super.key,
-    required this.data,
-  });
+  const RoleCard({super.key, required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +144,7 @@ class RoleCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 10,
             offset: const Offset(0, 6),
           ),
@@ -166,32 +160,19 @@ class RoleCard extends StatelessWidget {
               color: data["color"] as Color,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
-              Icons.group,
-              size: 26,
-              color: Colors.white,
-            ),
+            child: const Icon(Icons.group, size: 26, color: Colors.white),
           ),
-
           const SizedBox(height: 12),
-
           Text(
             data["role"] as String,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-
           const SizedBox(height: 4),
-
           Text(
             data["roleDescription"] as String,
             style: const TextStyle(fontSize: 13),
           ),
-
           const SizedBox(height: 20),
-
           SizedBox(
             width: double.infinity,
             height: 44,
@@ -206,9 +187,7 @@ class RoleCard extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => LoginPage(
-                      role: data["role"] as String, // ✅ Properly cast to String
-                    ),
+                    builder: (_) => LoginPage(role: data["role"] as String),
                   ),
                 );
               },
