@@ -19,8 +19,15 @@ class StudentProfilePage extends StatefulWidget {
 }
 
 class _StudentProfilePageState extends State<StudentProfilePage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   late TabController _tabController;
+
+  // Cache to prevent flashing
+  List<Map<String, dynamic>> _cachedRecords = [];
+  bool _initialLoadComplete = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -36,6 +43,8 @@ class _StudentProfilePageState extends State<StudentProfilePage>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: AppBar(
@@ -66,12 +75,13 @@ class _StudentProfilePageState extends State<StudentProfilePage>
         ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('schools')
-            .doc(widget.schoolId)
-            .collection('students')
-            .doc(widget.studentId)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('schools')
+                .doc(widget.schoolId)
+                .collection('students')
+                .doc(widget.studentId)
+                .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -113,7 +123,9 @@ class _StudentProfilePageState extends State<StudentProfilePage>
     if (data['dob'] != null) {
       try {
         if (data['dob'] is Timestamp) {
-          dob = DateFormat('dd MMM yyyy').format((data['dob'] as Timestamp).toDate());
+          dob = DateFormat(
+            'dd MMM yyyy',
+          ).format((data['dob'] as Timestamp).toDate());
         } else if (data['dob'] is String) {
           final dobString = data['dob'] as String;
           try {
@@ -168,7 +180,12 @@ class _StudentProfilePageState extends State<StudentProfilePage>
     );
   }
 
-  Widget _buildHeaderCard(String name, String className, String section, String rollNo) {
+  Widget _buildHeaderCard(
+    String name,
+    String className,
+    String section,
+    String rollNo,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -293,82 +310,254 @@ class _StudentProfilePageState extends State<StudentProfilePage>
     );
   }
 
+  // ============ FIXED ATTENDANCE TAB - NO FLASHING ============
   Widget _buildAttendanceTab() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collectionGroup('records')
-          .where('studentId', isEqualTo: widget.studentId)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collectionGroup('records')
+              .where('studentId', isEqualTo: widget.studentId)
+              .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        // Show loader only on first load when no cache exists
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !_initialLoadComplete) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        // Process data when available
+        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+          _initialLoadComplete = true;
+
+          int present = 0;
+          int absent = 0;
+          int late = 0;
+          List<Map<String, dynamic>> records = [];
+
+          for (var doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final parentDoc = doc.reference.parent.parent;
+            final date = parentDoc?.id ?? '';
+            final status = data['status'] ?? 'Absent';
+
+            records.add({
+              'date': date,
+              'status': status,
+              'checkInTime': data['checkInTime'],
+              'checkOutTime': data['checkOutTime'],
+            });
+
+            if (status == 'Present')
+              present++;
+            else if (status == 'Late')
+              late++;
+            else
+              absent++;
+          }
+
+          // Cache records
+          _cachedRecords = records;
+
+          final total = present + absent + late;
+          final attendanceRate = total > 0 ? (present / total) * 100 : 0;
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              // Force refresh by clearing cache
+              _initialLoadComplete = false;
+              setState(() {});
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _statCard(
+                          "Present",
+                          present.toString(),
+                          Colors.green,
+                          Icons.check_circle,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _statCard(
+                          "Absent",
+                          absent.toString(),
+                          Colors.red,
+                          Icons.cancel,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _statCard(
+                          "Late",
+                          late.toString(),
+                          Colors.orange,
+                          Icons.access_time,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _statCard(
+                          "Total Days",
+                          total.toString(),
+                          Colors.blue,
+                          Icons.calendar_today,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _statCard(
+                          "Attendance Rate",
+                          "${attendanceRate.toStringAsFixed(1)}%",
+                          Colors.deepPurple,
+                          Icons.trending_up,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: const SizedBox()),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  if (records.isNotEmpty) _buildAttendanceChart(records),
+                  const SizedBox(height: 20),
+                  if (records.isNotEmpty) _buildRecentRecords(records),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Show cached data while waiting for new data (prevents flashing)
+        if (_cachedRecords.isNotEmpty) {
+          int present = 0;
+          int absent = 0;
+          int late = 0;
+
+          for (var record in _cachedRecords) {
+            final status = record['status'] ?? 'Absent';
+            if (status == 'Present')
+              present++;
+            else if (status == 'Late')
+              late++;
+            else
+              absent++;
+          }
+
+          final total = present + absent + late;
+          final attendanceRate = total > 0 ? (present / total) * 100 : 0;
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              _initialLoadComplete = false;
+              setState(() {});
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _statCard(
+                          "Present",
+                          present.toString(),
+                          Colors.green,
+                          Icons.check_circle,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _statCard(
+                          "Absent",
+                          absent.toString(),
+                          Colors.red,
+                          Icons.cancel,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _statCard(
+                          "Late",
+                          late.toString(),
+                          Colors.orange,
+                          Icons.access_time,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _statCard(
+                          "Total Days",
+                          total.toString(),
+                          Colors.blue,
+                          Icons.calendar_today,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _statCard(
+                          "Attendance Rate",
+                          "${attendanceRate.toStringAsFixed(1)}%",
+                          Colors.deepPurple,
+                          Icons.trending_up,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: const SizedBox()),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  if (_cachedRecords.isNotEmpty)
+                    _buildAttendanceChart(_cachedRecords),
+                  const SizedBox(height: 20),
+                  if (_cachedRecords.isNotEmpty)
+                    _buildRecentRecords(_cachedRecords),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Only show "no records" when we're sure there's no data and no cache
+        if (snapshot.hasData &&
+            snapshot.data!.docs.isEmpty &&
+            _cachedRecords.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.calendar_today, size: 64, color: Colors.grey.shade400),
+                Icon(
+                  Icons.calendar_today,
+                  size: 64,
+                  color: Colors.grey.shade400,
+                ),
                 const SizedBox(height: 16),
                 const Text("No attendance records found"),
+                const SizedBox(height: 8),
+                Text(
+                  "Attendance will appear here once marked",
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
               ],
             ),
           );
         }
 
-        int present = 0;
-        int absent = 0;
-        int late = 0;
-        List<Map<String, dynamic>> records = [];
-
-        for (var doc in snapshot.data!.docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          final parentDoc = doc.reference.parent.parent;
-          final date = parentDoc?.id ?? '';
-          final status = data['status'] ?? 'Absent';
-
-          records.add({
-            'date': date,
-            'status': status,
-            'checkInTime': data['checkInTime'],
-            'checkOutTime': data['checkOutTime'],
-          });
-
-          if (status == 'Present') present++;
-          else if (status == 'Late') late++;
-          else absent++;
-        }
-
-        final total = present + absent + late;
-        final attendanceRate = total > 0 ? (present / total) * 100 : 0;
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(child: _statCard("Present", present.toString(), Colors.green, Icons.check_circle)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _statCard("Absent", absent.toString(), Colors.red, Icons.cancel)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _statCard("Rate", "${attendanceRate.toStringAsFixed(1)}%", Colors.deepPurple, Icons.trending_up)),
-                ],
-              ),
-              const SizedBox(height: 20),
-              if (records.isNotEmpty) _buildAttendanceChart(records),
-              const SizedBox(height: 20),
-              if (records.isNotEmpty) _buildRecentRecords(records),
-              if (records.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: const Center(child: Text("No attendance records found")),
-                ),
-            ],
-          ),
-        );
+        // Default loader
+        return const Center(child: CircularProgressIndicator());
       },
     );
   }
@@ -391,7 +580,14 @@ class _StudentProfilePageState extends State<StudentProfilePage>
         children: [
           Icon(icon, color: color, size: 24),
           const SizedBox(height: 8),
-          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
           Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         ],
       ),
@@ -401,7 +597,11 @@ class _StudentProfilePageState extends State<StudentProfilePage>
   Widget _buildAttendanceChart(List<Map<String, dynamic>> records) {
     List<String> last7Days = [];
     for (int i = 6; i >= 0; i--) {
-      last7Days.add(DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(Duration(days: i))));
+      last7Days.add(
+        DateFormat(
+          'yyyy-MM-dd',
+        ).format(DateTime.now().subtract(Duration(days: i))),
+      );
     }
 
     Map<String, String> statusMap = {};
@@ -424,16 +624,27 @@ class _StudentProfilePageState extends State<StudentProfilePage>
         color = Colors.red;
         value = 0;
       }
-      barGroups.add(BarChartGroupData(x: i, barRods: [BarChartRodData(toY: value, color: color, width: 30) ]));
+      barGroups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [BarChartRodData(toY: value, color: color, width: 30)],
+        ),
+      );
     }
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Last 7 Days", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text(
+            "Last 7 Days",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           SizedBox(
             height: 200,
@@ -447,7 +658,11 @@ class _StudentProfilePageState extends State<StudentProfilePage>
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      getTitlesWidget: (value, meta) => Text('${value.toInt()}%', style: const TextStyle(fontSize: 10)),
+                      getTitlesWidget:
+                          (value, meta) => Text(
+                            '${value.toInt()}%',
+                            style: const TextStyle(fontSize: 10),
+                          ),
                     ),
                   ),
                   bottomTitles: AxisTitles(
@@ -456,14 +671,23 @@ class _StudentProfilePageState extends State<StudentProfilePage>
                       getTitlesWidget: (value, meta) {
                         int index = value.toInt();
                         if (index >= 0 && index < last7Days.length) {
-                          return Text(DateFormat('E').format(DateTime.parse(last7Days[index])), style: const TextStyle(fontSize: 10));
+                          return Text(
+                            DateFormat(
+                              'E',
+                            ).format(DateTime.parse(last7Days[index])),
+                            style: const TextStyle(fontSize: 10),
+                          );
                         }
                         return const Text('');
                       },
                     ),
                   ),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 gridData: const FlGridData(show: true),
                 borderData: FlBorderData(show: true),
@@ -471,13 +695,16 @@ class _StudentProfilePageState extends State<StudentProfilePage>
             ),
           ),
           const SizedBox(height: 12),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _legendItem(Colors.green, 'Present'),
-            const SizedBox(width: 16),
-            _legendItem(Colors.orange, 'Late'),
-            const SizedBox(width: 16),
-            _legendItem(Colors.red, 'Absent'),
-          ]),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _legendItem(Colors.green, 'Present'),
+              const SizedBox(width: 16),
+              _legendItem(Colors.orange, 'Late'),
+              const SizedBox(width: 16),
+              _legendItem(Colors.red, 'Absent'),
+            ],
+          ),
         ],
       ),
     );
@@ -490,11 +717,17 @@ class _StudentProfilePageState extends State<StudentProfilePage>
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Recent Attendance", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text(
+            "Recent Attendance",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 12),
           ListView.separated(
             shrinkWrap: true,
@@ -505,24 +738,39 @@ class _StudentProfilePageState extends State<StudentProfilePage>
               final record = recentRecords[index];
               final date = DateTime.parse(record['date']);
               final status = record['status'];
-              final statusColor = status == 'Present' ? Colors.green : (status == 'Late' ? Colors.orange : Colors.red);
+              final statusColor =
+                  status == 'Present'
+                      ? Colors.green
+                      : (status == 'Late' ? Colors.orange : Colors.red);
               return ListTile(
                 leading: CircleAvatar(
                   backgroundColor: statusColor.withValues(alpha: 0.1),
                   child: Icon(
-                    status == 'Present' ? Icons.check_circle : (status == 'Late' ? Icons.access_time : Icons.cancel),
+                    status == 'Present'
+                        ? Icons.check_circle
+                        : (status == 'Late' ? Icons.access_time : Icons.cancel),
                     color: statusColor,
                     size: 20,
                   ),
                 ),
                 title: Text(DateFormat('EEEE, dd MMM yyyy').format(date)),
                 trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(status, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               );
             },
@@ -533,21 +781,31 @@ class _StudentProfilePageState extends State<StudentProfilePage>
   }
 
   Widget _legendItem(Color color, String label) {
-    return Row(children: [
-      Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-      const SizedBox(width: 4),
-      Text(label, style: const TextStyle(fontSize: 11)),
-    ]);
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 11)),
+      ],
+    );
   }
 
   Widget _buildFeesTab() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('student_fees')
-          .where('studentId', isEqualTo: widget.studentId)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('student_fees')
+              .where('studentId', isEqualTo: widget.studentId)
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -582,28 +840,60 @@ class _StudentProfilePageState extends State<StudentProfilePage>
             children: [
               Row(
                 children: [
-                  Expanded(child: _statCard("Total", "₹${total.toInt()}", Colors.blue, Icons.account_balance_wallet)),
+                  Expanded(
+                    child: _statCard(
+                      "Total",
+                      "₹${total.toInt()}",
+                      Colors.blue,
+                      Icons.account_balance_wallet,
+                    ),
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(child: _statCard("Paid", "₹${paid.toInt()}", Colors.green, Icons.check_circle)),
+                  Expanded(
+                    child: _statCard(
+                      "Paid",
+                      "₹${paid.toInt()}",
+                      Colors.green,
+                      Icons.check_circle,
+                    ),
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(child: _statCard("Pending", "₹${pending.toInt()}", Colors.red, Icons.pending)),
+                  Expanded(
+                    child: _statCard(
+                      "Pending",
+                      "₹${pending.toInt()}",
+                      Colors.red,
+                      Icons.pending,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: Column(
                   children: [
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      const Text("Collection Rate"),
-                      Text("${collectionRate.toStringAsFixed(1)}%", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ]),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Collection Rate"),
+                        Text(
+                          "${collectionRate.toStringAsFixed(1)}%",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
                       value: (collectionRate / 100).toDouble(),
                       backgroundColor: Colors.grey.shade200,
-                      valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Colors.green,
+                      ),
                       minHeight: 8,
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -614,11 +904,20 @@ class _StudentProfilePageState extends State<StudentProfilePage>
               if (feesList.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("Fee Details", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const Text(
+                        "Fee Details",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       ListView.separated(
                         shrinkWrap: true,
@@ -632,7 +931,9 @@ class _StudentProfilePageState extends State<StudentProfilePage>
                           if (fee['dueDate'] != null) {
                             try {
                               if (fee['dueDate'] is Timestamp) {
-                                dueDateStr = DateFormat('dd MMM yyyy').format((fee['dueDate'] as Timestamp).toDate());
+                                dueDateStr = DateFormat('dd MMM yyyy').format(
+                                  (fee['dueDate'] as Timestamp).toDate(),
+                                );
                               } else if (fee['dueDate'] is String) {
                                 dueDateStr = fee['dueDate'].toString();
                               }
@@ -642,14 +943,27 @@ class _StudentProfilePageState extends State<StudentProfilePage>
                           }
                           return ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: isPaid ? Colors.green.shade100 : Colors.red.shade100,
-                              child: Icon(isPaid ? Icons.check : Icons.pending, color: isPaid ? Colors.green : Colors.red, size: 20),
+                              backgroundColor:
+                                  isPaid
+                                      ? Colors.green.shade100
+                                      : Colors.red.shade100,
+                              child: Icon(
+                                isPaid ? Icons.check : Icons.pending,
+                                color: isPaid ? Colors.green : Colors.red,
+                                size: 20,
+                              ),
                             ),
                             title: Text(fee['feeType']),
-                            subtitle: dueDateStr.isNotEmpty ? Text("Due: $dueDateStr") : null,
+                            subtitle:
+                                dueDateStr.isNotEmpty
+                                    ? Text("Due: $dueDateStr")
+                                    : null,
                             trailing: Text(
                               "₹${fee['amount'].toInt()}",
-                              style: TextStyle(fontWeight: FontWeight.bold, color: isPaid ? Colors.green : Colors.red),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isPaid ? Colors.green : Colors.red,
+                              ),
                             ),
                           );
                         },
@@ -660,7 +974,10 @@ class _StudentProfilePageState extends State<StudentProfilePage>
               if (feesList.isEmpty)
                 Container(
                   padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: const Center(child: Text("No fee records found")),
                 ),
             ],
@@ -674,10 +991,11 @@ class _StudentProfilePageState extends State<StudentProfilePage>
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => StudentEditPage(
-          schoolId: widget.schoolId,
-          studentId: widget.studentId,
-        ),
+        builder:
+            (_) => StudentEditPage(
+              schoolId: widget.schoolId,
+              studentId: widget.studentId,
+            ),
       ),
     ).then((_) => setState(() {}));
   }
@@ -685,46 +1003,48 @@ class _StudentProfilePageState extends State<StudentProfilePage>
   void _confirmDelete(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text("Delete Student"),
-        content: const Text("Are you sure you want to delete this student? This action cannot be undone."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+      builder:
+          (_) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            onPressed: () async {
-              // Delete from students collection
-              await FirebaseFirestore.instance
-                  .collection('schools')
-                  .doc(widget.schoolId)
-                  .collection('students')
-                  .doc(widget.studentId)
-                  .delete();
+            title: const Text("Delete Student"),
+            content: const Text(
+              "Are you sure you want to delete this student? This action cannot be undone.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  await FirebaseFirestore.instance
+                      .collection('schools')
+                      .doc(widget.schoolId)
+                      .collection('students')
+                      .doc(widget.studentId)
+                      .delete();
 
-              if (mounted) {
-                Navigator.pop(context);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Student deleted successfully"),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-            },
-            child: const Text("Delete"),
+                  if (mounted) {
+                    Navigator.pop(context);
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Student deleted successfully"),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                },
+                child: const Text("Delete"),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 }

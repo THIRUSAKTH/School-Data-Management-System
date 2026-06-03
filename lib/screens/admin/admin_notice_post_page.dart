@@ -7,7 +7,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
-import 'package:schoolprojectjan/services/file_picker_service.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:schoolprojectjan/services/notification_service.dart';
 
@@ -30,9 +29,10 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
   bool _isLoading = false;
   bool _isUploading = false;
 
-  // File attachments
+  // File attachments - Properly typed
   List<Map<String, dynamic>> _attachments = [];
-  List<dynamic> _localFiles = [];
+  List<PlatformFile> _selectedFiles = [];
+  List<XFile> _selectedImages = [];
 
   final List<String> _priorityOptions = ["Normal", "Important", "Urgent"];
   final List<String> _audienceOptions = [
@@ -88,18 +88,48 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
       }
     } catch (e) {
       debugPrint('Error loading classes: $e');
+      // Fallback to get classes from students
+      _loadClassesFromStudents();
     }
   }
 
+  Future<void> _loadClassesFromStudents() async {
+    try {
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .get();
+
+      final Set<String> uniqueClasses = {};
+      for (var doc in studentsSnapshot.docs) {
+        final className = doc.data()['class'] as String?;
+        if (className != null && className.isNotEmpty) {
+          uniqueClasses.add(className);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _availableClasses = uniqueClasses.toList()..sort();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading classes from students: $e');
+    }
+  }
+
+  // ============= FILE PICKING METHODS =============
   Future<void> _pickFiles() async {
-    final files = await FilePickerService.pickFiles(allowMultiple: true);
-    if (files != null && files.isNotEmpty && mounted) {
+    final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+    if (result != null && result.files.isNotEmpty && mounted) {
       setState(() {
-        _localFiles.addAll(files);
+        _selectedFiles.addAll(result.files);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("${files.length} file(s) selected"),
+          content: Text("${result.files.length} file(s) selected"),
           backgroundColor: Colors.green,
         ),
       );
@@ -107,10 +137,10 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
   }
 
   Future<void> _pickImages() async {
-    final images = await FilePickerService.pickImages(allowMultiple: true);
-    if (images != null && images.isNotEmpty && mounted) {
+    final images = await ImagePicker().pickMultiImage();
+    if (images.isNotEmpty && mounted) {
       setState(() {
-        _localFiles.addAll(images);
+        _selectedImages.addAll(images);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -121,9 +151,15 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
     }
   }
 
-  void _removeLocalFile(int index) {
+  void _removeSelectedFile(int index) {
     setState(() {
-      _localFiles.removeAt(index);
+      _selectedFiles.removeAt(index);
+    });
+  }
+
+  void _removeSelectedImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
     });
   }
 
@@ -133,67 +169,51 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
     });
   }
 
+  // ============= FILE UPLOAD METHODS =============
   Future<void> _uploadFiles() async {
-    if (_localFiles.isEmpty) return;
+    if (_selectedFiles.isEmpty && _selectedImages.isEmpty) return;
 
     setState(() => _isUploading = true);
 
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder:
-            (context) => AlertDialog(
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text("Uploading ${_localFiles.length} files..."),
-                ],
-              ),
+    // Show progress dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(
+                  "Uploading ${_selectedFiles.length + _selectedImages.length} files...",
+                ),
+              ],
             ),
-      );
+          ),
+    );
 
+    try {
       List<Map<String, dynamic>> uploadedFiles = [];
 
-      for (var fileItem in _localFiles) {
+      // Upload FilePicker files
+      for (var file in _selectedFiles) {
         try {
           final fileName =
-              '${DateTime.now().millisecondsSinceEpoch}_${_getFileName(fileItem)}';
+              '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
           final storageRef = FirebaseStorage.instance.ref().child(
             'notices/$fileName',
           );
 
           UploadTask uploadTask;
 
-          if (kIsWeb) {
-            if (fileItem is FilePickerResult) {
-              final file = fileItem.files.first;
-              if (file.bytes != null) {
-                uploadTask = storageRef.putData(file.bytes!);
-              } else {
-                continue;
-              }
-            } else if (fileItem is XFile) {
-              final bytes = await fileItem.readAsBytes();
-              uploadTask = storageRef.putData(bytes);
-            } else {
-              continue;
-            }
+          if (kIsWeb && file.bytes != null) {
+            uploadTask = storageRef.putData(file.bytes!);
+          } else if (file.path != null) {
+            uploadTask = storageRef.putFile(File(file.path!));
           } else {
-            if (fileItem is FilePickerResult) {
-              final file = fileItem.files.first;
-              if (file.path != null) {
-                uploadTask = storageRef.putFile(File(file.path!));
-              } else {
-                continue;
-              }
-            } else if (fileItem is XFile) {
-              uploadTask = storageRef.putFile(File(fileItem.path));
-            } else {
-              continue;
-            }
+            continue;
           }
 
           final snapshot = await uploadTask;
@@ -201,23 +221,58 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
 
           uploadedFiles.add({
             'name': fileName,
-            'originalName': _getOriginalName(fileItem),
+            'originalName': file.name,
             'url': downloadUrl,
-            'type': _getFileType(_getOriginalName(fileItem)),
-            'size': await _getFileSize(fileItem),
+            'type': _getFileType(file.name),
+            'size': file.size,
           });
         } catch (e) {
           debugPrint('Error uploading file: $e');
         }
       }
 
-      Navigator.pop(context);
+      // Upload ImagePicker images
+      for (var image in _selectedImages) {
+        try {
+          final fileName =
+              '${DateTime.now().millisecondsSinceEpoch}_${image.name}';
+          final storageRef = FirebaseStorage.instance.ref().child(
+            'notices/$fileName',
+          );
+
+          UploadTask uploadTask;
+
+          if (kIsWeb) {
+            final bytes = await image.readAsBytes();
+            uploadTask = storageRef.putData(bytes);
+          } else {
+            uploadTask = storageRef.putFile(File(image.path));
+          }
+
+          final snapshot = await uploadTask;
+          final downloadUrl = await snapshot.ref.getDownloadURL();
+
+          uploadedFiles.add({
+            'name': fileName,
+            'originalName': image.name,
+            'url': downloadUrl,
+            'type': 'image',
+            'size': await image.length(),
+          });
+        } catch (e) {
+          debugPrint('Error uploading image: $e');
+        }
+      }
+
+      Navigator.pop(context); // Close dialog
 
       if (mounted && uploadedFiles.isNotEmpty) {
         setState(() {
           _attachments.addAll(uploadedFiles);
-          _localFiles.clear();
+          _selectedFiles.clear();
+          _selectedImages.clear();
         });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -226,7 +281,8 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
             backgroundColor: Colors.green,
           ),
         );
-      } else if (uploadedFiles.isEmpty && _localFiles.isNotEmpty) {
+      } else if (uploadedFiles.isEmpty &&
+          (_selectedFiles.isNotEmpty || _selectedImages.isNotEmpty)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Failed to upload files. Please try again."),
@@ -249,40 +305,22 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
     }
   }
 
-  String _getFileName(dynamic fileItem) {
-    if (fileItem is FilePickerResult) {
-      return fileItem.files.first.name;
-    } else if (fileItem is XFile) {
-      return fileItem.name;
-    }
-    return 'file';
-  }
-
-  String _getOriginalName(dynamic fileItem) {
-    if (fileItem is FilePickerResult) {
-      return fileItem.files.first.name;
-    } else if (fileItem is XFile) {
-      return fileItem.name;
-    }
-    return 'file';
-  }
-
-  Future<int> _getFileSize(dynamic fileItem) async {
-    if (fileItem is FilePickerResult) {
-      return fileItem.files.first.size;
-    } else if (fileItem is XFile) {
-      return await fileItem.length();
-    }
-    return 0;
-  }
-
   String _getFileType(String fileName) {
     final extension = fileName.toLowerCase().split('.').last;
-    const images = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const images = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'];
     const pdfs = ['pdf'];
+    const docs = ['doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'];
+
     if (images.contains(extension)) return 'image';
     if (pdfs.contains(extension)) return 'pdf';
-    return 'document';
+    if (docs.contains(extension)) return 'document';
+    return 'other';
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   @override
@@ -505,19 +543,68 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
               ),
             ],
           ),
-          if (_localFiles.isNotEmpty) ...[
+
+          // Selected Images
+          if (_selectedImages.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Divider(),
             const SizedBox(height: 8),
             const Text(
-              "Pending Upload:",
+              "Selected Images:",
               style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
             ),
             const SizedBox(height: 8),
-            ..._localFiles.asMap().entries.map((entry) {
+            ..._selectedImages.asMap().entries.map((entry) {
               final index = entry.key;
-              final fileItem = entry.value;
-              final fileName = _getFileName(fileItem);
+              final image = entry.value;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.image, size: 20, color: Colors.green),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        image.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        size: 16,
+                        color: Colors.red,
+                      ),
+                      onPressed: () => _removeSelectedImage(index),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
+
+          // Selected Files
+          if (_selectedFiles.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 8),
+            const Text(
+              "Selected Files:",
+              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            ..._selectedFiles.asMap().entries.map((entry) {
+              final index = entry.key;
+              final file = entry.value;
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(
@@ -530,13 +617,29 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.insert_drive_file, size: 20, color: Colors.blue),
+                    const Icon(
+                      Icons.insert_drive_file,
+                      size: 20,
+                      color: Colors.blue,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        fileName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            file.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            _formatFileSize(file.size),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     IconButton(
@@ -545,38 +648,47 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
                         size: 16,
                         color: Colors.red,
                       ),
-                      onPressed: () => _removeLocalFile(index),
+                      onPressed: () => _removeSelectedFile(index),
                     ),
                   ],
                 ),
               );
             }).toList(),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isUploading ? null : _uploadFiles,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+          ],
+
+          // Upload button
+          if (_selectedImages.isNotEmpty || _selectedFiles.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isUploading ? null : _uploadFiles,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                ),
-                child:
-                    _isUploading
-                        ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+                  child:
+                      _isUploading
+                          ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                          : Text(
+                            "Upload ${_selectedImages.length + _selectedFiles.length} File(s)",
                           ),
-                        )
-                        : Text("Upload ${_localFiles.length} File(s)"),
+                ),
               ),
             ),
-          ],
+
+          // Uploaded Attachments
           if (_attachments.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Divider(),
@@ -597,7 +709,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: isImage ? Colors.green.shade50 : Colors.blue.shade50,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -605,7 +717,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
                     Icon(
                       isImage ? Icons.image : Icons.insert_drive_file,
                       size: 20,
-                      color: Colors.green,
+                      color: isImage ? Colors.green : Colors.blue,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -617,15 +729,14 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          Text(
-                            FilePickerService.getReadableSize(
-                              attachment['size'],
+                          if (attachment['size'] != null)
+                            Text(
+                              _formatFileSize(attachment['size']),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
                             ),
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey,
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -642,7 +753,10 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
               );
             }).toList(),
           ],
-          if (_localFiles.isEmpty && _attachments.isEmpty)
+
+          if (_selectedImages.isEmpty &&
+              _selectedFiles.isEmpty &&
+              _attachments.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16),
               child: Center(
@@ -846,15 +960,15 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
         "description": _messageController.text.trim(),
         "priority": _priority,
         "category":
-        _priority == "Urgent"
-            ? "Urgent"
-            : (_priority == "Important" ? "Important" : "General"),
+            _priority == "Urgent"
+                ? "Urgent"
+                : (_priority == "Important" ? "Important" : "General"),
         "targetAudience": _targetAudience,
         "selectedClasses":
-        _targetAudience == "Specific Class" ? _selectedClasses : [],
+            _targetAudience == "Specific Class" ? _selectedClasses : [],
         "isPinned": _isPinned,
         "expiryDate":
-        _expiryDate != null ? Timestamp.fromDate(_expiryDate!) : null,
+            _expiryDate != null ? Timestamp.fromDate(_expiryDate!) : null,
         "createdBy": adminName,
         "createdByUid": adminUser?.uid,
         "createdAt": FieldValue.serverTimestamp(),
@@ -871,79 +985,11 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
           .collection('notices')
           .add(noticeData);
 
-      // =============================================
-      // SEND PUSH NOTIFICATIONS BASED ON TARGET AUDIENCE
-      // =============================================
+      // Send notifications based on target audience
+      await _sendNotifications(docRef.id);
 
-      final title = _titleController.text.trim();
-      final message = _messageController.text.trim();
-      final priority = _priority;
-
-      // Truncate message for notification body (max 100 chars)
-      String notificationBody = message.length > 100
-          ? '${message.substring(0, 100)}...'
-          : message;
-
-      // Add priority prefix
-      String priorityPrefix = '';
-      if (priority == 'Urgent') {
-        priorityPrefix = '🔴 URGENT: ';
-      } else if (priority == 'Important') {
-        priorityPrefix = '🟠 IMPORTANT: ';
-      } else {
-        priorityPrefix = '📢 ';
-      }
-
-      final notificationTitle = '$priorityPrefix$title';
-
-      if (_targetAudience == "All") {
-        // Send to both parents and teachers
-        await Future.wait([
-          NotificationService.sendToAllParents(
-            title: notificationTitle,
-            body: notificationBody,
-            type: 'notice',
-            data: {'noticeId': docRef.id, 'priority': priority},
-          ),
-          NotificationService.sendToAllTeachers(
-            title: notificationTitle,
-            body: notificationBody,
-            type: 'notice',
-            data: {'noticeId': docRef.id, 'priority': priority},
-          ),
-        ]);
-        print('✅ Notifications sent to ALL parents and teachers');
-
-      } else if (_targetAudience == "Parents") {
-        await NotificationService.sendToAllParents(
-          title: notificationTitle,
-          body: notificationBody,
-          type: 'notice',
-          data: {'noticeId': docRef.id, 'priority': priority},
-        );
-        print('✅ Notifications sent to ALL parents');
-
-      } else if (_targetAudience == "Teachers") {
-        await NotificationService.sendToAllTeachers(
-          title: notificationTitle,
-          body: notificationBody,
-          type: 'notice',
-          data: {'noticeId': docRef.id, 'priority': priority},
-        );
-        print('✅ Notifications sent to ALL teachers');
-
-      } else if (_targetAudience == "Specific Class") {
-        for (var className in _selectedClasses) {
-          await NotificationService.sendToClass(
-            className: className,
-            title: notificationTitle,
-            body: notificationBody,
-            type: 'notice',
-            data: {'noticeId': docRef.id, 'priority': priority, 'className': className},
-          );
-          print('✅ Notifications sent to parents of class: $className');
-        }
-      }
+      // Also create in-app notifications for all users
+      await _createInAppNotifications(docRef.id);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -952,23 +998,132 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
             backgroundColor: Colors.green,
           ),
         );
-        _titleController.clear();
-        _messageController.clear();
-        setState(() {
-          _priority = "Normal";
-          _targetAudience = "All";
-          _selectedClasses.clear();
-          _isPinned = false;
-          _expiryDate = null;
-          _attachments.clear();
-          _localFiles.clear();
-        });
+        _clearForm();
       }
     } catch (e) {
       _showError("Error: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _sendNotifications(String noticeId) async {
+    final title = _titleController.text.trim();
+    final message = _messageController.text.trim();
+    final priority = _priority;
+
+    String notificationBody =
+        message.length > 100 ? '${message.substring(0, 100)}...' : message;
+
+    String priorityPrefix = '';
+    if (priority == 'Urgent') {
+      priorityPrefix = '🔴 URGENT: ';
+    } else if (priority == 'Important') {
+      priorityPrefix = '🟠 IMPORTANT: ';
+    } else {
+      priorityPrefix = '📢 ';
+    }
+
+    final notificationTitle = '$priorityPrefix$title';
+
+    if (_targetAudience == "All") {
+      await Future.wait([
+        NotificationService.sendToAllParents(
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'notice',
+          data: {'noticeId': noticeId, 'priority': priority},
+        ),
+        NotificationService.sendToAllTeachers(
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'notice',
+          data: {'noticeId': noticeId, 'priority': priority},
+        ),
+      ]);
+      print('✅ Notifications sent to ALL parents and teachers');
+    } else if (_targetAudience == "Parents") {
+      await NotificationService.sendToAllParents(
+        title: notificationTitle,
+        body: notificationBody,
+        type: 'notice',
+        data: {'noticeId': noticeId, 'priority': priority},
+      );
+      print('✅ Notifications sent to ALL parents');
+    } else if (_targetAudience == "Teachers") {
+      await NotificationService.sendToAllTeachers(
+        title: notificationTitle,
+        body: notificationBody,
+        type: 'notice',
+        data: {'noticeId': noticeId, 'priority': priority},
+      );
+      print('✅ Notifications sent to ALL teachers');
+    } else if (_targetAudience == "Specific Class") {
+      for (var className in _selectedClasses) {
+        await NotificationService.sendToClass(
+          className: className,
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'notice',
+          data: {
+            'noticeId': noticeId,
+            'priority': priority,
+            'className': className,
+          },
+        );
+        print('✅ Notifications sent to parents of class: $className');
+      }
+    }
+  }
+
+  Future<void> _createInAppNotifications(String noticeId) async {
+    final title = _titleController.text.trim();
+    final message = _messageController.text.trim();
+
+    // Get all students to send in-app notifications
+    final studentsSnapshot =
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('students')
+            .get();
+
+    for (var studentDoc in studentsSnapshot.docs) {
+      final studentData = studentDoc.data();
+      final parentUid = studentData['parentUID'] ?? studentData['parentUid'];
+
+      if (parentUid != null && parentUid.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('notifications')
+            .add({
+              'userId': parentUid,
+              'title': title,
+              'message': message,
+              'type': 'notice',
+              'isRead': false,
+              'createdAt': FieldValue.serverTimestamp(),
+              'deletedFor': [],
+              'additionalData': {'noticeId': noticeId, 'priority': _priority},
+            });
+      }
+    }
+  }
+
+  void _clearForm() {
+    _titleController.clear();
+    _messageController.clear();
+    setState(() {
+      _priority = "Normal";
+      _targetAudience = "All";
+      _selectedClasses.clear();
+      _isPinned = false;
+      _expiryDate = null;
+      _attachments.clear();
+      _selectedFiles.clear();
+      _selectedImages.clear();
+    });
   }
 
   void _showPreview() {

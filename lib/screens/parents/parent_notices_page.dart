@@ -1,11 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:schoolprojectjan/app_config.dart';
-import 'package:schoolprojectjan/services/file_preview_service.dart';
-import '../../services/file_picker_service.dart';
 
 class ParentNoticesPage extends StatefulWidget {
   final String? className;
@@ -43,8 +47,6 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
   void initState() {
     super.initState();
     _loadStudents();
-
-    // Run cleanup every hour
     _cleanupTimer = Timer.periodic(const Duration(hours: 1), (timer) {
       _cleanupExpiredNotices();
     });
@@ -56,16 +58,16 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
     super.dispose();
   }
 
-  // Auto-delete expired notices
   Future<void> _cleanupExpiredNotices() async {
     try {
       final now = DateTime.now();
-      final noticesSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('notices')
-          .where('isActive', isEqualTo: true)
-          .get();
+      final noticesSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('notices')
+              .where('isActive', isEqualTo: true)
+              .get();
 
       final batch = FirebaseFirestore.instance.batch();
       int deleteCount = 0;
@@ -73,7 +75,6 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
       for (var doc in noticesSnapshot.docs) {
         final data = doc.data();
         final expiryDate = data['expiryDate'] as Timestamp?;
-
         if (expiryDate != null && expiryDate.toDate().isBefore(now)) {
           batch.delete(doc.reference);
           deleteCount++;
@@ -82,50 +83,43 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
 
       if (deleteCount > 0) {
         await batch.commit();
-        if (mounted) {
-          setState(() {}); // Refresh the UI
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$deleteCount expired notice(s) automatically deleted'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
+        if (mounted) setState(() {});
       }
     } catch (e) {
       debugPrint('Error cleaning up expired notices: $e');
     }
   }
 
-  // Manual delete via long press
   Future<void> _deleteNotice(String noticeId, String title) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          "Delete Notice",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          "Are you sure you want to delete '$title'?\nThis action cannot be undone.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            child: const Text("Delete"),
+            title: const Text(
+              "Delete Notice",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              "Are you sure you want to delete '$title'?\nThis action cannot be undone.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Delete"),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
     if (confirmed != true) return;
@@ -137,9 +131,8 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
           .collection('notices')
           .doc(noticeId)
           .delete();
-
       if (mounted) {
-        setState(() {}); // Refresh the UI
+        setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Notice deleted successfully"),
@@ -148,7 +141,6 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
         );
       }
     } catch (e) {
-      debugPrint('Error deleting notice: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -166,29 +158,33 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
 
     try {
       final parentUid = FirebaseAuth.instance.currentUser!.uid;
-      final snapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('students')
-          .where('parentUid', isEqualTo: parentUid)
-          .get();
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('parentUid', isEqualTo: parentUid)
+              .get();
 
-      _children = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? 'Student',
-          'class': data['class'] ?? '',
-          'section': data['section'] ?? '',
-        };
-      }).toList();
+      _children =
+          snapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'id': doc.id,
+              'name': data['name'] ?? 'Student',
+              'class': data['class'] ?? '',
+              'section': data['section'] ?? '',
+            };
+          }).toList();
 
       if (_children.isNotEmpty) {
         if (widget.className != null && widget.section != null) {
           _studentClass = widget.className;
           _studentSection = widget.section;
           final matchingChild = _children.firstWhere(
-                (c) => c['class'] == widget.className && c['section'] == widget.section,
+            (c) =>
+                c['class'] == widget.className &&
+                c['section'] == widget.section,
             orElse: () => _children.first,
           );
           _selectedStudentId = matchingChild['id'];
@@ -205,6 +201,229 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
     }
 
     if (mounted) setState(() => _isLoading = false);
+  }
+
+  // ================= FILE HANDLING METHODS =================
+  Future<void> _viewFile(String url, String fileName) async {
+    try {
+      if (url.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Invalid file URL"),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => const AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Opening file...'),
+                ],
+              ),
+            ),
+      );
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download file');
+      }
+
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsBytes(response.bodyBytes);
+
+      if (mounted) Navigator.pop(context);
+      await OpenFile.open(file.path);
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening file: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadFile(String url, String fileName) async {
+    try {
+      if (url.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Invalid file URL"),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => const AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Downloading...'),
+                ],
+              ),
+            ),
+      );
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download file');
+      }
+
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsBytes(response.bodyBytes);
+
+      if (mounted) Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Downloaded: $fileName'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error downloading: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _shareFile(String url, String fileName) async {
+    try {
+      if (url.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Invalid file URL"),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => const AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Preparing file...'),
+                ],
+              ),
+            ),
+      );
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download file for sharing');
+      }
+
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsBytes(response.bodyBytes);
+
+      if (mounted) Navigator.pop(context);
+      await Share.shareXFiles([
+        XFile(file.path),
+      ], text: 'Check out this file: $fileName');
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sharing file: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  IconData _getFileIcon(String fileName) {
+    final extension = fileName.toLowerCase().split('.').last;
+    switch (extension) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+        return Icons.image;
+      case 'txt':
+        return Icons.text_snippet;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  Color _getFileIconColor(String fileName) {
+    final extension = fileName.toLowerCase().split('.').last;
+    switch (extension) {
+      case 'pdf':
+        return Colors.red;
+      case 'doc':
+      case 'docx':
+        return Colors.blue;
+      case 'xls':
+      case 'xlsx':
+        return Colors.green;
+      case 'ppt':
+      case 'pptx':
+        return Colors.orange;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   @override
@@ -239,25 +458,26 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _children.isEmpty
-          ? _buildEmptyState(
-        'No Children Linked',
-        'Please contact the school admin to link your children.',
-      )
-          : _studentClass == null
-          ? _buildEmptyState(
-        'No Class Assigned',
-        'Your child has not been assigned to any class yet.',
-      )
-          : Column(
-        children: [
-          if (_children.length > 1) _buildChildSelector(),
-          _buildFilterChips(),
-          Expanded(child: _buildNoticesList()),
-        ],
-      ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _children.isEmpty
+              ? _buildEmptyState(
+                'No Children Linked',
+                'Please contact the school admin to link your children.',
+              )
+              : _studentClass == null
+              ? _buildEmptyState(
+                'No Class Assigned',
+                'Your child has not been assigned to any class yet.',
+              )
+              : Column(
+                children: [
+                  if (_children.length > 1) _buildChildSelector(),
+                  _buildFilterChips(),
+                  Expanded(child: _buildNoticesList()),
+                ],
+              ),
     );
   }
 
@@ -328,21 +548,22 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                 hint: const Text('Select Child'),
                 isExpanded: true,
                 icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
-                items: _children.map<DropdownMenuItem<String>>((child) {
-                  return DropdownMenuItem<String>(
-                    value: child['id'] as String,
-                    child: Text(
-                      '${child['name']} - Class ${child['class']}',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  );
-                }).toList(),
+                items:
+                    _children.map<DropdownMenuItem<String>>((child) {
+                      return DropdownMenuItem<String>(
+                        value: child['id'] as String,
+                        child: Text(
+                          '${child['name']} - Class ${child['class']}',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      );
+                    }).toList(),
                 onChanged: (value) async {
                   if (value == null) return;
                   setState(() {
                     _selectedStudentId = value;
                     final selected = _children.firstWhere(
-                          (c) => c['id'] == value,
+                      (c) => c['id'] == value,
                     );
                     _selectedStudentName = selected['name'];
                     _studentClass = selected['class'];
@@ -388,9 +609,12 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                 ),
               ),
               selected: isSelected,
-              onSelected: (selected) => setState(
-                    () => _selectedFilter = selected ? filter['value'] as String : "All",
-              ),
+              onSelected:
+                  (selected) => setState(
+                    () =>
+                        _selectedFilter =
+                            selected ? filter['value'] as String : "All",
+                  ),
               backgroundColor: Colors.white,
               selectedColor: chipColor,
               checkmarkColor: Colors.white,
@@ -405,12 +629,13 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
 
   Widget _buildNoticesList() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('notices')
-          .where('isActive', isEqualTo: true)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('notices')
+              .where('isActive', isEqualTo: true)
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -460,35 +685,36 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
 
         var notices = snapshot.data!.docs.toList();
 
-        notices = notices.where((notice) {
-          final data = notice.data() as Map<String, dynamic>;
-
-          if (data['isActive'] != true) return false;
-
-          final expiryDate = data['expiryDate'] as Timestamp?;
-          if (expiryDate != null && expiryDate.toDate().isBefore(DateTime.now()))
-            return false;
-
-          final targetAudience = data['targetAudience'] ?? 'All';
-          if (targetAudience == 'Teachers') return false;
-
-          if (targetAudience == 'Specific Class') {
-            final selectedClasses = data['selectedClasses'] as List<dynamic>? ?? [];
-            if (_studentClass != null && !selectedClasses.contains(_studentClass))
-              return false;
-          } else if (targetAudience != 'All' && targetAudience != 'Parents') {
-            return false;
-          }
-
-          return true;
-        }).toList();
+        notices =
+            notices.where((notice) {
+              final data = notice.data() as Map<String, dynamic>;
+              if (data['isActive'] != true) return false;
+              final expiryDate = data['expiryDate'] as Timestamp?;
+              if (expiryDate != null &&
+                  expiryDate.toDate().isBefore(DateTime.now()))
+                return false;
+              final targetAudience = data['targetAudience'] ?? 'All';
+              if (targetAudience == 'Teachers') return false;
+              if (targetAudience == 'Specific Class') {
+                final selectedClasses =
+                    data['selectedClasses'] as List<dynamic>? ?? [];
+                if (_studentClass != null &&
+                    !selectedClasses.contains(_studentClass))
+                  return false;
+              } else if (targetAudience != 'All' &&
+                  targetAudience != 'Parents') {
+                return false;
+              }
+              return true;
+            }).toList();
 
         if (_selectedFilter != "All") {
-          notices = notices.where((notice) {
-            final data = notice.data() as Map<String, dynamic>;
-            final priority = data['priority'] ?? 'Normal';
-            return priority == _selectedFilter;
-          }).toList();
+          notices =
+              notices.where((notice) {
+                final data = notice.data() as Map<String, dynamic>;
+                final priority = data['priority'] ?? 'Normal';
+                return priority == _selectedFilter;
+              }).toList();
         }
 
         if (notices.isEmpty) {
@@ -496,7 +722,11 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.filter_alt_off, size: 64, color: Colors.grey.shade400),
+                Icon(
+                  Icons.filter_alt_off,
+                  size: 64,
+                  color: Colors.grey.shade400,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'No $_selectedFilter notices found',
@@ -510,21 +740,14 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
         notices.sort((a, b) {
           final aData = a.data() as Map<String, dynamic>;
           final bData = b.data() as Map<String, dynamic>;
-
           final aPinned = aData['isPinned'] ?? false;
           final bPinned = bData['isPinned'] ?? false;
-
-          if (aPinned != bPinned) {
-            return bPinned ? 1 : -1;
-          }
-
+          if (aPinned != bPinned) return bPinned ? 1 : -1;
           final aDate = aData['createdAt'] as Timestamp?;
           final bDate = bData['createdAt'] as Timestamp?;
-
           if (aDate == null && bDate == null) return 0;
           if (aDate == null) return 1;
           if (bDate == null) return -1;
-
           return bDate.toDate().compareTo(aDate.toDate());
         });
 
@@ -552,8 +775,8 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
     final viewCount = data['viewCount'] ?? 0;
     final expiryDate = data['expiryDate'] as Timestamp?;
     final attachments = data['attachments'] as List? ?? [];
-
-    final isExpired = expiryDate != null && expiryDate.toDate().isBefore(DateTime.now());
+    final isExpired =
+        expiryDate != null && expiryDate.toDate().isBefore(DateTime.now());
 
     Color getPriorityColor() => _priorityColors[priority] ?? Colors.blue;
     IconData getPriorityIcon() => _priorityIcons[priority] ?? Icons.info;
@@ -589,7 +812,10 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: getPriorityColor().withOpacity(0.1),
                               borderRadius: BorderRadius.circular(20),
@@ -597,7 +823,11 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(getPriorityIcon(), size: 12, color: getPriorityColor()),
+                                Icon(
+                                  getPriorityIcon(),
+                                  size: 12,
+                                  color: getPriorityColor(),
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   priority.toUpperCase(),
@@ -613,7 +843,10 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                           if (isPinned) ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.deepPurple.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(20),
@@ -621,7 +854,11 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.push_pin, size: 10, color: Colors.deepPurple),
+                                  Icon(
+                                    Icons.push_pin,
+                                    size: 10,
+                                    color: Colors.deepPurple,
+                                  ),
                                   SizedBox(width: 4),
                                   Text(
                                     "PINNED",
@@ -638,7 +875,10 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                           if (isExpired) ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.red.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(20),
@@ -646,7 +886,11 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.timer_off_outlined, size: 10, color: Colors.red),
+                                  Icon(
+                                    Icons.timer_off_outlined,
+                                    size: 10,
+                                    color: Colors.red,
+                                  ),
                                   SizedBox(width: 4),
                                   Text(
                                     "EXPIRED",
@@ -665,9 +909,14 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                           const SizedBox(width: 4),
                           Text(
                             date != null
-                                ? DateFormat('dd MMM yyyy').format(date.toDate())
+                                ? DateFormat(
+                                  'dd MMM yyyy',
+                                ).format(date.toDate())
                                 : 'Unknown',
-                            style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
                           ),
                         ],
                       ),
@@ -678,7 +927,8 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           height: 1.3,
-                          color: isExpired ? Colors.grey.shade600 : Colors.black,
+                          color:
+                              isExpired ? Colors.grey.shade600 : Colors.black,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -688,7 +938,10 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                         data['description'] ?? 'No description',
                         style: TextStyle(
                           fontSize: 13,
-                          color: isExpired ? Colors.grey.shade400 : Colors.grey.shade600,
+                          color:
+                              isExpired
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
                           height: 1.4,
                         ),
                         maxLines: 2,
@@ -699,11 +952,18 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                           padding: const EdgeInsets.only(top: 8),
                           child: Row(
                             children: [
-                              Icon(Icons.attach_file, size: 10, color: Colors.grey.shade400),
+                              Icon(
+                                Icons.attach_file,
+                                size: 10,
+                                color: Colors.grey.shade400,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 "${attachments.length} attachment(s)",
-                                style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey.shade400,
+                                ),
                               ),
                             ],
                           ),
@@ -720,12 +980,19 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                         isExpired ? "Expired notice" : "Tap to read more",
                         style: TextStyle(
                           fontSize: 11,
-                          color: isExpired ? Colors.grey.shade400 : Colors.orange.shade400,
+                          color:
+                              isExpired
+                                  ? Colors.grey.shade400
+                                  : Colors.orange.shade400,
                         ),
                       ),
                       if (!isExpired) ...[
                         const SizedBox(width: 4),
-                        Icon(Icons.arrow_forward_ios, size: 10, color: Colors.orange.shade400),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 10,
+                          color: Colors.orange.shade400,
+                        ),
                       ],
                     ],
                   ),
@@ -746,6 +1013,8 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
     final viewCount = data['viewCount'] ?? 0;
     final expiryDate = data['expiryDate'] as Timestamp?;
     final attachments = data['attachments'] as List? ?? [];
+    final title = data['title'] ?? 'Notice';
+    final description = data['description'] ?? 'No description';
 
     Color getPriorityColor() => _priorityColors[priority] ?? Colors.blue;
 
@@ -755,134 +1024,170 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.9,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
+      builder:
+          (context) => DraggableScrollableSheet(
+            initialChildSize: 0.9,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder:
+                (context, scrollController) => SingleChildScrollView(
+                  controller: scrollController,
                   child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: getPriorityColor().withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        priority.toUpperCase(),
-                        style: TextStyle(
-                          color: getPriorityColor(),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    if (isPinned)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.deepPurple.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
+                        const SizedBox(height: 20),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: getPriorityColor().withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                priority.toUpperCase(),
+                                style: TextStyle(
+                                  color: getPriorityColor(),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            if (isPinned)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.deepPurple.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Text(
+                                  "PINNED",
+                                  style: TextStyle(
+                                    color: Colors.deepPurple,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        child: const Text(
-                          "PINNED",
-                          style: TextStyle(
-                            color: Colors.deepPurple,
-                            fontSize: 12,
+                        const SizedBox(height: 16),
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 22,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  data['title'] ?? 'Notice',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.person_outline, size: 14, color: Colors.grey.shade500),
-                    const SizedBox(width: 4),
-                    Text(
-                      createdBy,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.person_outline,
+                              size: 14,
+                              color: Colors.grey.shade500,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              createdBy,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Icon(
+                              Icons.calendar_today,
+                              size: 14,
+                              color: Colors.grey.shade500,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              date != null
+                                  ? DateFormat(
+                                    'dd MMM yyyy, hh:mm a',
+                                  ).format(date.toDate())
+                                  : 'Unknown',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          description,
+                          style: const TextStyle(fontSize: 14, height: 1.5),
+                        ),
+                        if (attachments.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          const Text(
+                            "Attachments:",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...attachments.map(
+                            (attachment) => _buildAttachmentTile(attachment),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text(
+                              'Close',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                    Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade500),
-                    const SizedBox(width: 4),
-                    Text(
-                      date != null
-                          ? DateFormat('dd MMM yyyy, hh:mm a').format(date.toDate())
-                          : 'Unknown',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  data['description'] ?? 'No description',
-                  style: const TextStyle(fontSize: 14, height: 1.5),
-                ),
-                if (attachments.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  const Text(
-                    "Attachments:",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
-                  const SizedBox(height: 12),
-                  ...attachments.map((attachment) => _buildAttachmentTile(attachment)),
-                ],
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text(
-                      'Close',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
                 ),
-              ],
-            ),
           ),
-        ),
-      ),
     );
   }
 
   Widget _buildAttachmentTile(Map<String, dynamic> attachment) {
-    final isImage = attachment['type'] == 'image';
-    final url = attachment['url'];
-    final fileName = attachment['originalName'] ?? attachment['name'];
+    final url = attachment['url'] ?? '';
+    final fileName = attachment['originalName'] ?? attachment['name'] ?? 'file';
     final fileSize = attachment['size'] ?? 0;
+
+    if (url.isEmpty) return const SizedBox.shrink();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -894,22 +1199,20 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // File Icon
               Container(
                 width: 45,
                 height: 45,
                 decoration: BoxDecoration(
-                  color: FilePreviewService.getFileIconColor(fileName).withOpacity(0.1),
+                  color: _getFileIconColor(fileName).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  FilePreviewService.getFileIcon(fileName),
-                  color: FilePreviewService.getFileIconColor(fileName),
+                  _getFileIcon(fileName),
+                  color: _getFileIconColor(fileName),
                   size: 25,
                 ),
               ),
               const SizedBox(width: 12),
-              // File Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -925,43 +1228,28 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      FilePickerService.getReadableSize(fileSize),
+                      _formatFileSize(fileSize),
                       style: const TextStyle(fontSize: 11, color: Colors.grey),
                     ),
                   ],
                 ),
               ),
-              // Action Buttons
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
                     icon: Icon(Icons.visibility, color: Colors.blue, size: 20),
-                    onPressed: () => FilePreviewService.viewFile(
-                      url: url,
-                      fileName: fileName,
-                      context: context,
-                    ),
+                    onPressed: () => _viewFile(url, fileName),
                     tooltip: 'View',
                   ),
                   IconButton(
                     icon: Icon(Icons.download, color: Colors.green, size: 20),
-                    onPressed: () async {
-                      await FilePreviewService.viewFile(
-                        url: url,
-                        fileName: fileName,
-                        context: context,
-                      );
-                    },
+                    onPressed: () => _downloadFile(url, fileName),
                     tooltip: 'Download',
                   ),
                   IconButton(
                     icon: Icon(Icons.share, color: Colors.orange, size: 20),
-                    onPressed: () => FilePreviewService.shareFile(
-                      url: url,
-                      fileName: fileName,
-                      context: context,
-                    ),
+                    onPressed: () => _shareFile(url, fileName),
                     tooltip: 'Share',
                   ),
                 ],
@@ -972,11 +1260,22 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
       ),
     );
   }
+
   void _showAttachmentPreview(Map<String, dynamic> attachment) {
     final isImage = attachment['type'] == 'image';
-    final url = attachment['url'];
-    final fileName = attachment['originalName'] ?? attachment['name'];
+    final url = attachment['url'] ?? '';
+    final fileName = attachment['originalName'] ?? attachment['name'] ?? 'file';
     final fileSize = attachment['size'] ?? 0;
+
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Invalid file URL"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     showModalBottomSheet(
       context: context,
@@ -984,252 +1283,285 @@ class _ParentNoticesPageState extends State<ParentNoticesPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.9,
-        builder: (context, scrollController) => Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: FilePreviewService.getFileIconColor(fileName).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(
-                      FilePreviewService.getFileIcon(fileName),
-                      color: FilePreviewService.getFileIconColor(fileName),
-                      size: 30,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          fileName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+      builder:
+          (context) => DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            minChildSize: 0.5,
+            maxChildSize: 0.9,
+            builder:
+                (context, scrollController) => Container(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(2),
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          FilePickerService.getReadableSize(fileSize),
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const Divider(),
-
-              // File Preview
-              Expanded(
-                child: isImage
-                    ? ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.network(
-                    url,
-                    fit: BoxFit.contain,
-                    width: double.infinity,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded /
-                                  loadingProgress.expectedTotalBytes!
-                                  : null,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Loading image...',
-                              style: TextStyle(color: Colors.grey.shade600),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    errorBuilder: (_, __, ___) => Container(
-                      height: 200,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      const SizedBox(height: 20),
+                      Row(
                         children: [
-                          Icon(Icons.broken_image, size: 48, color: Colors.grey),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Failed to load image',
-                            style: TextStyle(color: Colors.grey.shade600),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: _getFileIconColor(
+                                fileName,
+                              ).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(
+                              _getFileIcon(fileName),
+                              color: _getFileIconColor(fileName),
+                              size: 30,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  fileName,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _formatFileSize(fileSize),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                )
-                    : Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        FilePreviewService.getFileIcon(fileName),
-                        size: 80,
-                        color: FilePreviewService.getFileIconColor(fileName),
+                      const SizedBox(height: 20),
+                      const Divider(),
+                      Expanded(
+                        child:
+                            isImage
+                                ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Image.network(
+                                    url,
+                                    fit: BoxFit.contain,
+                                    width: double.infinity,
+                                    loadingBuilder: (
+                                      context,
+                                      child,
+                                      loadingProgress,
+                                    ) {
+                                      if (loadingProgress == null) return child;
+                                      return Center(
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            CircularProgressIndicator(
+                                              value:
+                                                  loadingProgress
+                                                              .expectedTotalBytes !=
+                                                          null
+                                                      ? loadingProgress
+                                                              .cumulativeBytesLoaded /
+                                                          loadingProgress
+                                                              .expectedTotalBytes!
+                                                      : null,
+                                            ),
+                                            const SizedBox(height: 16),
+                                            Text(
+                                              'Loading image...',
+                                              style: TextStyle(
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder:
+                                        (_, __, ___) => Container(
+                                          height: 200,
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade100,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.broken_image,
+                                                size: 48,
+                                                color: Colors.grey,
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                'Failed to load image',
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                  ),
+                                )
+                                : Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        _getFileIcon(fileName),
+                                        size: 80,
+                                        color: _getFileIconColor(fileName),
+                                      ),
+                                      const SizedBox(height: 24),
+                                      Text(
+                                        'File Type: ${fileName.split('.').last.toUpperCase()}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Size: ${_formatFileSize(fileSize)}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 24),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          ElevatedButton.icon(
+                                            onPressed: () {
+                                              _viewFile(url, fileName);
+                                              Navigator.pop(context);
+                                            },
+                                            icon: const Icon(Icons.visibility),
+                                            label: const Text('Open'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.blue,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          OutlinedButton.icon(
+                                            onPressed:
+                                                () => _shareFile(url, fileName),
+                                            icon: const Icon(Icons.share),
+                                            label: const Text('Share'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
                       ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'File Type: ${fileName.split('.').last.toUpperCase()}',
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Size: ${FilePickerService.getReadableSize(fileSize)}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          ElevatedButton.icon(
-                            onPressed: () async {
-                              await FilePreviewService.viewFile(
-                                url: url,
-                                fileName: fileName,
-                                context: context,
-                              );
-                              Navigator.pop(context);
-                            },
-                            icon: const Icon(Icons.visibility),
-                            label: const Text('Open'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.white,
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.pop(context),
+                              icon: const Icon(Icons.close),
+                              label: const Text('Close'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
-                          OutlinedButton.icon(
-                            onPressed: () async {
-                              await FilePreviewService.shareFile(
-                                url: url,
-                                fileName: fileName,
-                                context: context,
-                              );
-                            },
-                            icon: const Icon(Icons.share),
-                            label: const Text('Share'),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _downloadFile(url, fileName),
+                              icon: const Icon(Icons.download),
+                              label: const Text('Download'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ],
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
-                      label: const Text('Close'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        await FilePreviewService.viewFile(
-                          url: url,
-                          fileName: fileName,
-                          context: context,
-                        );
-                      },
-                      icon: const Icon(Icons.download),
-                      label: const Text('Download'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ),
-        ),
-      ),
     );
   }
+
   void _showFilterDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          "Filter Notices",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _filterOption("All", Icons.all_inclusive),
-            _filterOption("Normal", Icons.info, Colors.blue),
-            _filterOption("Important", Icons.priority_high, Colors.orange),
-            _filterOption("Urgent", Icons.warning, Colors.red),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Text(
+              "Filter Notices",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _filterOption("All", Icons.all_inclusive),
+                _filterOption("Normal", Icons.info, Colors.blue),
+                _filterOption("Important", Icons.priority_high, Colors.orange),
+                _filterOption("Urgent", Icons.warning, Colors.red),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  setState(() => _selectedFilter = "All");
+                  Navigator.pop(context);
+                },
+                child: const Text(
+                  "Reset",
+                  style: TextStyle(color: Colors.orange),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              setState(() => _selectedFilter = "All");
-              Navigator.pop(context);
-            },
-            child: const Text("Reset", style: TextStyle(color: Colors.orange)),
-          ),
-        ],
-      ),
     );
   }
 

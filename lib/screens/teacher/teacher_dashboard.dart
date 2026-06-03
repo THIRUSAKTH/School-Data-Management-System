@@ -6,6 +6,7 @@ import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_exam_schedule.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_notice_view_page.dart';
 import 'package:schoolprojectjan/screens/teacher/teacher_upload_marks.dart';
+import 'package:schoolprojectjan/screens/teacher/teacher_homework_dashboard.dart';
 import 'select_class_attendance_page.dart';
 import 'attendance_report_page.dart';
 import 'teacher_homework_post_page.dart';
@@ -21,6 +22,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   String? _teacherName;
   int _todayClasses = 0;
   int _totalStudents = 0;
+  int _pendingSubmissions = 0;
   List<Map<String, dynamic>> _todaySchedule = [];
   List<Map<String, dynamic>> _assignedClasses = [];
   bool _isLoading = true;
@@ -30,6 +32,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     super.initState();
     _loadTeacherData();
     _loadTodaySchedule();
+    _loadPendingSubmissions();
   }
 
   Future<void> _loadTeacherData() async {
@@ -77,6 +80,49 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     }
 
     setState(() => _isLoading = false);
+  }
+
+  Future<void> _loadPendingSubmissions() async {
+    try {
+      final teacherUid = FirebaseAuth.instance.currentUser!.uid;
+
+      final homeworkSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('homework')
+              .where('teacherId', isEqualTo: teacherUid)
+              .where('isActive', isEqualTo: true)
+              .get();
+
+      int pending = 0;
+
+      for (var doc in homeworkSnapshot.docs) {
+        final data = doc.data();
+        final className = data['className'] ?? '';
+        final section = data['section'] ?? '';
+
+        final studentsSnapshot =
+            await FirebaseFirestore.instance
+                .collection('schools')
+                .doc(AppConfig.schoolId)
+                .collection('students')
+                .where('class', isEqualTo: className)
+                .where('section', isEqualTo: section)
+                .get();
+
+        final totalStudents = studentsSnapshot.docs.length;
+        final submittedBy = List<String>.from(data['submittedBy'] ?? []);
+        final pendingCount = totalStudents - submittedBy.length;
+        pending += pendingCount;
+      }
+
+      setState(() {
+        _pendingSubmissions = pending;
+      });
+    } catch (e) {
+      debugPrint('Error loading pending submissions: $e');
+    }
   }
 
   Future<void> _loadTodaySchedule() async {
@@ -153,6 +199,26 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     );
   }
 
+  // FIXED: Single navigation method for homework dashboard
+  void _navigateToHomeworkDashboard() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TeacherHomeworkDashboard()),
+    ).then((_) {
+      _loadPendingSubmissions();
+    });
+  }
+
+  // FIXED: Navigation for posting homework
+  void _navigateToPostHomework() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TeacherHomeworkPostPage()),
+    ).then((_) {
+      _loadPendingSubmissions();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final today = DateFormat('EEEE, dd MMMM yyyy').format(DateTime.now());
@@ -161,6 +227,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       onRefresh: () async {
         await _loadTeacherData();
         await _loadTodaySchedule();
+        await _loadPendingSubmissions();
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -171,16 +238,152 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(height: 30),
+                    const SizedBox(height: 30),
                     _buildHeaderCard(today),
                     const SizedBox(height: 20),
                     _buildQuickStatsRow(),
+                    const SizedBox(height: 20),
+                    _buildHomeworkSummaryCard(),
                     const SizedBox(height: 20),
                     _buildActionGrid(),
                     const SizedBox(height: 24),
                     _buildTodaySchedule(),
                   ],
                 ),
+      ),
+    );
+  }
+
+  Widget _buildHomeworkSummaryCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Colors.deepPurple, Colors.purple],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.deepPurple.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.assignment,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  "Homework Management",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _pendingSubmissions > 0 ? Colors.red : Colors.green,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _pendingSubmissions > 0
+                      ? "${_pendingSubmissions} Pending"
+                      : "All Submitted",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _homeworkStat(
+                  Icons.assignment,
+                  "Post Homework",
+                  Colors.white,
+                  _navigateToPostHomework, // FIXED: Using correct method
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _homeworkStat(
+                  Icons.assignment_turned_in,
+                  "View Submissions",
+                  Colors.white,
+                  _navigateToHomeworkDashboard,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _homeworkStat(
+                  Icons.grade,
+                  "Grade",
+                  Colors.white,
+                  _navigateToHomeworkDashboard,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _homeworkStat(
+    IconData icon,
+    String label,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontSize: 10),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -344,6 +547,14 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               MaterialPageRoute(builder: (_) => const TeacherNoticeViewPage()),
             );
           }),
+          const SizedBox(width: 12),
+          // FIXED: Using correct method name
+          _quickStat(
+            Icons.assignment,
+            "Homework",
+            Colors.deepPurple,
+            _navigateToHomeworkDashboard,
+          ),
         ],
       ),
     );
@@ -428,12 +639,13 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           title: "Post Homework",
           icon: Icons.menu_book,
           color: Colors.green,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const TeacherHomeworkPostPage()),
-            );
-          },
+          onTap: _navigateToPostHomework,
+        ),
+        _ActionCard(
+          title: "Homework Dashboard",
+          icon: Icons.assignment,
+          color: Colors.deepPurple,
+          onTap: _navigateToHomeworkDashboard,
         ),
         _ActionCard(
           title: "Upload Marks",

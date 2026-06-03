@@ -15,7 +15,7 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
   bool _isLoading = false;
   bool _isRefreshing = false;
 
-  // Cache for teacher names to avoid repeated Firestore calls
+  // Cache for teacher names
   final Map<String, String> _teacherNameCache = {};
 
   Future<String> getTeacherName(String id) async {
@@ -38,7 +38,6 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
       _teacherNameCache[id] = name;
       return name;
     } catch (e) {
-      debugPrint('Error getting teacher name for $id: $e');
       return "Unknown";
     }
   }
@@ -62,384 +61,64 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
     }
   }
 
-  void _showEditDialog(DocumentSnapshot classDoc) {
+  // Simple Edit Dialog - No complex animations
+  Future<void> _showEditDialog(DocumentSnapshot classDoc) async {
     final data = classDoc.data() as Map<String, dynamic>;
 
-    String? selectedClassTeacher = data['classTeacherId'] as String?;
-    Map<String, dynamic> subjectTeachers = {};
-    if (data['subjectTeachers'] != null) {
-      subjectTeachers = Map<String, dynamic>.from(data['subjectTeachers']);
-    }
-
-    final TextEditingController newSubjectController = TextEditingController();
-    String? selectedTeacherForSubject;
-
-    showDialog(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              title: Row(
-                children: [
-                  const Icon(Icons.edit, color: Colors.blue),
-                  const SizedBox(width: 8),
-                  Text("Edit ${data['class']} - ${data['section']}"),
-                ],
-              ),
-              content: SizedBox(
-                width: double.maxFinite,
-                height: MediaQuery.of(context).size.height * 0.65,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Class Teacher Section
-                      const Text(
-                        "Class Teacher",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      StreamBuilder<QuerySnapshot>(
-                        stream:
-                            FirebaseFirestore.instance
-                                .collection('schools')
-                                .doc(widget.schoolId)
-                                .collection('teachers')
-                                .snapshots(),
-                        builder: (context, snap) {
-                          if (snap.connectionState == ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-
-                          if (!snap.hasData || snap.data!.docs.isEmpty) {
-                            return const Text(
-                              "No teachers available",
-                              style: TextStyle(color: Colors.grey),
-                            );
-                          }
-
-                          final teachers = snap.data!.docs;
-
-                          return DropdownButtonFormField<String>(
-                            value: selectedClassTeacher,
-                            decoration: const InputDecoration(
-                              labelText: "Select Class Teacher",
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                            ),
-                            items: [
-                              const DropdownMenuItem<String>(
-                                value: null,
-                                child: Text("None"),
-                              ),
-                              ...teachers.map<DropdownMenuItem<String>>((t) {
-                                final teacherData =
-                                    t.data() as Map<String, dynamic>;
-                                return DropdownMenuItem<String>(
-                                  value: t.id,
-                                  child: Text(teacherData['name'] ?? 'Unknown'),
-                                );
-                              }).toList(),
-                            ],
-                            onChanged: (value) {
-                              selectedClassTeacher = value;
-                              setDialogState(() {});
-                            },
-                          );
-                        },
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // Subject Teachers Section
-                      const Text(
-                        "Subject Teachers",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Existing Subject Teachers List
-                      if (subjectTeachers.isNotEmpty)
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: subjectTeachers.length,
-                            separatorBuilder:
-                                (_, __) => const Divider(height: 0),
-                            itemBuilder: (context, index) {
-                              final entry = subjectTeachers.entries.elementAt(
-                                index,
-                              );
-                              return ListTile(
-                                dense: true,
-                                leading: const Icon(
-                                  Icons.book,
-                                  size: 18,
-                                  color: Colors.blue,
-                                ),
-                                title: Text(
-                                  entry.key,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                subtitle: FutureBuilder(
-                                  future: getTeacherName(
-                                    entry.value.toString(),
-                                  ),
-                                  builder: (context, snapshot) {
-                                    return Text(
-                                      "Teacher: ${snapshot.data ?? 'Loading...'}",
-                                      style: const TextStyle(fontSize: 11),
-                                    );
-                                  },
-                                ),
-                                trailing: IconButton(
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    size: 18,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () {
-                                    setDialogState(() {
-                                      subjectTeachers.remove(entry.key);
-                                    });
-                                  },
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-
-                      // Add New Subject Teacher
-                      Container(
-                        margin: const EdgeInsets.only(top: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.blue.shade200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              "Add Subject Teacher",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: newSubjectController,
-                              decoration: const InputDecoration(
-                                labelText: "Subject Name",
-                                hintText: "e.g., Mathematics, Physics",
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            StreamBuilder<QuerySnapshot>(
-                              stream:
-                                  FirebaseFirestore.instance
-                                      .collection('schools')
-                                      .doc(widget.schoolId)
-                                      .collection('teachers')
-                                      .snapshots(),
-                              builder: (context, snap) {
-                                if (snap.connectionState ==
-                                    ConnectionState.waiting) {
-                                  return const Center(
-                                    child: CircularProgressIndicator(),
-                                  );
-                                }
-
-                                if (!snap.hasData || snap.data!.docs.isEmpty) {
-                                  return const Text(
-                                    "No teachers available",
-                                    style: TextStyle(color: Colors.grey),
-                                  );
-                                }
-
-                                final teachers = snap.data!.docs;
-                                return DropdownButtonFormField<String>(
-                                  value: selectedTeacherForSubject,
-                                  hint: const Text("Select Teacher"),
-                                  isExpanded: true,
-                                  decoration: const InputDecoration(
-                                    border: OutlineInputBorder(),
-                                    contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                  ),
-                                  items:
-                                      teachers.map<DropdownMenuItem<String>>((
-                                        t,
-                                      ) {
-                                        final teacherData =
-                                            t.data() as Map<String, dynamic>;
-                                        return DropdownMenuItem<String>(
-                                          value: t.id,
-                                          child: Text(
-                                            teacherData['name'] ?? 'Unknown',
-                                          ),
-                                        );
-                                      }).toList(),
-                                  onChanged: (value) {
-                                    selectedTeacherForSubject = value;
-                                    setDialogState(() {});
-                                  },
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: () {
-                                  final subject =
-                                      newSubjectController.text.trim();
-                                  if (subject.isNotEmpty &&
-                                      selectedTeacherForSubject != null) {
-                                    if (subjectTeachers.containsKey(subject)) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            "This subject already has a teacher assigned",
-                                          ),
-                                          backgroundColor: Colors.orange,
-                                        ),
-                                      );
-                                      return;
-                                    }
-                                    setDialogState(() {
-                                      subjectTeachers[subject] =
-                                          selectedTeacherForSubject;
-                                      newSubjectController.clear();
-                                      selectedTeacherForSubject = null;
-                                    });
-                                  } else if (subject.isEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          "Please enter subject name",
-                                        ),
-                                        backgroundColor: Colors.orange,
-                                      ),
-                                    );
-                                  } else if (selectedTeacherForSubject ==
-                                      null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          "Please select a teacher",
-                                        ),
-                                        backgroundColor: Colors.orange,
-                                      ),
-                                    );
-                                  }
-                                },
-                                icon: const Icon(Icons.add, size: 18),
-                                label: const Text("Add"),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  foregroundColor: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancel"),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    // Show loading indicator in dialog
-                    setDialogState(() {});
-
-                    try {
-                      await FirebaseFirestore.instance
-                          .collection('schools')
-                          .doc(widget.schoolId)
-                          .collection('classes')
-                          .doc(classDoc.id)
-                          .update({
-                            "classTeacherId": selectedClassTeacher,
-                            "subjectTeachers": subjectTeachers,
-                            "updatedAt": FieldValue.serverTimestamp(),
-                          });
-
-                      _teacherNameCache.clear();
-
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Class updated successfully"),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                        Navigator.pop(context);
-                      }
-                    } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Error updating class: $e"),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text("Save Changes"),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      barrierDismissible: true,
+      builder:
+          (context) => EditClassDialog(
+            schoolId: widget.schoolId,
+            className: data['class'] ?? 'Unknown',
+            section: data['section'] ?? '',
+            initialClassTeacher: data['classTeacherId'] as String?,
+            initialSubjectTeachers:
+                data['subjectTeachers'] != null
+                    ? Map<String, dynamic>.from(data['subjectTeachers'])
+                    : {},
+          ),
     );
+
+    if (result != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Updating class..."),
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      try {
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(widget.schoolId)
+            .collection('classes')
+            .doc(classDoc.id)
+            .update({
+              "classTeacherId": result['classTeacherId'],
+              "subjectTeachers": result['subjectTeachers'],
+              "updatedAt": FieldValue.serverTimestamp(),
+            });
+
+        _teacherNameCache.clear();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Class updated successfully"),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -497,11 +176,7 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
               _searchText.isNotEmpty
                   ? IconButton(
                     icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      setState(() {
-                        _searchText = "";
-                      });
-                    },
+                    onPressed: () => setState(() => _searchText = ""),
                   )
                   : null,
           filled: true,
@@ -530,6 +205,7 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
 
   Widget _buildClassList() {
     return StreamBuilder<QuerySnapshot>(
+      key: ValueKey('class_list_${widget.schoolId}'),
       stream:
           FirebaseFirestore.instance
               .collection('schools')
@@ -549,15 +225,11 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
               children: [
                 Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
                 const SizedBox(height: 16),
-                const Text(
-                  "Error loading classes",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  snapshot.error.toString(),
-                  style: TextStyle(color: Colors.grey.shade600),
-                  textAlign: TextAlign.center,
+                const Text("Error loading classes"),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _refreshData,
+                  child: const Text("Retry"),
                 ),
               ],
             ),
@@ -571,17 +243,10 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
               children: [
                 Icon(Icons.class_, size: 64, color: Colors.grey.shade400),
                 const SizedBox(height: 16),
-                Text(
-                  "No Classes Found",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
+                const Text("No Classes Found"),
                 const SizedBox(height: 8),
                 Text(
-                  "Create a class first using 'Create Class' option",
+                  "Create a class first",
                   style: TextStyle(color: Colors.grey.shade500),
                 ),
               ],
@@ -603,19 +268,7 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
               children: [
                 Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
                 const SizedBox(height: 16),
-                Text(
-                  "No matching classes",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Try a different search term",
-                  style: TextStyle(color: Colors.grey.shade500),
-                ),
+                const Text("No matching classes"),
               ],
             ),
           );
@@ -663,15 +316,10 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.blue),
-                        onPressed: () => _showEditDialog(doc),
-                        tooltip: "Edit Class",
-                      ),
-                    ],
+                  trailing: IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blue),
+                    onPressed: () => _showEditDialog(doc),
+                    tooltip: "Edit Class",
                   ),
                   children: [
                     Padding(
@@ -727,7 +375,6 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
 
                           const SizedBox(height: 16),
 
-                          // Subject Teachers Section Header
                           if (subjectTeachers.isNotEmpty) ...[
                             const Text(
                               "Subject Teachers",
@@ -818,5 +465,363 @@ class _ClassManagementPageState extends State<ClassManagementPage> {
         );
       },
     );
+  }
+}
+
+// ==================== SEPARATE DIALOG WIDGET ====================
+class EditClassDialog extends StatefulWidget {
+  final String schoolId;
+  final String className;
+  final String section;
+  final String? initialClassTeacher;
+  final Map<String, dynamic> initialSubjectTeachers;
+
+  const EditClassDialog({
+    super.key,
+    required this.schoolId,
+    required this.className,
+    required this.section,
+    this.initialClassTeacher,
+    required this.initialSubjectTeachers,
+  });
+
+  @override
+  State<EditClassDialog> createState() => _EditClassDialogState();
+}
+
+class _EditClassDialogState extends State<EditClassDialog> {
+  String? _selectedClassTeacher;
+  Map<String, dynamic> _subjectTeachers = {};
+  final TextEditingController _newSubjectController = TextEditingController();
+  String? _selectedTeacherForSubject;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedClassTeacher = widget.initialClassTeacher;
+    _subjectTeachers = Map<String, dynamic>.from(widget.initialSubjectTeachers);
+  }
+
+  @override
+  void dispose() {
+    // Dispose controller only once
+    _newSubjectController.dispose();
+    super.dispose();
+  }
+
+  void _addSubjectTeacher() {
+    final subject = _newSubjectController.text.trim();
+    if (subject.isEmpty) {
+      _showSnackBar("Please enter subject name", Colors.orange);
+      return;
+    }
+    if (_selectedTeacherForSubject == null) {
+      _showSnackBar("Please select a teacher", Colors.orange);
+      return;
+    }
+    if (_subjectTeachers.containsKey(subject)) {
+      _showSnackBar(
+        "This subject already has a teacher assigned",
+        Colors.orange,
+      );
+      return;
+    }
+
+    setState(() {
+      _subjectTeachers[subject] = _selectedTeacherForSubject;
+      _newSubjectController.clear();
+      _selectedTeacherForSubject = null;
+    });
+  }
+
+  void _removeSubjectTeacher(String subject) {
+    setState(() {
+      _subjectTeachers.remove(subject);
+    });
+  }
+
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          const Icon(Icons.edit, color: Colors.blue),
+          const SizedBox(width: 8),
+          Text("Edit ${widget.className} - ${widget.section}"),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Class Teacher Section
+              const Text(
+                "Class Teacher",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: StreamBuilder<QuerySnapshot>(
+                  stream:
+                      FirebaseFirestore.instance
+                          .collection('schools')
+                          .doc(widget.schoolId)
+                          .collection('teachers')
+                          .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Text(
+                        "No teachers available",
+                        style: TextStyle(color: Colors.grey),
+                      );
+                    }
+
+                    final teachers = snapshot.data!.docs;
+                    return DropdownButtonFormField<String>(
+                      value: _selectedClassTeacher,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text("None"),
+                        ),
+                        ...teachers.map((t) {
+                          final data = t.data() as Map<String, dynamic>;
+                          return DropdownMenuItem(
+                            value: t.id,
+                            child: Text(data['name'] ?? 'Unknown'),
+                          );
+                        }),
+                      ],
+                      onChanged:
+                          (value) =>
+                              setState(() => _selectedClassTeacher = value),
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Subject Teachers Section
+              const Text(
+                "Subject Teachers",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+
+              // Existing Subject Teachers
+              if (_subjectTeachers.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _subjectTeachers.length,
+                    separatorBuilder: (_, __) => const Divider(height: 0),
+                    itemBuilder: (context, index) {
+                      final entry = _subjectTeachers.entries.elementAt(index);
+                      return ListTile(
+                        dense: true,
+                        leading: const Icon(
+                          Icons.book,
+                          size: 18,
+                          color: Colors.blue,
+                        ),
+                        title: Text(
+                          entry.key,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        subtitle: FutureBuilder(
+                          future: _getTeacherName(entry.value.toString()),
+                          builder: (context, snapshot) {
+                            return Text(
+                              "Teacher: ${snapshot.data ?? 'Loading...'}",
+                              style: const TextStyle(fontSize: 11),
+                            );
+                          },
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: Colors.red,
+                          ),
+                          onPressed: () => _removeSubjectTeacher(entry.key),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+              // Add New Subject Teacher
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Add Subject Teacher",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _newSubjectController,
+                      decoration: const InputDecoration(
+                        labelText: "Subject Name",
+                        hintText: "e.g., Mathematics, Physics",
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    StreamBuilder<QuerySnapshot>(
+                      stream:
+                          FirebaseFirestore.instance
+                              .collection('schools')
+                              .doc(widget.schoolId)
+                              .collection('teachers')
+                              .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return const Text(
+                            "No teachers available",
+                            style: TextStyle(color: Colors.grey),
+                          );
+                        }
+
+                        final teachers = snapshot.data!.docs;
+                        return DropdownButtonFormField<String>(
+                          value: _selectedTeacherForSubject,
+                          hint: const Text("Select Teacher"),
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          items:
+                              teachers.map((t) {
+                                final data = t.data() as Map<String, dynamic>;
+                                return DropdownMenuItem(
+                                  value: t.id,
+                                  child: Text(data['name'] ?? 'Unknown'),
+                                );
+                              }).toList(),
+                          onChanged:
+                              (value) => setState(
+                                () => _selectedTeacherForSubject = value,
+                              ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _addSubjectTeacher,
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text("Add"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.pop(context, {
+              'classTeacherId': _selectedClassTeacher,
+              'subjectTeachers': _subjectTeachers,
+            });
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text("Save Changes"),
+        ),
+      ],
+    );
+  }
+
+  Future<String> _getTeacherName(String id) async {
+    if (id.isEmpty) return "Not Assigned";
+    try {
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('teachers')
+              .doc(id)
+              .get();
+      return doc.exists ? (doc.data()?['name'] ?? "Unknown") : "Unknown";
+    } catch (e) {
+      return "Unknown";
+    }
   }
 }

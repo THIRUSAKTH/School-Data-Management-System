@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 class AdminAnalyticsPage extends StatefulWidget {
   final String schoolId;
@@ -20,6 +23,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   String _selectedPerformancePeriod = "month";
   String _selectedClass = "All Classes";
   bool _isLoading = true;
+  String _errorMessage = '';
 
   // Data storage
   Map<String, dynamic> _attendanceData = {};
@@ -28,6 +32,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
   // Performance data from Firebase
   List<Map<String, dynamic>> _studentsList = [];
+  List<Map<String, dynamic>> _classesList = [];
   List<Map<String, dynamic>> _subjectsList = [];
 
   @override
@@ -44,11 +49,18 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   }
 
   Future<void> _initializeData() async {
-    await _loadStudentsAndSubjects();
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    await _loadStudentsAndClasses();
     await _loadAllAnalytics();
+
+    setState(() => _isLoading = false);
   }
 
-  Future<void> _loadStudentsAndSubjects() async {
+  Future<void> _loadStudentsAndClasses() async {
     try {
       // Load students
       final studentsSnapshot =
@@ -65,9 +77,23 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               'id': doc.id,
               'name': data['name'] ?? 'Unknown',
               'className': data['class'] ?? data['className'] ?? 'Unknown',
+              'section': data['section'] ?? '',
               'rollNo': data['rollNo'] ?? '',
             };
           }).toList();
+
+      // Extract unique classes
+      Set<String> uniqueClasses = {};
+      for (var student in _studentsList) {
+        String className = student['className'].toString();
+        String section = student['section'].toString();
+        String fullClass =
+            section.isNotEmpty ? "$className-$section" : className;
+        uniqueClasses.add(fullClass);
+      }
+
+      _classesList = uniqueClasses.map((c) => {'name': c}).toList();
+      _classesList.sort((a, b) => a['name'].compareTo(b['name']));
 
       // Load subjects
       final subjectsSnapshot =
@@ -84,22 +110,21 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               return {'id': doc.id, 'name': data['name'] ?? 'Unknown'};
             }).toList();
       } else {
-        // Default subjects if none exist
         _subjectsList = [
           {'id': '1', 'name': 'Mathematics'},
           {'id': '2', 'name': 'Science'},
           {'id': '3', 'name': 'English'},
-          {'id': '4', 'name': 'History'},
-          {'id': '5', 'name': 'Geography'},
+          {'id': '4', 'name': 'Social Studies'},
+          {'id': '5', 'name': 'Computer Science'},
         ];
       }
     } catch (e) {
       debugPrint('Error loading students/subjects: $e');
+      setState(() => _errorMessage = 'Failed to load student data: $e');
     }
   }
 
   Future<void> _loadAllAnalytics() async {
-    setState(() => _isLoading = true);
     try {
       await Future.wait([
         _loadAttendanceAnalytics(),
@@ -108,14 +133,10 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       ]);
     } catch (e) {
       debugPrint('Error loading analytics: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      setState(() => _errorMessage = 'Failed to load analytics: $e');
     }
   }
 
-  // Helper method to sum map values
   int _sumMapValues(Map<String, int>? map) {
     if (map == null || map.isEmpty) return 0;
     int sum = 0;
@@ -136,68 +157,72 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
       Map<String, int> dailyPresent = {};
       Map<String, int> dailyAbsent = {};
+      Map<String, int> dailyLate = {};
       Map<String, double> classWiseAttendance = {};
       Map<String, int> classTotalStudents = {};
       Map<String, Map<int, int>> heatmapData = {};
 
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
+      for (var dateDoc in snapshot.docs) {
+        final date = dateDoc.id;
 
-        // Handle both data structures (direct records or nested)
-        Map<String, dynamic> records;
-        if (data.containsKey('records')) {
-          records = data['records'] as Map<String, dynamic>;
-        } else {
-          records = data;
-        }
+        // Get records subcollection
+        final recordsSnapshot =
+            await dateDoc.reference.collection('records').get();
 
-        for (var entry in records.entries) {
-          final studentData = entry.value as Map<String, dynamic>?;
-          if (studentData == null) continue;
+        for (var recordDoc in recordsSnapshot.docs) {
+          final recordData = recordDoc.data();
+          final status = recordData['status'] as String? ?? 'Absent';
+          final className =
+              recordData['className'] as String? ??
+              recordData['class'] as String? ??
+              'Unknown';
+          final studentId = recordData['studentId'] as String? ?? '';
 
-          final date = doc.id;
-          final status = studentData['status'] as String?;
-          final className = studentData['className'] as String? ?? 'Unknown';
-          final studentId = entry.key;
+          // Daily counts
+          if (status == 'Present') {
+            dailyPresent[date] = (dailyPresent[date] ?? 0) + 1;
+          } else if (status == 'Late') {
+            dailyLate[date] = (dailyLate[date] ?? 0) + 1;
+          } else if (status == 'Absent') {
+            dailyAbsent[date] = (dailyAbsent[date] ?? 0) + 1;
+          }
 
-          if (date != null && status != null) {
-            // Daily counts
-            if (status == 'Present') {
-              dailyPresent[date] = (dailyPresent[date] ?? 0) + 1;
-            } else if (status == 'Absent') {
-              dailyAbsent[date] = (dailyAbsent[date] ?? 0) + 1;
-            }
+          // Class-wise unique students
+          if (studentId.isNotEmpty && className != 'Unknown') {
+            Set<String>? classStudents =
+                classTotalStudents.containsKey(className) ? null : null;
+            classTotalStudents[className] =
+                (classTotalStudents[className] ?? 0) + 1;
+          }
 
-            // Class-wise unique students
-            if (studentId.isNotEmpty && className != 'Unknown') {
-              classTotalStudents[className] =
-                  (classTotalStudents[className] ?? 0) + 1;
-            }
-
-            // Class-wise attendance
+          // Class-wise attendance (count present as 1, late as 0.5)
+          if (className != 'Unknown') {
             if (!classWiseAttendance.containsKey(className)) {
               classWiseAttendance[className] = 0.0;
             }
             if (status == 'Present') {
               classWiseAttendance[className] =
                   (classWiseAttendance[className] ?? 0) + 1;
+            } else if (status == 'Late') {
+              classWiseAttendance[className] =
+                  (classWiseAttendance[className] ?? 0) + 0.5;
             }
+          }
 
-            // Heatmap data
-            try {
-              final dateObj = DateTime.parse(date);
-              final dayOfMonth = dateObj.day;
-              final month = date.substring(0, 7);
-              if (!heatmapData.containsKey(month)) {
-                heatmapData[month] = {};
-              }
-              if (status == 'Present') {
-                heatmapData[month]![dayOfMonth] =
-                    (heatmapData[month]![dayOfMonth] ?? 0) + 1;
-              }
-            } catch (e) {
-              // Invalid date format
+          // Heatmap data
+          try {
+            final dateObj = DateTime.parse(date);
+            final dayOfMonth = dateObj.day;
+            final month = date.substring(0, 7);
+            if (!heatmapData.containsKey(month)) {
+              heatmapData[month] = {};
             }
+            if (status == 'Present' || status == 'Late') {
+              heatmapData[month]![dayOfMonth] =
+                  (heatmapData[month]![dayOfMonth] ?? 0) + 1;
+            }
+          } catch (e) {
+            // Invalid date format
           }
         }
       }
@@ -213,16 +238,80 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       String currentMonth = DateFormat('yyyy-MM').format(DateTime.now());
       Map<int, int> currentMonthHeatmap = heatmapData[currentMonth] ?? {};
 
+      // Calculate weekly trends
+      Map<String, double> weeklyTrends = _calculateWeeklyTrends(
+        dailyPresent,
+        dailyAbsent,
+        dailyLate,
+      );
+
       setState(() {
         _attendanceData['dailyPresent'] = dailyPresent;
         _attendanceData['dailyAbsent'] = dailyAbsent;
+        _attendanceData['dailyLate'] = dailyLate;
         _attendanceData['classWise'] = classWisePercentage;
-        _attendanceData['classWiseCount'] = classWiseAttendance;
         _attendanceData['heatmap'] = currentMonthHeatmap;
+        _attendanceData['weeklyTrends'] = weeklyTrends;
       });
     } catch (e) {
       debugPrint('Error loading attendance analytics: $e');
     }
+  }
+
+  Map<String, double> _calculateWeeklyTrends(
+    Map<String, int> present,
+    Map<String, int> absent,
+    Map<String, int> late,
+  ) {
+    Map<String, double> weeklyRates = {
+      'Monday': 0.0,
+      'Tuesday': 0.0,
+      'Wednesday': 0.0,
+      'Thursday': 0.0,
+      'Friday': 0.0,
+      'Saturday': 0.0,
+    };
+    Map<String, int> weeklyTotal = {
+      'Monday': 0,
+      'Tuesday': 0,
+      'Wednesday': 0,
+      'Thursday': 0,
+      'Friday': 0,
+      'Saturday': 0,
+    };
+    Map<String, int> weeklyPresent = {
+      'Monday': 0,
+      'Tuesday': 0,
+      'Wednesday': 0,
+      'Thursday': 0,
+      'Friday': 0,
+      'Saturday': 0,
+    };
+
+    Set<String> allDates = {...present.keys, ...absent.keys, ...late.keys};
+    for (var date in allDates) {
+      try {
+        final dateObj = DateTime.parse(date);
+        final dayName = DateFormat('EEEE').format(dateObj);
+        if (weeklyRates.containsKey(dayName)) {
+          int p = present[date] ?? 0;
+          int a = absent[date] ?? 0;
+          int l = late[date] ?? 0;
+          int total = p + a + l;
+          weeklyTotal[dayName] = (weeklyTotal[dayName] ?? 0) + total;
+          weeklyPresent[dayName] =
+              (weeklyPresent[dayName] ?? 0) + p + (l * 0.5).round();
+        }
+      } catch (e) {}
+    }
+
+    for (var day in weeklyRates.keys) {
+      int total = weeklyTotal[day] ?? 0;
+      int presentCount = weeklyPresent[day] ?? 0;
+      weeklyRates[day] = total > 0 ? (presentCount / total) * 100 : 0;
+    }
+
+    return weeklyRates;
   }
 
   Future<void> _loadFeeAnalytics() async {
@@ -236,35 +325,45 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
       Map<String, double> monthlyCollected = {};
       Map<String, double> monthlyPending = {};
+      Map<String, double> classWiseCollection = {};
       double totalCollected = 0;
       double totalPending = 0;
       List<Map<String, dynamic>> outstandingList = [];
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
-        final date = data['dueDate'] as String?;
+        final dueDate = data['dueDate'] as String?;
         final amount = (data['amount'] as num?)?.toDouble() ?? 0;
         final status = data['status'] as String?;
         final studentName = data['studentName'] ?? 'Unknown';
+        final className = data['className'] ?? 'Unknown';
+        final feeType = data['feeType'] ?? 'Fee';
 
-        if (date != null && date.length >= 7) {
-          final month = date.substring(0, 7);
+        if (dueDate != null && dueDate.length >= 7) {
+          final month = dueDate.substring(0, 7);
 
           if (status == 'paid') {
             monthlyCollected[month] = (monthlyCollected[month] ?? 0) + amount;
             totalCollected += amount;
+            classWiseCollection[className] =
+                (classWiseCollection[className] ?? 0) + amount;
           } else if (status == 'pending') {
             monthlyPending[month] = (monthlyPending[month] ?? 0) + amount;
             totalPending += amount;
             outstandingList.add({
               'studentName': studentName,
               'amount': amount,
-              'dueDate': date,
+              'dueDate': dueDate,
               'status': status,
+              'className': className,
+              'feeType': feeType,
             });
           }
         }
       }
+
+      // Sort outstanding by amount (highest first)
+      outstandingList.sort((a, b) => b['amount'].compareTo(a['amount']));
 
       double collectionRate =
           totalCollected + totalPending > 0
@@ -278,6 +377,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         _feeData['totalPending'] = totalPending;
         _feeData['collectionRate'] = collectionRate;
         _feeData['outstandingList'] = outstandingList;
+        _feeData['classWiseCollection'] = classWiseCollection;
       });
     } catch (e) {
       debugPrint('Error loading fee analytics: $e');
@@ -286,7 +386,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
   Future<void> _loadPerformanceAnalytics() async {
     try {
-      // Load exam results from Firestore
       final resultsRef = FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
@@ -296,25 +395,40 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
       Map<String, List<double>> subjectScores = {};
       Map<String, List<double>> studentScores = {};
+      Map<String, Map<String, double>> classSubjectAverages = {};
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
         final subject = data['subject'] ?? 'Unknown';
         final score = (data['marksObtained'] as num?)?.toDouble() ?? 0;
+        final maxMarks = (data['maxMarks'] as num?)?.toDouble() ?? 100;
         final studentId = data['studentId'] ?? '';
+        final className = data['className'] ?? 'Unknown';
 
-        if (score > 0) {
+        double percentage = maxMarks > 0 ? (score / maxMarks) * 100 : 0;
+
+        if (percentage > 0) {
           // Subject-wise scores
           if (!subjectScores.containsKey(subject)) {
             subjectScores[subject] = [];
           }
-          subjectScores[subject]!.add(score);
+          subjectScores[subject]!.add(percentage);
 
           // Student-wise scores
           if (!studentScores.containsKey(studentId)) {
             studentScores[studentId] = [];
           }
-          studentScores[studentId]!.add(score);
+          studentScores[studentId]!.add(percentage);
+
+          // Class-wise subject averages
+          if (!classSubjectAverages.containsKey(className)) {
+            classSubjectAverages[className] = {};
+          }
+          if (!classSubjectAverages[className]!.containsKey(subject)) {
+            classSubjectAverages[className]![subject] = 0.0;
+          }
+          classSubjectAverages[className]![subject] =
+              (classSubjectAverages[className]![subject] ?? 0) + percentage;
         }
       }
 
@@ -336,31 +450,37 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         }
       });
 
-      // Sort and get top 5
+      // Sort and get top 10
       studentAverages.sort((a, b) => b['average'].compareTo(a['average']));
-      List<Map<String, dynamic>> topStudents = studentAverages.take(5).toList();
+      List<Map<String, dynamic>> topStudents =
+          studentAverages.take(10).toList();
 
       // Calculate grade distribution
       Map<String, int> gradeDistribution = {
-        'A+': 0,
-        'A': 0,
-        'B': 0,
-        'C': 0,
-        'D': 0,
+        'A+ (90-100)': 0,
+        'A (80-89)': 0,
+        'B (70-79)': 0,
+        'C (60-69)': 0,
+        'D (Below 60)': 0,
       };
 
       for (var student in studentAverages) {
         double avg = student['average'];
         if (avg >= 90)
-          gradeDistribution['A+'] = (gradeDistribution['A+'] ?? 0) + 1;
+          gradeDistribution['A+ (90-100)'] =
+              (gradeDistribution['A+ (90-100)'] ?? 0) + 1;
         else if (avg >= 80)
-          gradeDistribution['A'] = (gradeDistribution['A'] ?? 0) + 1;
+          gradeDistribution['A (80-89)'] =
+              (gradeDistribution['A (80-89)'] ?? 0) + 1;
         else if (avg >= 70)
-          gradeDistribution['B'] = (gradeDistribution['B'] ?? 0) + 1;
+          gradeDistribution['B (70-79)'] =
+              (gradeDistribution['B (70-79)'] ?? 0) + 1;
         else if (avg >= 60)
-          gradeDistribution['C'] = (gradeDistribution['C'] ?? 0) + 1;
+          gradeDistribution['C (60-69)'] =
+              (gradeDistribution['C (60-69)'] ?? 0) + 1;
         else
-          gradeDistribution['D'] = (gradeDistribution['D'] ?? 0) + 1;
+          gradeDistribution['D (Below 60)'] =
+              (gradeDistribution['D (Below 60)'] ?? 0) + 1;
       }
 
       // Calculate class average
@@ -392,40 +512,30 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         _performanceData['passRate'] = passRate;
         _performanceData['topScore'] = topScore;
         _performanceData['totalStudents'] = studentAverages.length;
+        _performanceData['classSubjectAverages'] = classSubjectAverages;
       });
     } catch (e) {
       debugPrint('Error loading performance analytics: $e');
-      setState(() {
-        _performanceData['subjectAverages'] = {};
-        _performanceData['topStudents'] = [];
-        _performanceData['gradeDistribution'] = {
-          'A+': 0,
-          'A': 0,
-          'B': 0,
-          'C': 0,
-          'D': 0,
-        };
-        _performanceData['classAverage'] = 0;
-        _performanceData['passRate'] = 0;
-        _performanceData['topScore'] = 0;
-      });
+      _setDefaultPerformanceData();
     }
   }
 
-  // Helper method to calculate daily attendance
-  Map<String, double> _getDailyAttendanceRates() {
-    Map<String, int> presentMap = _attendanceData['dailyPresent'] ?? {};
-    Map<String, int> absentMap = _attendanceData['dailyAbsent'] ?? {};
-    Map<String, double> rates = {};
-
-    Set<String> allDates = {...presentMap.keys, ...absentMap.keys};
-    for (var date in allDates) {
-      int present = presentMap[date] ?? 0;
-      int absent = absentMap[date] ?? 0;
-      int total = present + absent;
-      rates[date] = total > 0 ? (present / total) * 100 : 0;
-    }
-    return rates;
+  void _setDefaultPerformanceData() {
+    setState(() {
+      _performanceData['subjectAverages'] = {};
+      _performanceData['topStudents'] = [];
+      _performanceData['gradeDistribution'] = {
+        'A+ (90-100)': 0,
+        'A (80-89)': 0,
+        'B (70-79)': 0,
+        'C (60-69)': 0,
+        'D (Below 60)': 0,
+      };
+      _performanceData['classAverage'] = 0;
+      _performanceData['passRate'] = 0;
+      _performanceData['topScore'] = 0;
+      _performanceData['classSubjectAverages'] = {};
+    });
   }
 
   @override
@@ -433,14 +543,58 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       appBar: _buildAppBar(),
-      body: Column(
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _errorMessage.isNotEmpty
+              ? _buildErrorWidget()
+              : Column(
+                children: [
+                  _buildTopSummary(),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildAttendanceTab(),
+                        _buildFeesTab(),
+                        _buildPerformanceTab(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+    );
+  }
+
+  Widget _buildErrorWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _buildTopSummary(),
-          Expanded(
-            child:
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _buildBody(),
+          Icon(Icons.error_outline, size: 80, color: Colors.red.shade400),
+          const SizedBox(height: 16),
+          Text(
+            "Error Loading Analytics",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.red.shade700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              _errorMessage,
+              style: TextStyle(color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _initializeData,
+            icon: const Icon(Icons.refresh),
+            label: const Text("Retry"),
           ),
         ],
       ),
@@ -474,7 +628,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         ),
         IconButton(
           icon: const Icon(Icons.refresh),
-          onPressed: _loadAllAnalytics,
+          onPressed: _initializeData,
           tooltip: "Refresh",
         ),
       ],
@@ -482,81 +636,108 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   }
 
   Widget _buildTopSummary() {
-    double totalStudents = _studentsList.length.toDouble();
+    int totalStudents = _studentsList.length;
     double totalCollected = _feeData['totalCollected'] ?? 0;
-
-    // Calculate real attendance rate
     int totalPresent = _sumMapValues(_attendanceData['dailyPresent'] ?? {});
     int totalAbsent = _sumMapValues(_attendanceData['dailyAbsent'] ?? {});
+    int totalLate = _sumMapValues(_attendanceData['dailyLate'] ?? {});
+    int totalAttendanceDays = totalPresent + totalAbsent + totalLate;
+
     double attendanceRate =
-        totalPresent + totalAbsent > 0
-            ? (totalPresent / (totalPresent + totalAbsent)) * 100
+        totalAttendanceDays > 0
+            ? ((totalPresent + (totalLate * 0.5)) / totalAttendanceDays) * 100
             : 0;
 
-    return Padding(
+    return Container(
       padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _miniCard("Students", totalStudents.toInt().toString(), Icons.people),
+          _miniCard(
+            "Students",
+            totalStudents.toString(),
+            Icons.people,
+            Colors.blue,
+          ),
           _miniCard(
             "Attendance",
             "${attendanceRate.toStringAsFixed(0)}%",
             Icons.check_circle,
+            Colors.green,
           ),
           _miniCard(
             "Revenue",
-            "₹${totalCollected.toInt()}",
+            "₹${(totalCollected / 1000).toStringAsFixed(0)}K",
             Icons.currency_rupee,
+            Colors.orange,
           ),
         ],
       ),
     );
   }
 
-  Widget _miniCard(String title, String value, IconData icon) {
+  Widget _miniCard(String title, String value, IconData icon, Color color) {
     return Container(
-      width: 100,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Icon(icon, color: Colors.blue),
-          const SizedBox(height: 6),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-          Text(title, style: const TextStyle(fontSize: 12)),
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: color,
+                ),
+              ),
+              Text(
+                title,
+                style: const TextStyle(fontSize: 10, color: Colors.grey),
+              ),
+            ],
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildBody() {
-    return TabBarView(
-      controller: _tabController,
-      children: [
-        _buildAttendanceTab(),
-        _buildFeesTab(),
-        _buildPerformanceTab(),
-      ],
     );
   }
 
   // ================= ATTENDANCE TAB =================
   Widget _buildAttendanceTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildAttendanceSummaryCards(),
-          const SizedBox(height: 24),
-          _buildClassWiseAttendance(),
-          const SizedBox(height: 24),
-          _buildAttendanceHeatmap(),
-        ],
+    return RefreshIndicator(
+      onRefresh: _initializeData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildAttendanceSummaryCards(),
+            const SizedBox(height: 24),
+            _buildWeeklyTrendChart(),
+            const SizedBox(height: 24),
+            _buildClassWiseAttendance(),
+            const SizedBox(height: 24),
+            _buildAttendanceHeatmap(),
+          ],
+        ),
       ),
     );
   }
@@ -564,127 +745,88 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   Widget _buildAttendanceSummaryCards() {
     int totalPresent = _sumMapValues(_attendanceData['dailyPresent'] ?? {});
     int totalAbsent = _sumMapValues(_attendanceData['dailyAbsent'] ?? {});
+    int totalLate = _sumMapValues(_attendanceData['dailyLate'] ?? {});
+    int totalDays = totalPresent + totalAbsent + totalLate;
+    double attendanceRate =
+        totalDays > 0 ? (totalPresent / totalDays) * 100 : 0;
 
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.2,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.1,
       children: [
         _buildSummaryCard(
           "Attendance Rate",
-          _getAttendanceRateString(),
+          "${attendanceRate.toStringAsFixed(1)}%",
           Icons.trending_up,
           Colors.green,
-          "Overall attendance",
+          "Overall",
         ),
         _buildSummaryCard(
-          "Present",
+          "Present Days",
           totalPresent.toString(),
           Icons.check_circle,
           Colors.blue,
-          "Total present days",
+          "Total present",
         ),
         _buildSummaryCard(
-          "Absent",
+          "Absent Days",
           totalAbsent.toString(),
           Icons.cancel,
           Colors.red,
-          "Total absent days",
+          "Total absent",
         ),
         _buildSummaryCard(
-          "Best Day",
-          _getBestAttendanceDay(),
-          Icons.emoji_events,
+          "Late Arrivals",
+          totalLate.toString(),
+          Icons.access_time,
           Colors.orange,
-          "Highest attendance",
+          "Late students",
         ),
       ],
     );
   }
 
-  String _getAttendanceRateString() {
-    int totalPresent = _sumMapValues(_attendanceData['dailyPresent'] ?? {});
-    int totalAbsent = _sumMapValues(_attendanceData['dailyAbsent'] ?? {});
-    double rate =
-        totalPresent + totalAbsent > 0
-            ? (totalPresent / (totalPresent + totalAbsent)) * 100
-            : 0;
-    return "${rate.toStringAsFixed(1)}%";
-  }
+  Widget _buildWeeklyTrendChart() {
+    Map<String, double> weeklyTrends = _attendanceData['weeklyTrends'] ?? {};
 
-  String _getBestAttendanceDay() {
-    Map<String, int> presentMap = _attendanceData['dailyPresent'] ?? {};
-    if (presentMap.isEmpty) return "No data";
-
-    String bestDay = "";
-    int maxPresent = 0;
-
-    presentMap.forEach((date, present) {
-      if (present > maxPresent) {
-        maxPresent = present;
-        bestDay = date;
-      }
-    });
-
-    if (bestDay.isNotEmpty) {
-      try {
-        DateTime date = DateTime.parse(bestDay);
-        return DateFormat('EEEE').format(date);
-      } catch (e) {
-        return "Best Day";
-      }
-    }
-    return "No data";
-  }
-
-  Widget _buildClassWiseAttendance() {
-    Map<String, double> classData =
-        _attendanceData['classWise'] != null
-            ? Map<String, double>.from(_attendanceData['classWise'])
-            : {};
-
-    List<String> classes = classData.isNotEmpty ? classData.keys.toList() : [];
-    List<double> attendanceRates =
-        classData.isNotEmpty
-            ? classData.values.map((v) => v.toDouble()).toList()
-            : [];
-
-    if (classes.isEmpty) {
+    if (weeklyTrends.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: _cardDecoration(),
-        child: const Center(child: Text("No class attendance data available")),
+        child: const Center(child: Text("No weekly data available")),
       );
     }
 
-    final targetRate = 90.0;
+    List<String> days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
+    List<double> rates = days.map((day) => weeklyTrends[day] ?? 0).toList();
 
     List<BarChartGroupData> barGroups = [];
-    for (int i = 0; i < classes.length; i++) {
-      final rate = attendanceRates[i];
-      final color =
-          rate >= targetRate ? Colors.green.shade600 : Colors.orange.shade600;
-
+    for (int i = 0; i < days.length; i++) {
       barGroups.add(
         BarChartGroupData(
           x: i,
           barRods: [
             BarChartRodData(
-              toY: rate,
-              color: color,
-              width: 35,
-              borderRadius: BorderRadius.circular(6),
-              backDrawRodData: BackgroundBarChartRodData(
-                show: true,
-                toY: 100,
-                color: Colors.grey.shade200,
-              ),
+              toY: rates[i],
+              color:
+                  rates[i] >= 75
+                      ? Colors.green
+                      : (rates[i] >= 50 ? Colors.orange : Colors.red),
+              width: 30,
+              borderRadius: BorderRadius.circular(4),
             ),
           ],
-          showingTooltipIndicators: [0],
         ),
       );
     }
@@ -696,12 +838,12 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            "Class-wise Attendance",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            "Weekly Attendance Trend",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           SizedBox(
-            height: 300,
+            height: 200,
             child: BarChart(
               BarChartData(
                 barGroups: barGroups,
@@ -712,17 +854,12 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      reservedSize: 45,
-                      interval: 20,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          '${value.toInt()}%',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                      interval: 25,
+                      getTitlesWidget:
+                          (value, meta) => Text(
+                            '${value.toInt()}%',
+                            style: const TextStyle(fontSize: 10),
                           ),
-                        );
-                      },
                     ),
                   ),
                   bottomTitles: AxisTitles(
@@ -730,16 +867,12 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         int index = value.toInt();
-                        if (index >= 0 && index < classes.length) {
+                        if (index >= 0 && index < days.length) {
                           return Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
-                              classes[index],
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              textAlign: TextAlign.center,
+                              days[index].substring(0, 3),
+                              style: const TextStyle(fontSize: 10),
                             ),
                           );
                         }
@@ -754,66 +887,101 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
                     sideTitles: SideTitles(showTitles: false),
                   ),
                 ),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: 20,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(
-                      color: Colors.grey.shade300,
-                      strokeWidth: 1,
-                      dashArray: [5, 5],
-                    );
-                  },
-                ),
-                borderData: FlBorderData(
-                  show: true,
-                  border: Border.all(color: Colors.grey.shade300, width: 1),
-                ),
-                barTouchData: BarTouchData(
-                  enabled: true,
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      return BarTooltipItem(
-                        '${attendanceRates[groupIndex].toStringAsFixed(1)}%',
-                        const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                gridData: const FlGridData(show: true),
+                borderData: FlBorderData(show: true),
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 20,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.green.shade600,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Text("Above 90%", style: TextStyle(fontSize: 11)),
-              const SizedBox(width: 20),
-              Container(
-                width: 20,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade600,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Text("Below 90%", style: TextStyle(fontSize: 11)),
-            ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClassWiseAttendance() {
+    Map<String, double> classData =
+        _attendanceData['classWise'] != null
+            ? Map<String, double>.from(_attendanceData['classWise'])
+            : {};
+
+    if (classData.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: _cardDecoration(),
+        child: const Center(child: Text("No class attendance data available")),
+      );
+    }
+
+    List<MapEntry<String, double>> sortedEntries = classData.entries.toList();
+    sortedEntries.sort((a, b) => b.value.compareTo(a.value));
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Class-wise Attendance",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: sortedEntries.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final entry = sortedEntries[index];
+              final rate = entry.value;
+              final color =
+                  rate >= 75
+                      ? Colors.green
+                      : (rate >= 50 ? Colors.orange : Colors.red);
+
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          entry.key,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            LinearProgressIndicator(
+                              value: rate / 100,
+                              backgroundColor: Colors.grey.shade200,
+                              valueColor: AlwaysStoppedAnimation<Color>(color),
+                              minHeight: 8,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 45,
+                        child: Text(
+                          "${rate.toStringAsFixed(1)}%",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -825,7 +993,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     DateTime now = DateTime.now();
     int daysInMonth = DateTime(now.year, now.month + 1, 0).day;
     int totalStudents = _studentsList.length;
-
     if (totalStudents == 0) totalStudents = 1;
 
     return Container(
@@ -836,7 +1003,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         children: [
           const Text(
             "Attendance Calendar",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
@@ -850,35 +1017,38 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
               childAspectRatio: 1,
-              mainAxisSpacing: 4,
-              crossAxisSpacing: 4,
+              mainAxisSpacing: 6,
+              crossAxisSpacing: 6,
             ),
             itemCount: daysInMonth,
             itemBuilder: (context, index) {
               int day = index + 1;
               int? presentCount = heatmapData[day];
-
               double attendanceRate = (presentCount ?? 0) / totalStudents * 100;
 
               Color getColor() {
                 if (attendanceRate >= 90) return Colors.green.shade700;
-                if (attendanceRate >= 80) return Colors.green.shade400;
-                if (attendanceRate >= 70) return Colors.orange.shade400;
+                if (attendanceRate >= 75) return Colors.green.shade400;
+                if (attendanceRate >= 50) return Colors.orange.shade400;
                 return Colors.red.shade400;
               }
 
               return Container(
                 decoration: BoxDecoration(
-                  color: getColor(),
-                  borderRadius: BorderRadius.circular(4),
+                  color:
+                      presentCount != null ? getColor() : Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   '$day',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+                  style: TextStyle(
+                    color:
+                        presentCount != null
+                            ? Colors.white
+                            : Colors.grey.shade600,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               );
@@ -891,15 +1061,21 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
   // ================= FEES TAB =================
   Widget _buildFeesTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildFeeSummaryCards(),
-          const SizedBox(height: 24),
-          _buildOutstandingFees(),
-        ],
+    return RefreshIndicator(
+      onRefresh: _initializeData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildFeeSummaryCards(),
+            const SizedBox(height: 24),
+            _buildClassWiseCollection(),
+            const SizedBox(height: 24),
+            _buildOutstandingFees(),
+          ],
+        ),
       ),
     );
   }
@@ -917,22 +1093,23 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.1,
       children: [
         _buildSummaryCard(
           "Total Collected",
-          "₹${collected.toStringAsFixed(0)}",
+          "₹${(collected / 1000).toStringAsFixed(0)}K",
           Icons.account_balance_wallet,
           Colors.green,
-          "Overall collection",
+          "Overall",
         ),
         _buildSummaryCard(
           "Pending Amount",
-          "₹${pending.toStringAsFixed(0)}",
+          "₹${(pending / 1000).toStringAsFixed(0)}K",
           Icons.pending_actions,
           Colors.orange,
-          "Due payments",
+          "Due",
         ),
         _buildSummaryCard(
           "Collection Rate",
@@ -946,9 +1123,61 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
           "₹${perStudentAvg.toStringAsFixed(0)}",
           Icons.people,
           Colors.purple,
-          "Per student total",
+          "Per student",
         ),
       ],
+    );
+  }
+
+  Widget _buildClassWiseCollection() {
+    Map<String, double> classWise = _feeData['classWiseCollection'] ?? {};
+
+    if (classWise.isEmpty) {
+      return const SizedBox();
+    }
+
+    List<MapEntry<String, double>> sorted = classWise.entries.toList();
+    sorted.sort((a, b) => b.value.compareTo(a.value));
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Class-wise Collection",
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: sorted.length,
+            separatorBuilder: (_, __) => const Divider(),
+            itemBuilder: (context, index) {
+              final entry = sorted[index];
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.blue.shade50,
+                  child: Text(
+                    entry.key.substring(0, 1),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                title: Text(entry.key),
+                trailing: Text(
+                  "₹${(entry.value / 1000).toStringAsFixed(0)}K",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -959,7 +1188,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
     if (outstandingList.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(32),
         decoration: _cardDecoration(),
         child: const Center(
           child: Column(
@@ -988,24 +1217,29 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         children: [
           const Text(
             "Outstanding Payments",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount:
-                outstandingList.length > 10 ? 10 : outstandingList.length,
+            itemCount: outstandingList.length > 8 ? 8 : outstandingList.length,
             separatorBuilder: (_, __) => const Divider(),
             itemBuilder: (context, index) {
               final item = outstandingList[index];
               return ListTile(
                 leading: CircleAvatar(
                   backgroundColor: Colors.red.shade50,
-                  child: Text("${index + 1}"),
+                  child: Text(
+                    "${index + 1}",
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
-                title: Text(item['studentName'] ?? 'Unknown'),
-                subtitle: Text("Due since ${item['dueDate'] ?? 'Unknown'}"),
+                title: Text(
+                  item['studentName'] ?? 'Unknown',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+                subtitle: Text("${item['feeType']} - Due: ${item['dueDate']}"),
                 trailing: Text(
                   "₹${(item['amount'] ?? 0).toStringAsFixed(0)}",
                   style: const TextStyle(
@@ -1016,11 +1250,11 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               );
             },
           ),
-          if (outstandingList.length > 10)
+          if (outstandingList.length > 8)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                "+ ${outstandingList.length - 10} more students",
+                "+ ${outstandingList.length - 8} more students",
                 style: const TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ),
@@ -1031,19 +1265,23 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
 
   // ================= PERFORMANCE TAB =================
   Widget _buildPerformanceTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildPerformanceSummary(),
-          const SizedBox(height: 24),
-          _buildSubjectWisePerformance(),
-          const SizedBox(height: 24),
-          _buildTopPerformers(),
-          const SizedBox(height: 24),
-          _buildGradeDistribution(),
-        ],
+    return RefreshIndicator(
+      onRefresh: _initializeData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildPerformanceSummary(),
+            const SizedBox(height: 24),
+            _buildSubjectWisePerformance(),
+            const SizedBox(height: 24),
+            _buildTopPerformers(),
+            const SizedBox(height: 24),
+            _buildGradeDistribution(),
+          ],
+        ),
       ),
     );
   }
@@ -1066,14 +1304,14 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
           "${classAverage.toStringAsFixed(1)}%",
           Icons.show_chart,
           Colors.blue,
-          "Overall performance",
+          "Overall",
         ),
         _buildSummaryCard(
           "Top Score",
           "${topScore.toStringAsFixed(1)}%",
           Icons.emoji_events,
           Colors.orange,
-          "Highest in class",
+          "Highest",
         ),
         _buildSummaryCard(
           "Pass Rate",
@@ -1090,16 +1328,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
     Map<String, double> subjectAverages =
         _performanceData['subjectAverages'] ?? {};
 
-    List<String> subjects =
-        subjectAverages.isNotEmpty
-            ? subjectAverages.keys.toList()
-            : ['No Data'];
-    List<double> scores =
-        subjectAverages.isNotEmpty
-            ? subjectAverages.values.map((v) => v).toList()
-            : [0];
-
-    if (subjects.length == 1 && subjects[0] == 'No Data') {
+    if (subjectAverages.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(16),
         decoration: _cardDecoration(),
@@ -1109,22 +1338,9 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       );
     }
 
-    List<BarChartGroupData> barGroups = [];
-    for (int i = 0; i < subjects.length; i++) {
-      barGroups.add(
-        BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: scores[i],
-              color: Colors.blue,
-              width: 25,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ],
-        ),
-      );
-    }
+    List<MapEntry<String, double>> sortedSubjects =
+        subjectAverages.entries.toList();
+    sortedSubjects.sort((a, b) => b.value.compareTo(a.value));
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1134,50 +1350,62 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         children: [
           const Text(
             "Subject-wise Performance",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 250,
-            child: BarChart(
-              BarChartData(
-                barGroups: barGroups,
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget:
-                          (value, meta) => Text(
-                            '${value.toInt()}%',
-                            style: const TextStyle(fontSize: 10),
+          const SizedBox(height: 16),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: sortedSubjects.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final entry = sortedSubjects[index];
+              final rate = entry.value;
+              final color =
+                  rate >= 75
+                      ? Colors.green
+                      : (rate >= 60 ? Colors.orange : Colors.red);
+
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 100,
+                        child: Text(
+                          entry.key,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
-                    ),
+                        ),
+                      ),
+                      Expanded(
+                        child: LinearProgressIndicator(
+                          value: rate / 100,
+                          backgroundColor: Colors.grey.shade200,
+                          valueColor: AlwaysStoppedAnimation<Color>(color),
+                          minHeight: 8,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 45,
+                        child: Text(
+                          "${rate.toStringAsFixed(1)}%",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        int index = value.toInt();
-                        if (index >= 0 && index < subjects.length)
-                          return Text(
-                            subjects[index],
-                            style: const TextStyle(fontSize: 10),
-                          );
-                        return const Text('');
-                      },
-                    ),
-                  ),
-                  rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                ),
-                gridData: const FlGridData(show: true),
-                borderData: FlBorderData(show: true),
-              ),
-            ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -1205,7 +1433,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         children: [
           const Text(
             "Top Performers",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           ListView.separated(
@@ -1221,13 +1449,16 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
               );
               return ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: Colors.blue.shade50,
+                  backgroundColor: Colors.amber.shade100,
                   child: Text(
                     "${index + 1}",
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
-                title: Text(studentInfo['name'] ?? 'Unknown'),
+                title: Text(
+                  studentInfo['name'] ?? 'Unknown',
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
                 subtitle: Text(studentInfo['className'] ?? 'Unknown'),
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(
@@ -1255,9 +1486,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   }
 
   Widget _buildGradeDistribution() {
-    Map<String, int> gradeDist =
-        _performanceData['gradeDistribution'] ??
-        {'A+': 0, 'A': 0, 'B': 0, 'C': 0, 'D': 0};
+    Map<String, int> gradeDist = _performanceData['gradeDistribution'] ?? {};
     int total = gradeDist.values.fold(0, (a, b) => a + b);
 
     if (total == 0) {
@@ -1270,6 +1499,9 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
       );
     }
 
+    List<MapEntry<String, int>> sortedGrades = gradeDist.entries.toList();
+    sortedGrades.sort((a, b) => b.value.compareTo(a.value));
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration(),
@@ -1278,52 +1510,48 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
         children: [
           const Text(
             "Grade Distribution",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          _buildGradeBar("A+ (90-100)", gradeDist['A+'] ?? 0, total),
-          const SizedBox(height: 8),
-          _buildGradeBar("A (80-89)", gradeDist['A'] ?? 0, total),
-          const SizedBox(height: 8),
-          _buildGradeBar("B (70-79)", gradeDist['B'] ?? 0, total),
-          const SizedBox(height: 8),
-          _buildGradeBar("C (60-69)", gradeDist['C'] ?? 0, total),
-          const SizedBox(height: 8),
-          _buildGradeBar("D (Below 60)", gradeDist['D'] ?? 0, total),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: sortedGrades.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final entry = sortedGrades[index];
+              double percentage = total > 0 ? (entry.value / total) * 100 : 0;
+              Color color =
+                  entry.key.contains('A')
+                      ? Colors.green
+                      : (entry.key.contains('B') ? Colors.orange : Colors.red);
+
+              return Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(entry.key, style: const TextStyle(fontSize: 12)),
+                      Text(
+                        "${entry.value} students",
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  LinearProgressIndicator(
+                    value: percentage / 100,
+                    backgroundColor: Colors.grey.shade200,
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                    minHeight: 8,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ],
+              );
+            },
+          ),
         ],
       ),
-    );
-  }
-
-  Widget _buildGradeBar(String grade, int count, int total) {
-    double percentage = total > 0 ? (count / total) * 100 : 0;
-    Color color =
-        grade.contains('A+') || grade.contains('A')
-            ? Colors.green
-            : (grade.contains('B') ? Colors.orange : Colors.red);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(grade, style: const TextStyle(fontSize: 12)),
-            Text(
-              "$count students (${percentage.toStringAsFixed(1)}%)",
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        LinearProgressIndicator(
-          value: (percentage / 100).toDouble(),
-          backgroundColor: Colors.grey.shade200,
-          valueColor: AlwaysStoppedAnimation<Color>(color),
-          minHeight: 8,
-          borderRadius: BorderRadius.circular(4),
-        ),
-      ],
     );
   }
 
@@ -1348,7 +1576,6 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
                 child: Text(
                   title,
                   style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               Icon(icon, color: color, size: 18),
@@ -1359,14 +1586,12 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
             value,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 4),
           Text(
             subtitle,
             style: const TextStyle(fontSize: 9, color: Colors.grey),
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -1374,9 +1599,60 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   }
 
   Future<void> _exportAnalytics() async {
+    if (_attendanceData.isEmpty &&
+        _feeData.isEmpty &&
+        _performanceData.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No data to export"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final pdf = pw.Document();
+
+    // Add cover page
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build:
+            (context) => pw.Center(
+              child: pw.Column(
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                children: [
+                  pw.Text(
+                    'School Analytics Report',
+                    style: pw.TextStyle(
+                      fontSize: 32,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 20),
+                  pw.Text(
+                    DateFormat('dd MMMM yyyy').format(DateTime.now()),
+                    style: pw.TextStyle(fontSize: 16, color: PdfColors.grey),
+                  ),
+                  pw.SizedBox(height: 40),
+                  pw.Text(
+                    'Generated by School ERP System',
+                    style: pw.TextStyle(fontSize: 12, color: PdfColors.grey),
+                  ),
+                ],
+              ),
+            ),
+      ),
+    );
+
+    await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Export feature coming soon")),
+        const SnackBar(
+          content: Text("Report exported successfully"),
+          backgroundColor: Colors.green,
+        ),
       );
     }
   }
@@ -1384,7 +1660,7 @@ class _AdminAnalyticsPageState extends State<AdminAnalyticsPage>
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       boxShadow: [
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.05),

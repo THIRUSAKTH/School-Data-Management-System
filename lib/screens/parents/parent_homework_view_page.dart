@@ -30,9 +30,7 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
   List<QueryDocumentSnapshot> _childrenList = [];
   Timer? _autoDeleteTimer;
 
-  // Auto-delete settings
-  static const int _autoDeleteAfterDays =
-      7; // Delete homework 7 days after due date
+  static const int _autoDeleteAfterDays = 7;
 
   @override
   void initState() {
@@ -48,11 +46,9 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
   }
 
   void _startAutoDeleteChecker() {
-    // Check every 6 hours for expired homework to delete
     _autoDeleteTimer = Timer.periodic(const Duration(hours: 6), (timer) {
       _autoDeleteExpiredHomework();
     });
-    // Also run once immediately
     _autoDeleteExpiredHomework();
   }
 
@@ -65,7 +61,6 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
         const Duration(days: _autoDeleteAfterDays),
       );
 
-      // Get all homework for this class/section
       final homeworkSnapshot =
           await FirebaseFirestore.instance
               .collection('schools')
@@ -85,9 +80,7 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
 
         if (dueDate != null) {
           final dueDateTime = dueDate.toDate();
-          // Delete if due date is older than cutoff (completed or not)
           if (dueDateTime.isBefore(cutoffDate)) {
-            // Soft delete - mark as inactive
             batch.update(doc.reference, {
               'isActive': false,
               'deletedAt': FieldValue.serverTimestamp(),
@@ -109,7 +102,7 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
               duration: const Duration(seconds: 2),
             ),
           );
-          setState(() {}); // Refresh the list
+          setState(() {});
         }
       }
     } catch (e) {
@@ -117,18 +110,15 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
     }
   }
 
-  Future<void> _deleteHomeworkPermanently(
-    String homeworkId,
-    String title,
-  ) async {
-    final shouldDelete = await showDialog<bool>(
+  Future<void> _hideHomework(String homeworkId, String title) async {
+    final shouldHide = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            title: const Text("Delete Homework"),
+            title: const Text("Hide Homework"),
             content: Text(
               "Are you sure you want to hide this homework?\n\n\"$title\"\n\nThis will hide it from your view only. The school can still access it.",
             ),
@@ -140,15 +130,14 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text("Hide from My View"),
+                child: const Text("Hide"),
               ),
             ],
           ),
     );
 
-    if (shouldDelete == true) {
+    if (shouldHide == true) {
       try {
-        // Soft delete - hide from parent view only
         await FirebaseFirestore.instance
             .collection('schools')
             .doc(AppConfig.schoolId)
@@ -167,7 +156,7 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
               duration: Duration(seconds: 2),
             ),
           );
-          setState(() {}); // Refresh the list
+          setState(() {});
         }
       } catch (e) {
         if (mounted) {
@@ -431,7 +420,6 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
           );
         }
 
-        // Filter out homework hidden by this parent
         var homeworkList =
             snapshot.data!.docs.where((doc) {
               final data = doc.data() as Map<String, dynamic>;
@@ -468,7 +456,6 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
           );
         }
 
-        // Client-side sorting: Urgent first, then by due date
         homeworkList.sort((a, b) {
           final aData = a.data() as Map<String, dynamic>;
           final bData = b.data() as Map<String, dynamic>;
@@ -492,7 +479,15 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
             itemBuilder: (context, index) {
               final doc = homeworkList[index];
               final data = doc.data() as Map<String, dynamic>;
-              final attachments = data['attachments'] as List? ?? [];
+
+              // Safely extract attachments
+              List<Map<String, dynamic>> attachments = [];
+              if (data['attachments'] != null && data['attachments'] is List) {
+                attachments = List<Map<String, dynamic>>.from(
+                  data['attachments'],
+                );
+              }
+
               final dueDate = data['dueDate'] as Timestamp?;
               final isOverdue =
                   dueDate != null && dueDate.toDate().isBefore(DateTime.now());
@@ -503,13 +498,11 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
 
               return GestureDetector(
                 onLongPress:
-                    () => _deleteHomeworkPermanently(
-                      doc.id,
-                      data['title'] ?? 'Homework',
-                    ),
-                child: _HomeworkCard(
+                    () => _hideHomework(doc.id, data['title'] ?? 'Homework'),
+                child: HomeworkCard(
                   homeworkId: doc.id,
                   subject: data['subject'] ?? 'General',
+                  title: data['title'] ?? 'Homework',
                   description: data['description'] ?? 'No description',
                   dueDate: dueDate,
                   dueTime: data['dueTime'],
@@ -529,23 +522,26 @@ class _ParentHomeworkViewPageState extends State<ParentHomeworkViewPage> {
   }
 }
 
-// Homework Card Widget
-class _HomeworkCard extends StatefulWidget {
+// ===================== HOMEWORK CARD WIDGET =====================
+class HomeworkCard extends StatefulWidget {
   final String homeworkId;
   final String subject;
+  final String title;
   final String description;
   final Timestamp? dueDate;
   final String? dueTime;
   final bool isUrgent;
   final String studentId;
   final String teacherName;
-  final List<dynamic> attachments;
+  final List<Map<String, dynamic>> attachments;
   final bool isOverdue;
   final int daysOverdue;
 
-  const _HomeworkCard({
+  const HomeworkCard({
+    super.key,
     required this.homeworkId,
     required this.subject,
+    required this.title,
     required this.description,
     required this.dueDate,
     required this.dueTime,
@@ -558,10 +554,10 @@ class _HomeworkCard extends StatefulWidget {
   });
 
   @override
-  State<_HomeworkCard> createState() => _HomeworkCardState();
+  State<HomeworkCard> createState() => _HomeworkCardState();
 }
 
-class _HomeworkCardState extends State<_HomeworkCard> {
+class _HomeworkCardState extends State<HomeworkCard> {
   bool _isSubmitting = false;
   bool _isExpanded = false;
   bool _isCompleted = false;
@@ -624,7 +620,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Auto-delete warning banner for overdue
+              // Auto-delete warning banner
               if (widget.isOverdue && !_isCompleted && widget.daysOverdue >= 5)
                 Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -651,6 +647,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   ),
                 ),
 
+              // Urgent badge
               if (widget.isUrgent)
                 Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -683,6 +680,8 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                     ],
                   ),
                 ),
+
+              // Subject and due date row
               Row(
                 children: [
                   Container(
@@ -719,7 +718,19 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+
+              // Title
+              Text(
+                widget.title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Status and hide hint
               Row(
                 children: [
                   Container(
@@ -761,6 +772,8 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                 ],
               ),
               const SizedBox(height: 12),
+
+              // Description with expand/collapse
               Text(
                 widget.description,
                 style: const TextStyle(
@@ -788,7 +801,9 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                     ),
                   ),
                 ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+
+              // Teacher name
               Row(
                 children: [
                   Icon(Icons.person_outline, size: 12, color: Colors.grey),
@@ -799,6 +814,8 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                   ),
                 ],
               ),
+
+              // Attachments section
               if (widget.attachments.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 const Divider(),
@@ -817,7 +834,10 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                           .toList(),
                 ),
               ],
+
               const SizedBox(height: 16),
+
+              // Submit button or status messages
               if (!_isCompleted && !widget.isOverdue)
                 SizedBox(
                   width: double.infinity,
@@ -847,6 +867,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                     ),
                   ),
                 ),
+
               if (_isCompleted)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -874,6 +895,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                     ],
                   ),
                 ),
+
               if (widget.isOverdue && !_isCompleted)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -906,12 +928,17 @@ class _HomeworkCardState extends State<_HomeworkCard> {
 
   Widget _buildAttachmentChip(Map<String, dynamic> attachment) {
     final isImage = attachment['type'] == 'image';
-    final fileName = attachment['originalName'] ?? attachment['name'];
+    final fileName = attachment['originalName'] ?? attachment['name'] ?? 'file';
+    final fileUrl = attachment['url'] ?? '';
+
+    if (fileUrl.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return GestureDetector(
       onTap: () => _showAttachmentPreview(attachment),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isImage ? Colors.green.shade50 : Colors.blue.shade50,
           borderRadius: BorderRadius.circular(20),
@@ -924,7 +951,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
           children: [
             Icon(
               isImage ? Icons.image : Icons.insert_drive_file,
-              size: 14,
+              size: 16,
               color: isImage ? Colors.green : Colors.blue,
             ),
             const SizedBox(width: 6),
@@ -938,11 +965,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
               ),
             ),
             const SizedBox(width: 4),
-            Icon(
-              Icons.visibility,
-              size: 12,
-              color: isImage ? Colors.green : Colors.blue,
-            ),
+            const Icon(Icons.visibility, size: 14, color: Colors.grey),
           ],
         ),
       ),
@@ -951,8 +974,18 @@ class _HomeworkCardState extends State<_HomeworkCard> {
 
   void _showAttachmentPreview(Map<String, dynamic> attachment) {
     final isImage = attachment['type'] == 'image';
-    final url = attachment['url'];
-    final fileName = attachment['originalName'] ?? attachment['name'];
+    final fileUrl = attachment['url'] ?? '';
+    final fileName = attachment['originalName'] ?? attachment['name'] ?? 'file';
+
+    if (fileUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Unable to preview file"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     showDialog(
       context: context,
@@ -971,7 +1004,7 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.network(
-                        url,
+                        fileUrl,
                         fit: BoxFit.contain,
                         height: 300,
                         errorBuilder:
@@ -1033,14 +1066,9 @@ class _HomeworkCardState extends State<_HomeworkCard> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed:
-                              () => ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Download feature coming soon"),
-                                ),
-                              ),
-                          icon: const Icon(Icons.download),
-                          label: const Text("Download"),
+                          onPressed: () => _openFileUrl(fileUrl),
+                          icon: const Icon(Icons.open_in_browser),
+                          label: const Text("Open"),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.orange,
                             foregroundColor: Colors.white,
@@ -1054,6 +1082,19 @@ class _HomeworkCardState extends State<_HomeworkCard> {
             ),
           ),
     );
+  }
+
+  void _openFileUrl(String url) {
+    // For web and mobile - open in browser
+    // You can use url_launcher package for better handling
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Opening file..."),
+        duration: Duration(seconds: 1),
+      ),
+    );
+    // Add url_launcher: ^6.2.0 to pubspec.yaml and use:
+    // launchUrl(Uri.parse(url));
   }
 
   Future<void> _submitHomework() async {

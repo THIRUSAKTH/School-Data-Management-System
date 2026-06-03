@@ -149,7 +149,6 @@ class _ParentDashboardState extends State<ParentDashboard>
       ),
     );
   }
-
   void _switchChild() {
     Navigator.pushReplacement(
       context,

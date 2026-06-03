@@ -28,6 +28,7 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
   final Map<String, String> _checkOutTimes = {};
   final Map<String, String> _studentNames = {};
   final Map<String, String> _studentRollNos = {};
+  final Map<String, String> _studentParentUids = {}; // NEW: Store parent UIDs
 
   bool _isSaving = false;
   bool _isEditing = false;
@@ -78,10 +79,24 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
         _studentNames[doc.id] = data['name'] ?? 'Unknown';
         _studentRollNos[doc.id] = data['rollNo']?.toString() ?? '';
 
+        // FIXED: Try both parentUID and parentUid field names
+        String parentUid = '';
+        if (data['parentUID'] != null &&
+            data['parentUID'].toString().isNotEmpty) {
+          parentUid = data['parentUID'].toString();
+        } else if (data['parentUid'] != null &&
+            data['parentUid'].toString().isNotEmpty) {
+          parentUid = data['parentUid'].toString();
+        }
+        _studentParentUids[doc.id] = parentUid;
+
         if (!_attendanceStatus.containsKey(doc.id)) {
           _attendanceStatus[doc.id] = 'Present';
         }
       }
+
+      print('✅ Loaded ${_students.length} students');
+      print('📱 Parent UIDs: $_studentParentUids');
     } catch (e) {
       debugPrint('Error loading students: $e');
     }
@@ -141,6 +156,7 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
       final attendanceData = <String, Map<String, dynamic>>{};
       final List<Map<String, dynamic>> absentLateStudents = [];
 
+      // First, collect all attendance data
       for (var student in _students) {
         final studentId = student.id;
         final status = _attendanceStatus[studentId] ?? 'Present';
@@ -149,6 +165,8 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
           'studentId': studentId,
           'studentName': _studentNames[studentId] ?? '',
           'rollNo': _studentRollNos[studentId] ?? '',
+          'className': widget.className,
+          'section': widget.section,
           'status': status,
           'remark':
               status == 'Absent'
@@ -159,22 +177,43 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
           'checkInTime': _checkInTimes[studentId] ?? '',
           'checkOutTime': _checkOutTimes[studentId] ?? '',
           'updatedBy': FirebaseAuth.instance.currentUser?.uid ?? '',
+          'updatedAt': FieldValue.serverTimestamp(),
         };
+      }
 
-        // Track absent and late students for notifications
+      // Save attendance
+      final success = await AttendanceService.saveAttendance(
+        schoolId: widget.schoolId,
+        className: widget.className,
+        section: widget.section,
+        date: _selectedDate,
+        attendanceData: attendanceData,
+      );
+
+      if (!mounted || !success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to save attendance'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() => _isSaving = false);
+        return;
+      }
+
+      // Collect students for notifications
+      for (var student in _students) {
+        final studentId = student.id;
+        final status = _attendanceStatus[studentId] ?? 'Present';
+
         if (status == 'Absent' || status == 'Late') {
-          // Get parent UID from student document
-          final studentDoc =
-              await FirebaseFirestore.instance
-                  .collection('schools')
-                  .doc(widget.schoolId)
-                  .collection('students')
-                  .doc(studentId)
-                  .get();
+          final parentUid = _studentParentUids[studentId];
 
-          final parentUid =
-              studentDoc
-                  .data()?['parentUID']; // Using capital UID to match Firestore
+          print(
+            '📱 Student: ${_studentNames[studentId]}, Status: $status, ParentUID: $parentUid',
+          );
 
           absentLateStudents.add({
             'studentId': studentId,
@@ -192,36 +231,22 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
         }
       }
 
-      final success = await AttendanceService.saveAttendance(
-        schoolId: widget.schoolId,
-        className: widget.className,
-        section: widget.section,
-        date: _selectedDate,
-        attendanceData: attendanceData,
-      );
+      // Send notifications
+      await _sendAttendanceNotifications(absentLateStudents);
 
-      if (mounted && success) {
-        // Send notifications for absent/late students
-        await _sendAttendanceNotifications(absentLateStudents);
-
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Attendance saved! ${absentLateStudents.length} notification(s) sent.',
+              '✅ Attendance saved! ${absentLateStudents.length} notification(s) sent.',
             ),
             backgroundColor: Colors.green,
           ),
         );
         Navigator.pop(context, true);
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to save attendance'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     } catch (e) {
+      print('❌ Error saving attendance: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -232,12 +257,11 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
     }
   }
 
-  // Method to send attendance notifications to parents
   Future<void> _sendAttendanceNotifications(
     List<Map<String, dynamic>> absentLateStudents,
   ) async {
     if (absentLateStudents.isEmpty) {
-      print('No absent or late students to notify');
+      print('📭 No absent or late students to notify');
       return;
     }
 
@@ -245,9 +269,9 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
     final dayName = DateFormat('EEEE').format(_selectedDate);
 
     int notificationCount = 0;
+    int failedCount = 0;
 
     for (var student in absentLateStudents) {
-      final studentId = student['studentId'];
       final studentName = student['studentName'];
       final status = student['status'];
       final remark = student['remark'];
@@ -255,8 +279,10 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
       final checkInTime = student['checkInTime'];
       final parentUid = student['parentUid'];
 
+      // Skip if no parent UID
       if (parentUid == null || parentUid.isEmpty) {
         print('❌ No parent UID found for student: $studentName');
+        failedCount++;
         continue;
       }
 
@@ -269,29 +295,35 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
           notificationBody =
               "$studentName (Roll No: $rollNo) was marked ABSENT on $dayName, $formattedDate.";
           if (remark.isNotEmpty && remark != 'No reason provided') {
-            notificationBody += "\nReason: $remark";
+            notificationBody += "\n📝 Reason: $remark";
           }
         } else {
-          // Late status
           notificationTitle = "⏰ Late Arrival Alert";
           notificationBody =
               "$studentName (Roll No: $rollNo) was marked LATE on $dayName, $formattedDate.";
           if (remark.isNotEmpty && remark != 'Late arrival') {
-            notificationBody += "\nReason: $remark";
+            notificationBody += "\n📝 Reason: $remark";
           }
           if (checkInTime.isNotEmpty) {
-            notificationBody += "\nCheck-in Time: $checkInTime";
+            notificationBody += "\n⏱️ Check-in Time: $checkInTime";
           }
         }
 
-        // Send push notification to parent
+        notificationBody += "\n📅 Date: $formattedDate";
+        notificationBody += "\n📚 Class: ${widget.className}-${widget.section}";
+
+        print('📤 Sending notification to parent: $parentUid');
+        print('   Title: $notificationTitle');
+        print('   Body: $notificationBody');
+
+        // Send push notification using NotificationService
         await NotificationService.sendToUser(
           userId: parentUid,
           title: notificationTitle,
           body: notificationBody,
           type: 'attendance',
           data: {
-            'studentId': studentId,
+            'studentId': student['studentId'],
             'studentName': studentName,
             'status': status,
             'date': _selectedDate.toIso8601String(),
@@ -299,16 +331,18 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
             'section': widget.section,
             'remark': remark,
             'checkInTime': checkInTime,
+            'rollNo': rollNo,
           },
         );
 
-        // Also create in-app notification
-        await FirebaseFirestore.instance
+        // Also create in-app notification in Firestore
+        final notificationRef = await FirebaseFirestore.instance
             .collection('schools')
             .doc(widget.schoolId)
             .collection('notifications')
             .add({
-              'studentId': studentId,
+              'studentId': student['studentId'],
+              'parentId': parentUid,
               'title': notificationTitle,
               'message': notificationBody,
               'type': 'attendance',
@@ -320,17 +354,24 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
                 'date': _selectedDate.toIso8601String(),
                 'className': widget.className,
                 'section': widget.section,
+                'rollNo': rollNo,
               },
             });
 
+        print(
+          '✅ Notification sent to parent of $studentName (ID: ${notificationRef.id})',
+        );
         notificationCount++;
-        print('✅ Attendance notification sent to parent of $studentName');
       } catch (e) {
-        print('Error sending notification for student $studentName: $e');
+        print('❌ Error sending notification for student $studentName: $e');
+        failedCount++;
       }
     }
 
-    print('✅ Sent $notificationCount attendance notifications');
+    print('📊 Notification Summary:');
+    print('   ✅ Success: $notificationCount');
+    print('   ❌ Failed: $failedCount');
+    print('   📱 Total: ${absentLateStudents.length}');
   }
 
   Future<void> _selectDate() async {
@@ -606,6 +647,9 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
     final currentStatus = _attendanceStatus[studentId] ?? 'Present';
     final isLate = currentStatus == 'Late';
     final isAbsent = currentStatus == 'Absent';
+    final hasParent =
+        _studentParentUids[studentId] != null &&
+        _studentParentUids[studentId]!.isNotEmpty;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -640,12 +684,25 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      Text(
-                        'Roll No: ${rollNo.isNotEmpty ? rollNo : "N/A"}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            'Roll No: ${rollNo.isNotEmpty ? rollNo : "N/A"}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          if (!hasParent)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Icon(
+                                Icons.warning,
+                                size: 12,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ),

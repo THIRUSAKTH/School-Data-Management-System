@@ -180,8 +180,8 @@ class _ParentHomePageState extends State<ParentHomePage>
               children: const [
                 Text("📞 Contact School:"),
                 SizedBox(height: 8),
-                Text("Phone: +91 98765 43210"),
-                Text("Email: support@school.com"),
+                Text("Phone: +91 9994401291"),
+                Text("Email: dr.s.davidraj@gmail.com"),
                 SizedBox(height: 16),
                 Text("🕒 Support Hours:"),
                 SizedBox(height: 8),
@@ -221,7 +221,7 @@ class _ParentHomePageState extends State<ParentHomePage>
           "• Fee payment and tracking\n"
           "• Complaint management\n"
           "• Notifications and announcements\n\n"
-          "© 2024 Smart School. All rights reserved.",
+          "© 2025 Smart School. All rights reserved.",
         ),
       ],
     );

@@ -1,14 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:schoolprojectjan/app_config.dart';
 
 class TeacherNoticeViewPage extends StatefulWidget {
@@ -33,12 +32,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadNotices();
-
     _cleanupTimer = Timer.periodic(const Duration(hours: 1), (timer) {
-      _cleanupExpiredNotices();
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
       _cleanupExpiredNotices();
     });
   }
@@ -75,18 +69,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
 
       if (deleteCount > 0) {
         await batch.commit();
-        if (mounted) {
-          _loadNotices();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '$deleteCount expired notice(s) automatically deleted',
-              ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
+        if (mounted) _loadNotices();
       }
     } catch (e) {
       debugPrint('Error cleaning up expired notices: $e');
@@ -206,71 +189,58 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
         return bDate.toDate().compareTo(aDate.toDate());
       });
 
-      if (mounted) {
+      if (mounted)
         setState(() {
           _notices = validNotices;
           _isLoading = false;
         });
-      }
     } catch (e) {
       debugPrint('Error loading notices: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ================= FILE HANDLING METHODS =================
+  Future<void> _viewFile(String url, String fileName) async {
+    try {
+      if (url.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error loading notices: $e"),
+          const SnackBar(
+            content: Text("Invalid file URL"),
             backgroundColor: Colors.red,
           ),
         );
+        return;
       }
-    }
-  }
 
-  Future<void> _incrementViewCount(String noticeId, int currentCount) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('notices')
-          .doc(noticeId)
-          .update({'viewCount': currentCount + 1});
-    } catch (e) {
-      debugPrint('Error updating view count: $e');
-    }
-  }
-
-  // ================= FILE PREVIEW METHODS =================
-  Future<void> _viewFile(String url, String fileName) async {
-    try {
-      if (kIsWeb) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.platformDefault);
-      } else {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder:
-              (context) => const AlertDialog(
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Opening file...'),
-                  ],
-                ),
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => const AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Opening file...'),
+                ],
               ),
-        );
+            ),
+      );
 
-        final response = await http.get(Uri.parse(url));
-        final directory = await getApplicationDocumentsDirectory();
-        final file = File('${directory.path}/$fileName');
-        await file.writeAsBytes(response.bodyBytes);
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200)
+        throw Exception('Failed to download file');
 
-        if (context.mounted) Navigator.pop(context);
-        await OpenFile.open(file.path);
-      }
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsBytes(response.bodyBytes);
+
+      if (mounted) Navigator.pop(context);
+      await OpenFile.open(file.path);
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -284,6 +254,16 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
 
   Future<void> _downloadFile(String url, String fileName) async {
     try {
+      if (url.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Invalid file URL"),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -301,12 +281,14 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
       );
 
       final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200)
+        throw Exception('Failed to download file');
+
       final directory = await getApplicationDocumentsDirectory();
       final file = File('${directory.path}/$fileName');
       await file.writeAsBytes(response.bodyBytes);
 
-      if (context.mounted) Navigator.pop(context);
-
+      if (mounted) Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Downloaded: $fileName'),
@@ -314,7 +296,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
         ),
       );
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -328,20 +310,54 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
 
   Future<void> _shareFile(String url, String fileName) async {
     try {
+      if (url.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Invalid file URL"),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => const AlertDialog(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Preparing file...'),
+                ],
+              ),
+            ),
+      );
+
       final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200)
+        throw Exception('Failed to download file for sharing');
+
       final directory = await getApplicationDocumentsDirectory();
       final file = File('${directory.path}/$fileName');
       await file.writeAsBytes(response.bodyBytes);
+
+      if (mounted) Navigator.pop(context);
       await Share.shareXFiles([
         XFile(file.path),
       ], text: 'Check out this file: $fileName');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error sharing file: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sharing file: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -504,10 +520,8 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
       child: ListView.builder(
         padding: const EdgeInsets.all(12),
         itemCount: filteredNotices.length,
-        itemBuilder: (context, index) {
-          final notice = filteredNotices[index];
-          return _buildNoticeCard(notice);
-        },
+        itemBuilder:
+            (context, index) => _buildNoticeCard(filteredNotices[index]),
       ),
     );
   }
@@ -554,10 +568,7 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: () {
-              if (!isExpired) {
-                _incrementViewCount(notice['id'], viewCount);
-                _showNoticeDetail(notice);
-              }
+              if (!isExpired) _showNoticeDetail(notice);
             },
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -1018,10 +1029,11 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
   }
 
   Widget _buildAttachmentTile(Map<String, dynamic> attachment) {
-    final isImage = attachment['type'] == 'image';
-    final url = attachment['url'];
-    final fileName = attachment['originalName'] ?? attachment['name'];
+    final url = attachment['url'] ?? '';
+    final fileName = attachment['originalName'] ?? attachment['name'] ?? 'file';
     final fileSize = attachment['size'] ?? 0;
+
+    if (url.isEmpty) return const SizedBox.shrink();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1097,9 +1109,19 @@ class _TeacherNoticeViewPageState extends State<TeacherNoticeViewPage>
 
   void _showAttachmentPreview(Map<String, dynamic> attachment) {
     final isImage = attachment['type'] == 'image';
-    final url = attachment['url'];
-    final fileName = attachment['originalName'] ?? attachment['name'];
+    final url = attachment['url'] ?? '';
+    final fileName = attachment['originalName'] ?? attachment['name'] ?? 'file';
     final fileSize = attachment['size'] ?? 0;
+
+    if (url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Invalid file URL"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     showModalBottomSheet(
       context: context,
