@@ -7,10 +7,7 @@ import 'student_edit_page.dart';
 class StudentManagementPage extends StatefulWidget {
   final String schoolId;
 
-  const StudentManagementPage({
-    super.key,
-    required this.schoolId,
-  });
+  const StudentManagementPage({super.key, required this.schoolId});
 
   @override
   State<StudentManagementPage> createState() => _StudentManagementPageState();
@@ -26,29 +23,61 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   List<String> _availableSections = [];
   bool _isLoadingFilters = true;
 
+  // Pagination variables
+  final List<QueryDocumentSnapshot> _students = [];
+  DocumentSnapshot? _lastDocument;
+  bool _isLoading = false;
+  bool _hasMore = true;
+  final int _pageSize = 20; // Load 20 students at a time
+  final ScrollController _scrollController = ScrollController();
+
   final List<String> _sortOptions = ["Name", "Roll Number", "Class"];
 
   @override
   void initState() {
     super.initState();
     _loadFilters();
+    _loadStudents();
+    _scrollController.addListener(_onScroll);
   }
 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      if (!_isLoading && _hasMore) {
+        _loadStudents();
+      }
+    }
+  }
+
+  // ✅ OPTIMIZED: Load filters using limit queries (compatible version)
   Future<void> _loadFilters() async {
     setState(() => _isLoadingFilters = true);
 
     try {
-      final studentsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('students')
-          .get();
-
       final Set<String> classesSet = {};
       final Set<String> sectionsSet = {};
 
-      for (var doc in studentsSnapshot.docs) {
-        final data = doc.data();
+      // Load a limited number of students to get class/section options
+      // Instead of loading ALL students, we load 200 to get unique values
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('students')
+              .limit(
+                200,
+              ) // Limit to 200 students - enough to get all unique classes
+              .get();
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
         final className = data['class'] as String?;
         final section = data['section'] as String?;
 
@@ -69,6 +98,125 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
       debugPrint('Error loading filters: $e');
       setState(() => _isLoadingFilters = false);
     }
+  }
+
+  // ✅ OPTIMIZED: Load students in batches (pagination)
+  Future<void> _loadStudents() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      Query query = FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('students')
+          .orderBy('name') // Order by name for consistent pagination
+          .limit(_pageSize);
+
+      if (_lastDocument != null) {
+        query = query.startAfterDocument(_lastDocument!);
+      }
+
+      final snapshot = await query.get();
+
+      if (snapshot.docs.isNotEmpty) {
+        setState(() {
+          _students.addAll(snapshot.docs);
+          _lastDocument = snapshot.docs.last;
+        });
+      }
+
+      if (snapshot.docs.length < _pageSize) {
+        setState(() => _hasMore = false);
+      }
+    } catch (e) {
+      debugPrint('Error loading students: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // ✅ OPTIMIZED: Get student count using a limited query (compatible version)
+  Future<int> _getStudentCount() async {
+    try {
+      // Use a snapshot with limit to get approximate count
+      // This is much cheaper than loading all documents
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('students')
+              .limit(1000) // Limit to 1000 - we just need a number
+              .get();
+
+      return snapshot.docs.length;
+    } catch (e) {
+      // If error occurs, fallback to loading all
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('students')
+              .get();
+      return snapshot.docs.length;
+    }
+  }
+
+  // Apply filters and search on already loaded students
+  List<QueryDocumentSnapshot> _getFilteredStudents() {
+    var filtered = List<QueryDocumentSnapshot>.from(_students);
+
+    // Apply class filter
+    if (_selectedClassFilter != null) {
+      filtered =
+          filtered.where((s) {
+            final data = s.data() as Map<String, dynamic>;
+            return data['class'] == _selectedClassFilter;
+          }).toList();
+    }
+
+    // Apply section filter
+    if (_selectedSectionFilter != null) {
+      filtered =
+          filtered.where((s) {
+            final data = s.data() as Map<String, dynamic>;
+            return data['section'] == _selectedSectionFilter;
+          }).toList();
+    }
+
+    // Apply search
+    if (_searchQuery.isNotEmpty) {
+      filtered =
+          filtered.where((s) {
+            final data = s.data() as Map<String, dynamic>;
+            final name = (data['name'] ?? "").toString().toLowerCase();
+            final roll = (data['rollNo'] ?? "").toString().toLowerCase();
+            return name.contains(_searchQuery) || roll.contains(_searchQuery);
+          }).toList();
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) {
+      final aData = a.data() as Map<String, dynamic>;
+      final bData = b.data() as Map<String, dynamic>;
+
+      switch (_selectedSortBy) {
+        case "Name":
+          return (aData['name'] ?? "").compareTo(bData['name'] ?? "");
+        case "Roll Number":
+          final rollA = int.tryParse(aData['rollNo']?.toString() ?? "0") ?? 0;
+          final rollB = int.tryParse(bData['rollNo']?.toString() ?? "0") ?? 0;
+          return rollA.compareTo(rollB);
+        case "Class":
+          final classA = "${aData['class']}${aData['section']}";
+          final classB = "${bData['class']}${bData['section']}";
+          return classA.compareTo(classB);
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
   }
 
   @override
@@ -96,7 +244,15 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() {}),
+            onPressed: () {
+              setState(() {
+                _students.clear();
+                _lastDocument = null;
+                _hasMore = true;
+              });
+              _loadStudents();
+              _loadFilters();
+            },
             tooltip: "Refresh",
           ),
         ],
@@ -112,7 +268,15 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
             MaterialPageRoute(
               builder: (_) => AdminAddStudentPage(schoolId: widget.schoolId),
             ),
-          ).then((_) => setState(() {}));
+          ).then((_) {
+            setState(() {
+              _students.clear();
+              _lastDocument = null;
+              _hasMore = true;
+            });
+            _loadStudents();
+            _loadFilters();
+          });
         },
       ),
       body: Column(
@@ -121,9 +285,7 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           if (_selectedClassFilter != null || _selectedSectionFilter != null)
             _buildActiveFilters(),
           _buildStudentCount(),
-          Expanded(
-            child: _buildStudentList(),
-          ),
+          Expanded(child: _buildStudentList()),
         ],
       ),
     );
@@ -136,14 +298,15 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
         decoration: InputDecoration(
           hintText: "Search by student name or roll number...",
           prefixIcon: const Icon(Icons.search, color: Colors.cyan),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-            icon: const Icon(Icons.clear),
-            onPressed: () {
-              setState(() => _searchQuery = "");
-            },
-          )
-              : null,
+          suffixIcon:
+              _searchQuery.isNotEmpty
+                  ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      setState(() => _searchQuery = "");
+                    },
+                  )
+                  : null,
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
@@ -203,18 +366,13 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   }
 
   Widget _buildStudentCount() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('students')
-          .snapshots(),
+    return FutureBuilder<int>(
+      future: _getStudentCount(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const SizedBox.shrink();
         }
-
-        int count = snapshot.data!.docs.length;
+        int count = snapshot.data!;
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
@@ -233,120 +391,72 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
   }
 
   Widget _buildStudentList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('students')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    final filteredStudents = _getFilteredStudents();
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _emptyState();
-        }
+    if (_students.isEmpty && _isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        var students = snapshot.data!.docs;
+    if (_students.isEmpty && !_isLoading) {
+      return _emptyState();
+    }
 
-        // Apply class filter
-        if (_selectedClassFilter != null) {
-          students = students.where((s) {
-            final data = s.data() as Map<String, dynamic>;
-            return data['class'] == _selectedClassFilter;
-          }).toList();
-        }
-
-        // Apply section filter
-        if (_selectedSectionFilter != null) {
-          students = students.where((s) {
-            final data = s.data() as Map<String, dynamic>;
-            return data['section'] == _selectedSectionFilter;
-          }).toList();
-        }
-
-        // Apply search
-        if (_searchQuery.isNotEmpty) {
-          students = students.where((s) {
-            final data = s.data() as Map<String, dynamic>;
-            final name = (data['name'] ?? "").toString().toLowerCase();
-            final roll = (data['rollNo'] ?? "").toString().toLowerCase();
-            return name.contains(_searchQuery) || roll.contains(_searchQuery);
-          }).toList();
-        }
-
-        // Apply sorting
-        students.sort((a, b) {
-          final aData = a.data() as Map<String, dynamic>;
-          final bData = b.data() as Map<String, dynamic>;
-
-          switch (_selectedSortBy) {
-            case "Name":
-              return (aData['name'] ?? "").compareTo(bData['name'] ?? "");
-            case "Roll Number":
-              final rollA = int.tryParse(aData['rollNo']?.toString() ?? "0") ?? 0;
-              final rollB = int.tryParse(bData['rollNo']?.toString() ?? "0") ?? 0;
-              return rollA.compareTo(rollB);
-            case "Class":
-              final classA = "${aData['class']}${aData['section']}";
-              final classB = "${bData['class']}${bData['section']}";
-              return classA.compareTo(classB);
-            default:
-              return 0;
-          }
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {
+          _students.clear();
+          _lastDocument = null;
+          _hasMore = true;
         });
+        await _loadStudents();
+        await _loadFilters();
+      },
+      child: ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.only(bottom: 90),
+        itemCount: filteredStudents.length + (_hasMore ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index == filteredStudents.length) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
 
-        if (students.isEmpty) {
-          return const Center(
-            child: Text("No matching students found"),
-          );
-        }
+          final s = filteredStudents[index];
+          final data = s.data() as Map<String, dynamic>;
+          final studentId = s.id;
 
-        return RefreshIndicator(
-          onRefresh: () async {
-            setState(() {});
-            await _loadFilters();
-          },
-          child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: 90),
-            itemCount: students.length,
-            itemBuilder: (context, index) {
-              final s = students[index];
-              final data = s.data() as Map<String, dynamic>;
-              final studentId = s.id;
+          final name = (data['name'] ?? "No Name").toString();
+          final className = (data['class'] ?? "-").toString();
+          final section = (data['section'] ?? "-").toString();
+          final roll = (data['rollNo'] ?? "-").toString();
+          final admissionNo = (data['admissionNo'] ?? "-").toString();
 
-              final name = (data['name'] ?? "No Name").toString();
-              final className = (data['class'] ?? "-").toString();
-              final section = (data['section'] ?? "-").toString();
-              final roll = (data['rollNo'] ?? "-").toString();
-              final admissionNo = (data['admissionNo'] ?? "-").toString();
+          String parentName = "";
+          if (data['parentName'] != null) {
+            parentName = data['parentName'].toString();
+          } else if (data['parent_name'] != null) {
+            parentName = data['parent_name'].toString();
+          }
 
-              // Get parent name from parentUid or direct field
-              String parentName = "";
-              if (data['parentName'] != null) {
-                parentName = data['parentName'].toString();
-              } else if (data['parent_name'] != null) {
-                parentName = data['parent_name'].toString();
-              }
-
-              return Dismissible(
-                key: Key(studentId),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.delete, color: Colors.white),
-                ),
-                confirmDismiss: (direction) async {
-                  return await showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
+          return Dismissible(
+            key: Key(studentId),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.delete, color: Colors.white),
+            ),
+            confirmDismiss: (direction) async {
+              return await showDialog(
+                context: context,
+                builder:
+                    (context) => AlertDialog(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -368,265 +478,279 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
                         ),
                       ],
                     ),
+              );
+            },
+            onDismissed: (direction) async {
+              try {
+                await FirebaseFirestore.instance
+                    .collection('schools')
+                    .doc(widget.schoolId)
+                    .collection('students')
+                    .doc(studentId)
+                    .delete();
+
+                if (className != "-") {
+                  await FirebaseFirestore.instance
+                      .collection('schools')
+                      .doc(widget.schoolId)
+                      .collection('classes')
+                      .doc(className)
+                      .collection('students')
+                      .doc(studentId)
+                      .delete();
+                }
+
+                setState(() {
+                  _students.removeWhere((doc) => doc.id == studentId);
+                });
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("$name deleted successfully"),
+                      backgroundColor: Colors.green,
+                    ),
                   );
-                },
-                onDismissed: (direction) async {
-                  try {
-                    // Delete student document
-                    await FirebaseFirestore.instance
-                        .collection('schools')
-                        .doc(widget.schoolId)
-                        .collection('students')
-                        .doc(studentId)
-                        .delete();
-
-                    // Also delete from class subcollection
-                    if (className != "-") {
-                      await FirebaseFirestore.instance
-                          .collection('schools')
-                          .doc(widget.schoolId)
-                          .collection('classes')
-                          .doc(className)
-                          .collection('students')
-                          .doc(studentId)
-                          .delete();
-                    }
-
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("$name deleted successfully"),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text("Error deleting: $e"),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                },
-                child: Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Error deleting: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: Card(
+              elevation: 2,
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                leading: CircleAvatar(
+                  radius: 26,
+                  backgroundColor: Colors.cyan.withValues(alpha: 0.1),
+                  child: Text(
+                    roll,
+                    style: const TextStyle(
+                      color: Colors.cyan,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
                   ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    leading: CircleAvatar(
-                      radius: 26,
-                      backgroundColor: Colors.cyan.withValues(alpha: 0.1),
-                      child: Text(
-                        roll,
-                        style: const TextStyle(
-                          color: Colors.cyan,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
+                ),
+                title: Text(
+                  name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Class $className - $section | Roll: $roll",
+                        style: const TextStyle(fontSize: 12),
                       ),
-                    ),
-                    title: Text(
-                      name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Class $className - $section | Roll: $roll",
-                            style: const TextStyle(fontSize: 12),
+                      if (admissionNo != "-")
+                        Text(
+                          "Admission No: $admissionNo",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
                           ),
-                          if (admissionNo != "-")
-                            Text(
-                              "Admission No: $admissionNo",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          if (parentName.isNotEmpty)
-                            Text(
-                              "Parent: $parentName",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                        ],
+                        ),
+                      if (parentName.isNotEmpty)
+                        Text(
+                          "Parent: $parentName",
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.edit,
+                        size: 20,
+                        color: Colors.cyan,
                       ),
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, size: 20, color: Colors.cyan),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => StudentEditPage(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (_) => StudentEditPage(
                                   schoolId: widget.schoolId,
                                   studentId: studentId,
                                 ),
-                              ),
-                            ).then((_) => setState(() {}));
-                          },
-                        ),
-                        const Icon(Icons.arrow_forward_ios,
-                            size: 16, color: Colors.grey),
-                      ],
+                          ),
+                        ).then((_) {
+                          _loadStudents();
+                        });
+                      },
                     ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => StudentProfilePage(
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: Colors.grey,
+                    ),
+                  ],
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) => StudentProfilePage(
                             schoolId: widget.schoolId,
                             studentId: studentId,
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
   void _showFilterDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text("Filter Students"),
-        content: StatefulBuilder(
-          builder: (context, setState) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String?>(
-                  value: _selectedClassFilter,
-                  hint: const Text("All Classes"),
-                  decoration: const InputDecoration(
-                    labelText: "Class",
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text("All Classes"),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text("Filter Students"),
+            content: StatefulBuilder(
+              builder: (context, setStateDialog) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String?>(
+                      value: _selectedClassFilter,
+                      hint: const Text("All Classes"),
+                      decoration: const InputDecoration(
+                        labelText: "Class",
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text("All Classes"),
+                        ),
+                        ..._availableClasses.map((className) {
+                          return DropdownMenuItem(
+                            value: className,
+                            child: Text(className),
+                          );
+                        }).toList(),
+                      ],
+                      onChanged: (value) {
+                        setStateDialog(() {
+                          _selectedClassFilter = value;
+                        });
+                      },
                     ),
-                    ..._availableClasses.map((className) {
-                      return DropdownMenuItem(
-                        value: className,
-                        child: Text(className),
-                      );
-                    }).toList(),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedClassFilter = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String?>(
-                  value: _selectedSectionFilter,
-                  hint: const Text("All Sections"),
-                  decoration: const InputDecoration(
-                    labelText: "Section",
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text("All Sections"),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String?>(
+                      value: _selectedSectionFilter,
+                      hint: const Text("All Sections"),
+                      decoration: const InputDecoration(
+                        labelText: "Section",
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        const DropdownMenuItem(
+                          value: null,
+                          child: Text("All Sections"),
+                        ),
+                        ..._availableSections.map((section) {
+                          return DropdownMenuItem(
+                            value: section,
+                            child: Text(section),
+                          );
+                        }).toList(),
+                      ],
+                      onChanged: (value) {
+                        setStateDialog(() {
+                          _selectedSectionFilter = value;
+                        });
+                      },
                     ),
-                    ..._availableSections.map((section) {
-                      return DropdownMenuItem(
-                        value: section,
-                        child: Text(section),
-                      );
-                    }).toList(),
                   ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedSectionFilter = value;
-                    });
-                  },
-                ),
-              ],
-            );
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _selectedClassFilter = null;
-                _selectedSectionFilter = null;
-              });
-              Navigator.pop(context);
-            },
-            child: const Text("Clear All"),
+                );
+              },
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _selectedClassFilter = null;
+                    _selectedSectionFilter = null;
+                  });
+                  Navigator.pop(context);
+                },
+                child: const Text("Clear All"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Apply"),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Apply"),
-          ),
-        ],
-      ),
     );
   }
 
   void _showSortDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Text("Sort By"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: _sortOptions.map((option) {
-            return RadioListTile<String>(
-              title: Text(option),
-              value: option,
-              groupValue: _selectedSortBy,
-              activeColor: Colors.cyan,
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _selectedSortBy = value;
-                  });
-                  Navigator.pop(context);
-                }
-              },
-            );
-          }).toList(),
-        ),
-      ),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text("Sort By"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children:
+                  _sortOptions.map((option) {
+                    return RadioListTile<String>(
+                      title: Text(option),
+                      value: option,
+                      groupValue: _selectedSortBy,
+                      activeColor: Colors.cyan,
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedSortBy = value;
+                          });
+                          Navigator.pop(context);
+                        }
+                      },
+                    );
+                  }).toList(),
+            ),
+          ),
     );
   }
 

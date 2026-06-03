@@ -37,8 +37,8 @@ android {
         applicationId = "com.skiez.smartschoolapp"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 4
-        versionName = "1.0.4"
+        versionCode = 5
+        versionName = "1.0.5"
         multiDexEnabled = true
     }
 
