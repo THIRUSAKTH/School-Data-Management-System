@@ -154,6 +154,7 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
 
     try {
       final attendanceData = <String, Map<String, dynamic>>{};
+      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
       final List<Map<String, dynamic>> absentLateStudents = [];
 
       // First, collect all attendance data
@@ -167,69 +168,48 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
           'rollNo': _studentRollNos[studentId] ?? '',
           'className': widget.className,
           'section': widget.section,
+          'date': dateStr, // ADD THIS LINE - CRITICAL!
           'status': status,
-          'remark':
-              status == 'Absent'
-                  ? (_remarks[studentId] ?? '')
-                  : (status == 'Late'
-                      ? (_remarks[studentId] ?? 'Late arrival')
-                      : ''),
+          'remark': status == 'Absent'
+              ? (_remarks[studentId] ?? '')
+              : (status == 'Late' ? (_remarks[studentId] ?? 'Late arrival') : ''),
           'checkInTime': _checkInTimes[studentId] ?? '',
           'checkOutTime': _checkOutTimes[studentId] ?? '',
           'updatedBy': FirebaseAuth.instance.currentUser?.uid ?? '',
           'updatedAt': FieldValue.serverTimestamp(),
         };
-      }
-
-      // Save attendance
-      final success = await AttendanceService.saveAttendance(
-        schoolId: widget.schoolId,
-        className: widget.className,
-        section: widget.section,
-        date: _selectedDate,
-        attendanceData: attendanceData,
-      );
-
-      if (!mounted || !success) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to save attendance'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        setState(() => _isSaving = false);
-        return;
-      }
-
-      // Collect students for notifications
-      for (var student in _students) {
-        final studentId = student.id;
-        final status = _attendanceStatus[studentId] ?? 'Present';
 
         if (status == 'Absent' || status == 'Late') {
           final parentUid = _studentParentUids[studentId];
-
-          print(
-            '📱 Student: ${_studentNames[studentId]}, Status: $status, ParentUID: $parentUid',
-          );
-
           absentLateStudents.add({
             'studentId': studentId,
             'studentName': _studentNames[studentId] ?? 'Student',
             'rollNo': _studentRollNos[studentId] ?? '',
             'status': status,
-            'remark':
-                status == 'Absent'
-                    ? (_remarks[studentId] ?? 'No reason provided')
-                    : (_remarks[studentId] ?? 'Late arrival'),
+            'remark': status == 'Absent'
+                ? (_remarks[studentId] ?? 'No reason provided')
+                : (_remarks[studentId] ?? 'Late arrival'),
             'checkInTime': _checkInTimes[studentId] ?? '',
             'checkOutTime': _checkOutTimes[studentId] ?? '',
             'parentUid': parentUid,
           });
         }
       }
+
+      // Save attendance - Update to use the correct path with date
+      final batch = FirebaseFirestore.instance.batch();
+      final attendanceDocRef = FirebaseFirestore.instance
+          .collection('schools')
+          .doc(widget.schoolId)
+          .collection('attendance')
+          .doc(dateStr);
+
+      for (var entry in attendanceData.entries) {
+        batch.set(attendanceDocRef.collection('records').doc(entry.key), entry.value);
+      }
+
+      await batch.commit();
+      debugPrint('✅ Attendance saved successfully for $dateStr');
 
       // Send notifications
       await _sendAttendanceNotifications(absentLateStudents);
@@ -256,7 +236,6 @@ class _MarkAttendancePageState extends State<MarkAttendancePage> {
       if (mounted) setState(() => _isSaving = false);
     }
   }
-
   Future<void> _sendAttendanceNotifications(
     List<Map<String, dynamic>> absentLateStudents,
   ) async {
