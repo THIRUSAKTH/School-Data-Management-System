@@ -1,6 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class AdminMonthlyAttendancePage extends StatefulWidget {
@@ -33,14 +33,6 @@ class _AdminMonthlyAttendancePageState
   int _totalStudents = 0;
   String _errorMessage = '';
 
-  double _safePercentage(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is int) return value.toDouble();
-    if (value is double) return value;
-    if (value is num) return value.toDouble();
-    return 0.0;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -54,7 +46,7 @@ class _AdminMonthlyAttendancePageState
     });
 
     try {
-      // Get all students in the class
+      // Get students using direct path (NO INDEX NEEDED)
       QuerySnapshot studentsSnapshot =
           await FirebaseFirestore.instance
               .collection('schools')
@@ -97,19 +89,17 @@ class _AdminMonthlyAttendancePageState
       }
       _totalStudents = studentData.length;
 
-      // Get attendance collection reference
-      final attendanceRef = FirebaseFirestore.instance
-          .collection('schools')
-          .doc(widget.schoolId)
-          .collection('attendance');
+      // Get ALL attendance documents from direct path (NO INDEX NEEDED)
+      final attendanceDocs =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(widget.schoolId)
+              .collection('attendance')
+              .get();
 
-      // Get ALL attendance documents
-      final allDocs = await attendanceRef.get();
+      print('📊 Total attendance docs: ${attendanceDocs.docs.length}');
 
-      print('=== DEBUG ===');
-      print('Total attendance docs found: ${allDocs.docs.length}');
-
-      if (allDocs.docs.isEmpty) {
+      if (attendanceDocs.docs.isEmpty) {
         setState(() {
           _errorMessage =
               'No attendance records found. Please mark attendance first.';
@@ -118,28 +108,25 @@ class _AdminMonthlyAttendancePageState
         return;
       }
 
-      // Print all document IDs
-      for (var doc in allDocs.docs) {
-        print('Document ID: ${doc.id}');
+      // Print all document IDs for debugging
+      for (var doc in attendanceDocs.docs) {
+        print('📁 Document ID: ${doc.id}');
       }
 
       // Filter documents for the selected month
-      List<String> validDates = [];
-      for (var doc in allDocs.docs) {
-        // Check if document ID matches YYYY-MM-DD format and matches our month
-        if (doc.id.length >= 7) {
-          String yearMonth = doc.id.substring(0, 7);
-          String targetYearMonth =
-              '${widget.year}-${widget.month.toString().padLeft(2, '0')}';
-          if (yearMonth == targetYearMonth) {
-            validDates.add(doc.id);
-            print('✅ Matched: ${doc.id}');
-          }
+      final targetMonth =
+          '${widget.year}-${widget.month.toString().padLeft(2, '0')}';
+      final validDates = <String>[];
+
+      for (var doc in attendanceDocs.docs) {
+        if (doc.id.startsWith(targetMonth)) {
+          validDates.add(doc.id);
+          print('✅ Matched: ${doc.id}');
         }
       }
 
       _totalDays = validDates.length;
-      print('Days in selected month: $_totalDays');
+      print('📅 Days in month: $_totalDays');
 
       if (_totalDays == 0) {
         setState(() {
@@ -152,14 +139,20 @@ class _AdminMonthlyAttendancePageState
 
       // Process each date's attendance
       for (String date in validDates) {
-        final recordsSnapshot =
-            await attendanceRef.doc(date).collection('records').get();
+        final records =
+            await FirebaseFirestore.instance
+                .collection('schools')
+                .doc(widget.schoolId)
+                .collection('attendance')
+                .doc(date)
+                .collection('records')
+                .get();
 
-        print('Processing $date: ${recordsSnapshot.docs.length} records');
+        print('📝 $date: ${records.docs.length} records');
 
-        Set<String> presentStudents = {};
+        final presentStudents = <String>{};
 
-        for (var record in recordsSnapshot.docs) {
+        for (var record in records.docs) {
           final data = record.data();
           final studentId = record.id;
           final status = data['status'] ?? 'Absent';
@@ -182,7 +175,7 @@ class _AdminMonthlyAttendancePageState
         }
       }
 
-      // Calculate percentages and prepare result
+      // Calculate percentages
       List<Map<String, dynamic>> result = [];
       double totalPercentage = 0;
 
@@ -261,11 +254,7 @@ class _AdminMonthlyAttendancePageState
             children: [
               Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
               const SizedBox(height: 16),
-              Text(
-                _errorMessage,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16),
-              ),
+              Text(_errorMessage, textAlign: TextAlign.center),
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: _calculateAttendance,
@@ -285,10 +274,7 @@ class _AdminMonthlyAttendancePageState
           children: [
             Icon(Icons.history, size: 64, color: Colors.grey.shade400),
             const SizedBox(height: 16),
-            Text(
-              "No Attendance Data",
-              style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-            ),
+            const Text("No Attendance Data", style: TextStyle(fontSize: 18)),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _calculateAttendance,
@@ -333,9 +319,9 @@ class _AdminMonthlyAttendancePageState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
+          const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 "Report Period",
                 style: TextStyle(color: Colors.white70, fontSize: 12),
@@ -424,11 +410,11 @@ class _AdminMonthlyAttendancePageState
   }
 
   Widget _buildChart() {
-    var topStudents = _attendanceData.take(10).toList();
-    List<BarChartGroupData> barGroups = [];
+    final topStudents = _attendanceData.take(10).toList();
+    final barGroups = <BarChartGroupData>[];
 
     for (int i = 0; i < topStudents.length; i++) {
-      double percentage = topStudents[i]['percentage'];
+      final percentage = topStudents[i]['percentage'];
       barGroups.add(
         BarChartGroupData(
           x: i,
@@ -474,7 +460,7 @@ class _AdminMonthlyAttendancePageState
                     sideTitles: SideTitles(
                       showTitles: true,
                       getTitlesWidget: (v, m) {
-                        int i = v.toInt();
+                        final i = v.toInt();
                         return i < topStudents.length
                             ? Text(
                               topStudents[i]['rollNo'] ?? '',
@@ -500,8 +486,8 @@ class _AdminMonthlyAttendancePageState
       itemCount: _attendanceData.length,
       itemBuilder: (context, index) {
         final s = _attendanceData[index];
-        double percentage = s['percentage'];
-        Color color =
+        final percentage = s['percentage'];
+        final color =
             percentage >= 75
                 ? Colors.green
                 : (percentage >= 50 ? Colors.orange : Colors.red);

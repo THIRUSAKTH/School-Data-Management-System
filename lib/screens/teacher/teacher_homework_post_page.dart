@@ -69,15 +69,20 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
   }
 
   void _loadHomeworkData(Map<String, dynamic> data) {
-    _titleController.text = data['title'] ?? '';
-    _homeworkController.text = data['description'] ?? '';
-    selectedClass = data['className'] ?? '';
-    selectedSection = data['section'] ?? '';
-    selectedSubject = data['subject'] ?? 'Mathematics';
-    isUrgent = data['isUrgent'] ?? false;
+    _titleController.text = data['title']?.toString() ?? '';
+    _homeworkController.text = data['description']?.toString() ?? '';
+    selectedClass = data['className']?.toString() ?? '';
+    selectedSection = data['section']?.toString() ?? '';
+    selectedSubject = data['subject']?.toString() ?? 'Mathematics';
+    isUrgent = data['isUrgent'] == true;
 
     if (data['attachments'] != null) {
-      _attachments = List<Map<String, dynamic>>.from(data['attachments']);
+      try {
+        _attachments = List<Map<String, dynamic>>.from(data['attachments']);
+      } catch (e) {
+        debugPrint('Error loading attachments: $e');
+        _attachments = [];
+      }
     }
 
     if (data['dueDate'] != null) {
@@ -419,7 +424,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         }
       }
 
-      Navigator.pop(context);
+      if (mounted) Navigator.pop(context);
 
       if (mounted && uploadedFiles.isNotEmpty) {
         setState(() {
@@ -438,8 +443,8 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         );
       }
     } catch (e) {
+      if (mounted) Navigator.pop(context);
       if (mounted) {
-        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Error uploading files: $e"),
@@ -551,14 +556,14 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
               color: Colors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.assignment, color: Colors.white, size: 28),
+            child: const Icon(Icons.assignment, color: Colors.white, size: 28),
           ),
           const SizedBox(width: 12),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   "Create Homework",
                   style: TextStyle(
                     color: Colors.white,
@@ -568,10 +573,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
                 ),
                 Text(
                   "Assign homework to your students",
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
             ),
@@ -610,7 +612,10 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.deepPurple, width: 2),
+                borderSide: const BorderSide(
+                  color: Colors.deepPurple,
+                  width: 2,
+                ),
               ),
               prefixIcon: const Icon(Icons.title, color: Colors.deepPurple),
               contentPadding: const EdgeInsets.symmetric(
@@ -655,7 +660,10 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.deepPurple, width: 2),
+                borderSide: const BorderSide(
+                  color: Colors.deepPurple,
+                  width: 2,
+                ),
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -951,84 +959,93 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
           Row(
             children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: selectedClass.isEmpty ? null : selectedClass,
-                  hint: const Text("Select Class"),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text("Select Class"),
-                    ),
-                    ...classes.map(
-                      (className) => DropdownMenuItem(
-                        value: className,
-                        child: Text(className),
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 100),
+                  child: DropdownButtonFormField<String>(
+                    value: selectedClass.isEmpty ? null : selectedClass,
+                    hint: const Text("Select Class"),
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
                       ),
                     ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        selectedClass = value;
-                        selectedSection = "";
-                        _loadSections(selectedClass);
-                      });
-                    }
-                  },
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text("Select Class"),
+                      ),
+                      ...classes.map(
+                        (className) => DropdownMenuItem(
+                          value: className,
+                          child: Text(className),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          selectedClass = value;
+                          selectedSection = "";
+                          _loadSections(selectedClass);
+                        });
+                      }
+                    },
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: selectedSection.isEmpty ? null : selectedSection,
-                  hint: const Text("Select Section"),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                      value: null,
-                      child: Text("Select Section"),
-                    ),
-                    ...sections.map(
-                      (section) => DropdownMenuItem(
-                        value: section,
-                        child: Text("Section $section"),
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 100),
+                  child: DropdownButtonFormField<String>(
+                    value: selectedSection.isEmpty ? null : selectedSection,
+                    hint: const Text("Select Section"),
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
                       ),
                     ),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) setState(() => selectedSection = value);
-                  },
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text("Select Section"),
+                      ),
+                      ...sections.map(
+                        (section) => DropdownMenuItem(
+                          value: section,
+                          child: Text("Section $section"),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null)
+                        setState(() => selectedSection = value);
+                    },
+                  ),
                 ),
               ),
             ],
@@ -1121,13 +1138,16 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
                           color: Colors.deepPurple,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          dueDate == null
-                              ? "Select date"
-                              : DateFormat("dd MMM yyyy").format(dueDate!),
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: dueDate == null ? Colors.grey : Colors.black,
+                        Expanded(
+                          child: Text(
+                            dueDate == null
+                                ? "Select date"
+                                : DateFormat("dd MMM yyyy").format(dueDate!),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  dueDate == null ? Colors.grey : Colors.black,
+                            ),
                           ),
                         ),
                       ],
@@ -1157,13 +1177,16 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
                           color: Colors.deepPurple,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          dueTime == null
-                              ? "Select time"
-                              : dueTime!.format(context),
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: dueTime == null ? Colors.grey : Colors.black,
+                        Expanded(
+                          child: Text(
+                            dueTime == null
+                                ? "Select time"
+                                : dueTime!.format(context),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  dueTime == null ? Colors.grey : Colors.black,
+                            ),
                           ),
                         ),
                       ],
@@ -1342,8 +1365,6 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         "isActive": true,
       };
 
-      String homeworkId;
-
       if (isEditing && editingHomeworkId != null) {
         await FirebaseFirestore.instance
             .collection('schools')
@@ -1351,21 +1372,38 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             .collection('homework')
             .doc(editingHomeworkId)
             .update(homeworkData);
-        homeworkId = editingHomeworkId!;
-        _showSuccess("Homework updated successfully");
+
+        // Show success snackbar - NO NAVIGATION
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("✅ Homework updated successfully!"),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
       } else {
         final docRef = await FirebaseFirestore.instance
             .collection('schools')
             .doc(AppConfig.schoolId)
             .collection('homework')
             .add(homeworkData);
-        homeworkId = docRef.id;
-        _showSuccess("Homework published successfully");
+
+        // Show success snackbar - NO NAVIGATION
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("✅ Homework published successfully!"),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
 
-      // Send notifications
-      await _sendHomeworkNotifications(
-        homeworkId: homeworkId,
+      // Send notifications (fire and forget - don't wait)
+      _sendHomeworkNotifications(
+        homeworkId:
+            isEditing && editingHomeworkId != null
+                ? editingHomeworkId!
+                : DateTime.now().millisecondsSinceEpoch.toString(),
         title: _titleController.text.trim(),
         description: _homeworkController.text.trim(),
         className: selectedClass,
@@ -1375,8 +1413,8 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         isUrgent: isUrgent,
       );
 
+      // Clear form for next submission
       _clearForm();
-      if (mounted) Navigator.pop(context, true);
     } catch (e) {
       _showError("Error: $e");
     } finally {
@@ -1405,7 +1443,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
               .get();
 
       if (studentsSnapshot.docs.isEmpty) {
-        print('No students found in class $className-$section');
+        debugPrint('No students found in class $className-$section');
         return;
       }
 
@@ -1471,9 +1509,9 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         }
       }
 
-      print('✅ Homework notifications sent to $notificationCount parents');
+      debugPrint('✅ Homework notifications sent to $notificationCount parents');
     } catch (e) {
-      print('Error sending homework notifications: $e');
+      debugPrint('Error sending homework notifications: $e');
     }
   }
 
@@ -1513,7 +1551,13 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             .doc(editingHomeworkId)
             .delete();
 
-        _showSuccess("Homework deleted successfully");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Homework deleted successfully"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _clearForm();
         if (mounted) Navigator.pop(context, true);
       } catch (e) {
         _showError("Error deleting homework: $e");
@@ -1544,12 +1588,6 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
-  }
-
-  void _showSuccess(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.green),
     );
   }
 
