@@ -35,6 +35,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
   XFile? _selectedImage;
   String _logoUrl = "";
   String? _schoolCode;
+  Uint8List? _webImageBytes; // For web image preview
 
   final ImagePicker _picker = ImagePicker();
 
@@ -118,9 +119,13 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                           Navigator.pop(context);
                           final picked = await _picker.pickImage(
                             source: ImageSource.camera,
+                            imageQuality: 80,
                           );
                           if (picked != null) {
-                            setState(() => _selectedImage = picked);
+                            setState(() {
+                              _selectedImage = picked;
+                              _webImageBytes = null;
+                            });
                           }
                         },
                       ),
@@ -131,23 +136,37 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                         Navigator.pop(context);
                         final picked = await _picker.pickImage(
                           source: ImageSource.gallery,
+                          imageQuality: 80,
                         );
                         if (picked != null) {
-                          setState(() => _selectedImage = picked);
+                          if (isWeb) {
+                            final bytes = await picked.readAsBytes();
+                            setState(() {
+                              _webImageBytes = bytes;
+                              _selectedImage = picked;
+                            });
+                          } else {
+                            setState(() {
+                              _selectedImage = picked;
+                              _webImageBytes = null;
+                            });
+                          }
                         }
                       },
                     ),
-                    _buildImageSourceOption(
-                      icon: Icons.delete,
-                      label: "Remove",
-                      onTap: () {
-                        Navigator.pop(context);
-                        setState(() {
-                          _selectedImage = null;
-                          _logoUrl = "";
-                        });
-                      },
-                    ),
+                    if (_logoUrl.isNotEmpty || _selectedImage != null)
+                      _buildImageSourceOption(
+                        icon: Icons.delete,
+                        label: "Remove",
+                        onTap: () {
+                          Navigator.pop(context);
+                          setState(() {
+                            _selectedImage = null;
+                            _logoUrl = "";
+                            _webImageBytes = null;
+                          });
+                        },
+                      ),
                   ],
                 ),
               ],
@@ -181,7 +200,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
   }
 
   Future<void> _uploadLogo() async {
-    if (_selectedImage == null) {
+    if (_selectedImage == null && _webImageBytes == null) {
       _showError("Please select an image first");
       return;
     }
@@ -189,31 +208,36 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     setState(() => _isUploading = true);
 
     try {
+      final fileName =
+          '${widget.schoolId}_${DateTime.now().millisecondsSinceEpoch}.png';
       final ref = FirebaseStorage.instance
           .ref()
           .child('school_logos')
-          .child(
-            '${widget.schoolId}_${DateTime.now().millisecondsSinceEpoch}.png',
-          );
+          .child(fileName);
 
-      if (isWeb) {
-        final bytes = await _selectedImage!.readAsBytes();
-        await ref.putData(bytes);
-      } else {
+      if (isWeb && _webImageBytes != null) {
+        // Web upload
+        await ref.putData(_webImageBytes!);
+      } else if (_selectedImage != null) {
+        // Mobile upload
         final file = File(_selectedImage!.path);
         await ref.putFile(file);
+      } else {
+        throw Exception("No image data available");
       }
 
       final url = await ref.getDownloadURL();
 
+      // Update Firestore with new logo URL
       await FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
-          .update({"logoUrl": url});
+          .update({"logoUrl": url, "updatedAt": FieldValue.serverTimestamp()});
 
       setState(() {
         _logoUrl = url;
         _selectedImage = null;
+        _webImageBytes = null;
       });
 
       if (mounted) {
@@ -263,6 +287,9 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
             backgroundColor: Colors.green,
           ),
         );
+
+        // Optional: Refresh the dashboard to show updated school name
+        Navigator.pop(context, true);
       }
     } catch (e) {
       _showError("Error saving school details: $e");
@@ -279,21 +306,18 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     }
   }
 
-  // FIXED: Helper to get image provider for display
+  // Get image provider for display
   ImageProvider? _getImageProvider() {
-    if (_selectedImage != null) {
-      if (isWeb) {
-        // For web preview of selected image
-        return NetworkImage(_selectedImage!.path);
-      } else {
-        return FileImage(File(_selectedImage!.path));
-      }
+    if (isWeb && _webImageBytes != null) {
+      return MemoryImage(_webImageBytes!);
+    }
+    if (_selectedImage != null && !isWeb) {
+      return FileImage(File(_selectedImage!.path));
     }
     if (_logoUrl.isNotEmpty) {
       return NetworkImage(_logoUrl);
     }
-    // Return a placeholder instead of null
-    return const AssetImage('assets/images/placeholder.png');
+    return null;
   }
 
   @override
@@ -339,8 +363,11 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     );
   }
 
-  // FIXED: Logo section with proper error handling
   Widget _buildLogoSecion() {
+    final imageProvider = _getImageProvider();
+    final hasImage =
+        imageProvider != null || _logoUrl.isNotEmpty || _selectedImage != null;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: _cardDecoration(),
@@ -364,9 +391,17 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                   CircleAvatar(
                     radius: 65,
                     backgroundColor: Colors.grey.shade200,
-                    backgroundImage: _getImageProvider(),
+                    backgroundImage: imageProvider,
+                    onBackgroundImageError: (_, __) {
+                      // Handle image load error
+                      if (_logoUrl.isNotEmpty) {
+                        setState(() {
+                          _logoUrl = "";
+                        });
+                      }
+                    },
                     child:
-                        (_selectedImage == null && _logoUrl.isEmpty)
+                        !hasImage
                             ? Icon(
                               Icons.add_photo_alternate,
                               size: 45,
@@ -374,11 +409,12 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                             )
                             : null,
                   ),
-                  if (_selectedImage != null || _logoUrl.isNotEmpty)
+                  if (hasImage)
                     Positioned(
                       bottom: 0,
                       right: 0,
                       child: Container(
+                        padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,
@@ -391,7 +427,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                         ),
                         child: const Icon(
                           Icons.edit,
-                          size: 18,
+                          size: 16,
                           color: Colors.blue,
                         ),
                       ),
@@ -402,14 +438,14 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            _selectedImage != null
+            _selectedImage != null || _webImageBytes != null
                 ? "New logo selected - tap upload to save"
                 : (_logoUrl.isNotEmpty
                     ? "Tap to change logo"
                     : "Tap to add logo"),
             style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
-          if (_selectedImage != null) ...[
+          if (_selectedImage != null || _webImageBytes != null) ...[
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -435,14 +471,20 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                 ),
                 const SizedBox(width: 12),
                 TextButton.icon(
-                  onPressed: () => setState(() => _selectedImage = null),
+                  onPressed:
+                      () => setState(() {
+                        _selectedImage = null;
+                        _webImageBytes = null;
+                      }),
                   icon: const Icon(Icons.cancel, size: 18),
                   label: const Text("Cancel"),
                 ),
               ],
             ),
           ],
-          if (_logoUrl.isNotEmpty && _selectedImage == null)
+          if (_logoUrl.isNotEmpty &&
+              _selectedImage == null &&
+              _webImageBytes == null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Row(
@@ -529,14 +571,17 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: Colors.blue.shade50,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.code, size: 18, color: Colors.grey),
+                  const Icon(Icons.code, size: 18, color: Colors.blue),
                   const SizedBox(width: 8),
-                  const Text("School Code:"),
+                  const Text(
+                    "School Code:",
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     _schoolCode!,
@@ -544,6 +589,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
                       fontWeight: FontWeight.bold,
                       fontFamily: 'monospace',
                       fontSize: 14,
+                      color: Colors.blue,
                     ),
                   ),
                 ],

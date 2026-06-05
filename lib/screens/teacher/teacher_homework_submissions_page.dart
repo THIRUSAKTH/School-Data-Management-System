@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:schoolprojectjan/app_config.dart';
+import 'package:schoolprojectjan/services/notification_service.dart';
 
 class TeacherHomeworkSubmissionsPage extends StatefulWidget {
   final String homeworkId;
@@ -32,6 +33,7 @@ class _TeacherHomeworkSubmissionsPageState
   List<String> _submittedStudentIds = [];
   Map<String, dynamic>? _homeworkData;
   List<Map<String, dynamic>> _submissionDetails = [];
+  bool _sendingReminders = false;
 
   @override
   void initState() {
@@ -50,13 +52,13 @@ class _TeacherHomeworkSubmissionsPageState
     setState(() => _isLoading = true);
 
     try {
-      // Load homework data
-      final homeworkDoc = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('homework')
-          .doc(widget.homeworkId)
-          .get();
+      final homeworkDoc =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('homework')
+              .doc(widget.homeworkId)
+              .get();
 
       if (homeworkDoc.exists) {
         _homeworkData = homeworkDoc.data();
@@ -64,7 +66,6 @@ class _TeacherHomeworkSubmissionsPageState
           _homeworkData?['submittedBy'] ?? [],
         );
 
-        // Load submission details if available
         if (_homeworkData?['submissionDetails'] != null) {
           _submissionDetails = List<Map<String, dynamic>>.from(
             _homeworkData!['submissionDetails'],
@@ -72,34 +73,35 @@ class _TeacherHomeworkSubmissionsPageState
         }
       }
 
-      // Load students in the class
-      final studentsSnapshot = await FirebaseFirestore.instance
-          .collection('schools')
-          .doc(AppConfig.schoolId)
-          .collection('students')
-          .where('class', isEqualTo: widget.className)
-          .where('section', isEqualTo: widget.section)
-          .get();
+      final studentsSnapshot =
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('class', isEqualTo: widget.className)
+              .where('section', isEqualTo: widget.section)
+              .get();
 
-      _students = studentsSnapshot.docs.map((doc) {
-        final data = doc.data();
-        final submissionDetail = _submissionDetails.firstWhere(
+      _students =
+          studentsSnapshot.docs.map((doc) {
+            final data = doc.data();
+            final submissionDetail = _submissionDetails.firstWhere(
               (detail) => detail['studentId'] == doc.id,
-          orElse: () => {},
-        );
+              orElse: () => {},
+            );
 
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? 'Unknown',
-          'rollNo': data['rollNo']?.toString() ?? '',
-          'isSubmitted': _submittedStudentIds.contains(doc.id),
-          'submittedAt': submissionDetail['submittedAt'],
-          'remarks': submissionDetail['remarks'] ?? '',
-          'grade': submissionDetail['grade'],
-        };
-      }).toList();
+            return {
+              'id': doc.id,
+              'name': data['name'] ?? 'Unknown',
+              'rollNo': data['rollNo']?.toString() ?? '',
+              'parentUid': data['parentUID'] ?? data['parentUid'] ?? '',
+              'isSubmitted': _submittedStudentIds.contains(doc.id),
+              'submittedAt': submissionDetail['submittedAt'],
+              'remarks': submissionDetail['remarks'] ?? '',
+              'grade': submissionDetail['grade'],
+            };
+          }).toList();
 
-      // Sort: Pending first, then Submitted by date
       _students.sort((a, b) {
         if (a['isSubmitted'] == b['isSubmitted']) {
           if (a['isSubmitted']) {
@@ -172,31 +174,34 @@ class _TeacherHomeworkSubmissionsPageState
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-        children: [
-          _buildSummaryCards(),
-          const SizedBox(height: 8),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildStudentList("All"),
-                _buildStudentList("Submitted"),
-                _buildStudentList("Pending"),
-              ],
-            ),
-          ),
-        ],
-      ),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                children: [
+                  _buildSummaryCards(),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildStudentList("All"),
+                        _buildStudentList("Submitted"),
+                        _buildStudentList("Pending"),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
     );
   }
 
   Widget _buildSummaryCards() {
-    final submittedCount = _students.where((s) => s['isSubmitted'] == true).length;
+    final submittedCount =
+        _students.where((s) => s['isSubmitted'] == true).length;
     final pendingCount = _students.length - submittedCount;
-    final submissionRate = _students.isNotEmpty ? (submittedCount / _students.length) * 100 : 0;
+    final submissionRate =
+        _students.isNotEmpty ? (submittedCount / _students.length) * 100 : 0;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -253,7 +258,11 @@ class _TeacherHomeworkSubmissionsPageState
           const SizedBox(height: 4),
           Text(
             value,
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
           Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
         ],
@@ -265,9 +274,11 @@ class _TeacherHomeworkSubmissionsPageState
     var filteredStudents = _students;
 
     if (filterType == "Submitted") {
-      filteredStudents = _students.where((s) => s['isSubmitted'] == true).toList();
+      filteredStudents =
+          _students.where((s) => s['isSubmitted'] == true).toList();
     } else if (filterType == "Pending") {
-      filteredStudents = _students.where((s) => s['isSubmitted'] == false).toList();
+      filteredStudents =
+          _students.where((s) => s['isSubmitted'] == false).toList();
     }
 
     if (filteredStudents.isEmpty) {
@@ -296,7 +307,14 @@ class _TeacherHomeworkSubmissionsPageState
                 padding: const EdgeInsets.only(top: 16),
                 child: ElevatedButton.icon(
                   onPressed: _sendReminderNotifications,
-                  icon: const Icon(Icons.notifications_active),
+                  icon:
+                      _sendingReminders
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.notifications_active),
                   label: const Text("Send Reminders"),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.deepPurple,
@@ -332,7 +350,8 @@ class _TeacherHomeworkSubmissionsPageState
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ExpansionTile(
         leading: CircleAvatar(
-          backgroundColor: isSubmitted ? Colors.green.shade100 : Colors.orange.shade100,
+          backgroundColor:
+              isSubmitted ? Colors.green.shade100 : Colors.orange.shade100,
           child: Text(
             student['rollNo'] ?? '?',
             style: TextStyle(
@@ -365,7 +384,8 @@ class _TeacherHomeworkSubmissionsPageState
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: isSubmitted ? Colors.green.shade50 : Colors.orange.shade50,
+                color:
+                    isSubmitted ? Colors.green.shade50 : Colors.orange.shade50,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
@@ -392,7 +412,10 @@ class _TeacherHomeworkSubmissionsPageState
               Padding(
                 padding: const EdgeInsets.only(left: 8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.blue.shade50,
                     borderRadius: BorderRadius.circular(20),
@@ -417,7 +440,8 @@ class _TeacherHomeworkSubmissionsPageState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (student['remarks'] != null && student['remarks'].toString().isNotEmpty)
+                  if (student['remarks'] != null &&
+                      student['remarks'].toString().isNotEmpty)
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -429,7 +453,10 @@ class _TeacherHomeworkSubmissionsPageState
                         children: [
                           const Text(
                             "Student Remarks:",
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -440,7 +467,6 @@ class _TeacherHomeworkSubmissionsPageState
                       ),
                     ),
                   const SizedBox(height: 12),
-                  // Responsive buttons - wrap on small screens
                   LayoutBuilder(
                     builder: (context, constraints) {
                       if (constraints.maxWidth < 400) {
@@ -449,7 +475,11 @@ class _TeacherHomeworkSubmissionsPageState
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                onPressed: () => _viewSubmission(student['id'], student['name']),
+                                onPressed:
+                                    () => _viewSubmission(
+                                      student['id'],
+                                      student['name'],
+                                    ),
                                 icon: const Icon(Icons.visibility),
                                 label: const Text("View Details"),
                                 style: ElevatedButton.styleFrom(
@@ -465,9 +495,15 @@ class _TeacherHomeworkSubmissionsPageState
                             SizedBox(
                               width: double.infinity,
                               child: OutlinedButton.icon(
-                                onPressed: () => _gradeHomework(student['id'], student['name']),
+                                onPressed:
+                                    () => _gradeHomework(
+                                      student['id'],
+                                      student['name'],
+                                    ),
                                 icon: const Icon(Icons.grade),
-                                label: Text(grade != null ? "Update Grade" : "Add Grade"),
+                                label: Text(
+                                  grade != null ? "Update Grade" : "Add Grade",
+                                ),
                                 style: OutlinedButton.styleFrom(
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -482,7 +518,11 @@ class _TeacherHomeworkSubmissionsPageState
                         children: [
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () => _viewSubmission(student['id'], student['name']),
+                              onPressed:
+                                  () => _viewSubmission(
+                                    student['id'],
+                                    student['name'],
+                                  ),
                               icon: const Icon(Icons.visibility),
                               label: const Text("View Details"),
                               style: ElevatedButton.styleFrom(
@@ -497,9 +537,15 @@ class _TeacherHomeworkSubmissionsPageState
                           const SizedBox(width: 12),
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () => _gradeHomework(student['id'], student['name']),
+                              onPressed:
+                                  () => _gradeHomework(
+                                    student['id'],
+                                    student['name'],
+                                  ),
                               icon: const Icon(Icons.grade),
-                              label: Text(grade != null ? "Update Grade" : "Add Grade"),
+                              label: Text(
+                                grade != null ? "Update Grade" : "Add Grade",
+                              ),
                               style: OutlinedButton.styleFrom(
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -520,7 +566,12 @@ class _TeacherHomeworkSubmissionsPageState
               child: SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () => _sendReminderToStudent(student['id'], student['name']),
+                  onPressed:
+                      () => _sendReminderToStudent(
+                        student['id'],
+                        student['name'],
+                        student['parentUid'],
+                      ),
                   icon: const Icon(Icons.notifications_active),
                   label: const Text("Send Reminder"),
                   style: OutlinedButton.styleFrom(
@@ -538,102 +589,126 @@ class _TeacherHomeworkSubmissionsPageState
     );
   }
 
+  // FIXED: Added SingleChildScrollView to prevent overflow
   Future<void> _viewSubmission(String studentId, String studentName) async {
-    // Find the student's submission details
     final submission = _submissionDetails.firstWhere(
-          (detail) => detail['studentId'] == studentId,
+      (detail) => detail['studentId'] == studentId,
       orElse: () => {},
     );
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text("Submission - $studentName"),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.assignment_turned_in, size: 48, color: Colors.green),
-              const SizedBox(height: 16),
-              if (submission['submittedAt'] != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    "Submitted: ${DateFormat('dd MMM yyyy, hh:mm a').format((submission['submittedAt'] as Timestamp).toDate())}",
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              if (submission['grade'] != null && submission['grade'].toString().isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    "Grade: ${submission['grade']}",
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              if (submission['teacherRemarks'] != null && submission['teacherRemarks'].toString().isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Teacher Remarks:",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text("Submission - $studentName"),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                // ✅ FIXED: Added SingleChildScrollView
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Center(
+                      child: Icon(
+                        Icons.assignment_turned_in,
+                        size: 48,
+                        color: Colors.green,
                       ),
-                      const SizedBox(height: 4),
-                      Text(submission['teacherRemarks'].toString()),
-                    ],
-                  ),
-                ),
-              if (submission['remarks'] != null && submission['remarks'].toString().isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Student Remarks:",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                    const SizedBox(height: 16),
+                    if (submission['submittedAt'] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          "Submitted: ${DateFormat('dd MMM yyyy, hh:mm a').format((submission['submittedAt'] as Timestamp).toDate())}",
+                          style: const TextStyle(fontSize: 12),
+                        ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(submission['remarks'].toString()),
-                    ],
-                  ),
+                    if (submission['grade'] != null &&
+                        submission['grade'].toString().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          "Grade: ${submission['grade']}",
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    if (submission['teacherRemarks'] != null &&
+                        submission['teacherRemarks'].toString().isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Teacher Remarks:",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(submission['teacherRemarks'].toString()),
+                          ],
+                        ),
+                      ),
+                    if (submission['remarks'] != null &&
+                        submission['remarks'].toString().isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Student Remarks:",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(submission['remarks'].toString()),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Close"),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _gradeHomework(studentId, studentName);
+                },
+                icon: const Icon(Icons.grade),
+                label: const Text("Grade Homework"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                ),
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(context);
-              _gradeHomework(studentId, studentName);
-            },
-            icon: const Icon(Icons.grade),
-            label: const Text("Grade Homework"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -641,7 +716,6 @@ class _TeacherHomeworkSubmissionsPageState
     final gradeController = TextEditingController();
     final remarksController = TextEditingController();
 
-    // Find existing grade
     final existingSubmission = _submissionDetails.firstWhere(
           (detail) => detail['studentId'] == studentId,
       orElse: () => {},
@@ -657,30 +731,32 @@ class _TeacherHomeworkSubmissionsPageState
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text("Grade Homework - $studentName"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: gradeController,
-              decoration: const InputDecoration(
-                labelText: "Grade",
-                hintText: "e.g., A+, 85%, Excellent",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.grade),
+        content: SingleChildScrollView(  // ✅ FIXED: Added SingleChildScrollView
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: gradeController,
+                decoration: const InputDecoration(
+                  labelText: "Grade",
+                  hintText: "e.g., A+, 85%, Excellent",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.grade),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: remarksController,
-              decoration: const InputDecoration(
-                labelText: "Teacher Remarks (Optional)",
-                hintText: "Add feedback for the student",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.comment),
+              const SizedBox(height: 12),
+              TextField(
+                controller: remarksController,
+                decoration: const InputDecoration(
+                  labelText: "Teacher Remarks (Optional)",
+                  hintText: "Add feedback for the student",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.comment),
+                ),
+                maxLines: 3,
               ),
-              maxLines: 3,
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -688,7 +764,18 @@ class _TeacherHomeworkSubmissionsPageState
             child: const Text("Cancel"),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              if (gradeController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Please enter a grade"),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(context, true);
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.deepPurple,
               foregroundColor: Colors.white,
@@ -709,8 +796,11 @@ class _TeacherHomeworkSubmissionsPageState
             .collection('homework')
             .doc(widget.homeworkId);
 
-        // Update submission details
-        final updatedDetails = List<Map<String, dynamic>>.from(_submissionDetails);
+        final homeworkDoc = await homeworkRef.get();
+        final updatedDetails = List<Map<String, dynamic>>.from(
+          homeworkDoc.data()?['submissionDetails'] ?? [],
+        );
+
         final existingIndex = updatedDetails.indexWhere(
               (detail) => detail['studentId'] == studentId,
         );
@@ -722,6 +812,7 @@ class _TeacherHomeworkSubmissionsPageState
           'teacherRemarks': remarksController.text.trim(),
           'gradedAt': FieldValue.serverTimestamp(),
           'gradedBy': FirebaseAuth.instance.currentUser?.uid,
+          'gradedByName': FirebaseAuth.instance.currentUser?.displayName ?? 'Teacher',
         };
 
         if (existingIndex != -1) {
@@ -735,7 +826,7 @@ class _TeacherHomeworkSubmissionsPageState
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text("Grade saved successfully!"),
+              content: Text("Grade saved successfully! 🎉"),
               backgroundColor: Colors.green,
             ),
           );
@@ -750,10 +841,9 @@ class _TeacherHomeworkSubmissionsPageState
         }
       }
     }
-  }
-
-  Future<void> _sendReminderNotifications() async {
-    final pendingStudents = _students.where((s) => s['isSubmitted'] == false).toList();
+  }  Future<void> _sendReminderNotifications() async {
+    final pendingStudents =
+        _students.where((s) => s['isSubmitted'] == false).toList();
 
     if (pendingStudents.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -767,52 +857,239 @@ class _TeacherHomeworkSubmissionsPageState
 
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Send Reminders"),
-        content: Text(
-          "Send reminder notifications to ${pendingStudents.length} student(s) who haven't submitted yet?",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: const Text("Send"),
+            title: const Text("Send Reminders"),
+            content: Text(
+              "Send reminder notifications to ${pendingStudents.length} student(s) who haven't submitted yet?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Send"),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
     if (confirm == true) {
-      // Here you would implement actual notification sending
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Reminders sent successfully!"),
-          backgroundColor: Colors.green,
-        ),
-      );
+      setState(() => _sendingReminders = true);
+
+      int successCount = 0;
+      int failCount = 0;
+
+      for (var student in pendingStudents) {
+        final parentUid = student['parentUid'];
+        final studentName = student['name'];
+        final rollNo = student['rollNo'];
+
+        if (parentUid == null || parentUid.isEmpty) {
+          debugPrint('No parent UID for student: $studentName');
+          failCount++;
+          continue;
+        }
+
+        try {
+          final formattedDueDate =
+              _homeworkData?['dueDate'] != null
+                  ? DateFormat(
+                    'dd MMM yyyy',
+                  ).format((_homeworkData!['dueDate'] as Timestamp).toDate())
+                  : 'No due date';
+
+          final notificationTitle = "📝 Homework Reminder";
+          final notificationBody =
+              "$studentName (Roll No: $rollNo) - Homework \"${widget.homeworkTitle}\" is pending. Please complete and submit by $formattedDueDate.";
+
+          await NotificationService.sendToUser(
+            userId: parentUid,
+            title: notificationTitle,
+            body: notificationBody,
+            type: 'homework_reminder',
+            data: {
+              'homeworkId': widget.homeworkId,
+              'homeworkTitle': widget.homeworkTitle,
+              'studentId': student['id'],
+              'studentName': studentName,
+              'className': widget.className,
+              'section': widget.section,
+              'rollNo': rollNo,
+            },
+          );
+
+          await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('notifications')
+              .add({
+                'studentId': student['id'],
+                'parentId': parentUid,
+                'title': notificationTitle,
+                'message': notificationBody,
+                'type': 'homework_reminder',
+                'isRead': false,
+                'createdAt': FieldValue.serverTimestamp(),
+                'deletedFor': [],
+                'additionalData': {
+                  'homeworkId': widget.homeworkId,
+                  'homeworkTitle': widget.homeworkTitle,
+                  'className': widget.className,
+                  'section': widget.section,
+                },
+              });
+
+          successCount++;
+          debugPrint('✅ Reminder sent to parent of $studentName');
+        } catch (e) {
+          debugPrint('❌ Failed to send reminder to $studentName: $e');
+          failCount++;
+        }
+      }
+
+      setState(() => _sendingReminders = false);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Reminders sent: $successCount successful, $failCount failed",
+            ),
+            backgroundColor: successCount > 0 ? Colors.green : Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  Future<void> _sendReminderToStudent(String studentId, String studentName) async {
-    // Here you would implement individual reminder logic
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Reminder sent to $studentName"),
-        backgroundColor: Colors.green,
-      ),
+  Future<void> _sendReminderToStudent(
+    String studentId,
+    String studentName,
+    String parentUid,
+  ) async {
+    if (parentUid == null || parentUid.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No parent linked to this student"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text("Send Reminder"),
+            content: Text(
+              "Send a reminder notification to $studentName's parent?",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text("Send"),
+              ),
+            ],
+          ),
     );
+
+    if (confirm == true) {
+      try {
+        final rollNo =
+            _students.firstWhere((s) => s['id'] == studentId)['rollNo'] ?? '';
+
+        final formattedDueDate =
+            _homeworkData?['dueDate'] != null
+                ? DateFormat(
+                  'dd MMM yyyy',
+                ).format((_homeworkData!['dueDate'] as Timestamp).toDate())
+                : 'No due date';
+
+        final notificationTitle = "📝 Homework Reminder";
+        final notificationBody =
+            "$studentName (Roll No: $rollNo) - Homework \"${widget.homeworkTitle}\" is pending. Please complete and submit by $formattedDueDate.";
+
+        await NotificationService.sendToUser(
+          userId: parentUid,
+          title: notificationTitle,
+          body: notificationBody,
+          type: 'homework_reminder',
+          data: {
+            'homeworkId': widget.homeworkId,
+            'homeworkTitle': widget.homeworkTitle,
+            'studentId': studentId,
+            'studentName': studentName,
+            'className': widget.className,
+            'section': widget.section,
+            'rollNo': rollNo,
+          },
+        );
+
+        await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('notifications')
+            .add({
+              'studentId': studentId,
+              'parentId': parentUid,
+              'title': notificationTitle,
+              'message': notificationBody,
+              'type': 'homework_reminder',
+              'isRead': false,
+              'createdAt': FieldValue.serverTimestamp(),
+              'deletedFor': [],
+              'additionalData': {
+                'homeworkId': widget.homeworkId,
+                'homeworkTitle': widget.homeworkTitle,
+                'className': widget.className,
+                'section': widget.section,
+              },
+            });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Reminder sent to $studentName's parent"),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Error sending reminder: $e"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _exportReport() async {
-    // Implement export functionality
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text("Report export will be available soon"),
