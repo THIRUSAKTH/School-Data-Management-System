@@ -216,10 +216,8 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
           .child(fileName);
 
       if (isWeb && _webImageBytes != null) {
-        // Web upload
         await ref.putData(_webImageBytes!);
       } else if (_selectedImage != null) {
-        // Mobile upload
         final file = File(_selectedImage!.path);
         await ref.putFile(file);
       } else {
@@ -228,7 +226,6 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
 
       final url = await ref.getDownloadURL();
 
-      // Update Firestore with new logo URL
       await FirebaseFirestore.instance
           .collection('schools')
           .doc(widget.schoolId)
@@ -287,8 +284,6 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
             backgroundColor: Colors.green,
           ),
         );
-
-        // Optional: Refresh the dashboard to show updated school name
         Navigator.pop(context, true);
       }
     } catch (e) {
@@ -306,7 +301,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     }
   }
 
-  // Get image provider for display
+  // Get image provider for display - FIXED to return null properly
   ImageProvider? _getImageProvider() {
     if (isWeb && _webImageBytes != null) {
       return MemoryImage(_webImageBytes!);
@@ -363,6 +358,7 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
     );
   }
 
+  // FIXED: Logo section with proper CircleAvatar usage
   Widget _buildLogoSecion() {
     final imageProvider = _getImageProvider();
     final hasImage =
@@ -388,27 +384,34 @@ class _SchoolSettingsPageState extends State<SchoolSettingsPage> {
               ),
               child: Stack(
                 children: [
-                  CircleAvatar(
-                    radius: 65,
-                    backgroundColor: Colors.grey.shade200,
-                    backgroundImage: imageProvider,
-                    onBackgroundImageError: (_, __) {
-                      // Handle image load error
-                      if (_logoUrl.isNotEmpty) {
-                        setState(() {
-                          _logoUrl = "";
-                        });
-                      }
-                    },
-                    child:
-                        !hasImage
-                            ? Icon(
-                              Icons.add_photo_alternate,
-                              size: 45,
-                              color: Colors.grey.shade400,
-                            )
-                            : null,
-                  ),
+                  // FIXED: Use Container instead of CircleAvatar when no image
+                  if (imageProvider != null)
+                    CircleAvatar(
+                      radius: 65,
+                      backgroundColor: Colors.grey.shade200,
+                      backgroundImage: imageProvider,
+                      onBackgroundImageError: (_, __) {
+                        if (_logoUrl.isNotEmpty) {
+                          setState(() {
+                            _logoUrl = "";
+                          });
+                        }
+                      },
+                    )
+                  else
+                    Container(
+                      width: 130,
+                      height: 130,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.grey.shade200,
+                      ),
+                      child: Icon(
+                        Icons.add_photo_alternate,
+                        size: 45,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
                   if (hasImage)
                     Positioned(
                       bottom: 0,
