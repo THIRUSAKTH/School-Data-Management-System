@@ -35,6 +35,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Map<String, dynamic> _cachedChartData = {};
   DateTime _lastFetchTime = DateTime.now();
 
+  // Responsive breakpoints
+  bool _isWeb(BuildContext context) => MediaQuery.of(context).size.width >= 900;
+
+  bool _isTablet(BuildContext context) =>
+      MediaQuery.of(context).size.width >= 600 &&
+      MediaQuery.of(context).size.width < 900;
+
   @override
   void initState() {
     super.initState();
@@ -62,9 +69,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) {
-                        return LoginPage(role: "admin");
-                      },
+                      builder: (context) => LoginPage(role: "admin"),
                     ),
                   );
                 },
@@ -159,6 +164,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWeb = screenWidth >= 900;
+    final isTablet = screenWidth >= 600 && screenWidth < 900;
+
+    // Responsive padding
+    final horizontalPadding = isWeb ? 32.0 : (isTablet ? 24.0 : 16.0);
+    final verticalPadding = isWeb ? 16.0 : 8.0;
+
+    // Responsive card size for stats grid
+    final crossAxisCount = isWeb ? 4 : (isTablet ? 2 : 2);
+    final childAspectRatio = isWeb ? 1.3 : 1.1;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FA),
       drawer: _buildDrawer(context),
@@ -167,24 +184,112 @@ class _AdminDashboardState extends State<AdminDashboard> {
         onRefresh: _fetchChartData,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildStatsGrid(),
-              const SizedBox(height: 20),
-              _buildTodayOverview(),
-              const SizedBox(height: 20),
-              _buildPeriodSelector(),
-              const SizedBox(height: 16),
-              _buildAttendanceChart(),
-              const SizedBox(height: 20),
-              _buildFeeChart(),
-              const SizedBox(height: 20),
-              _buildQuickActions(),
-              const SizedBox(height: 80),
-            ],
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: verticalPadding,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: isWeb ? 1400 : double.infinity,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Stats Grid - Responsive
+                  GridView.count(
+                    crossAxisCount: crossAxisCount,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: isWeb ? 20 : 16,
+                    mainAxisSpacing: isWeb ? 20 : 16,
+                    childAspectRatio: childAspectRatio,
+                    children: [
+                      _buildLiveCard(
+                        "Students",
+                        Icons.people,
+                        Colors.blue,
+                        FirebaseFirestore.instance
+                            .collection('schools')
+                            .doc(AppConfig.schoolId)
+                            .collection('students')
+                            .snapshots(),
+                      ),
+                      _buildLiveCard(
+                        "Teachers",
+                        Icons.school,
+                        Colors.purple,
+                        FirebaseFirestore.instance
+                            .collection('schools')
+                            .doc(AppConfig.schoolId)
+                            .collection('teachers')
+                            .snapshots(),
+                      ),
+                      _buildLiveCard(
+                        "Fees Collected",
+                        Icons.currency_rupee,
+                        Colors.green,
+                        null,
+                        customValue:
+                            _cachedChartData['totalCollected']?.toInt() ?? 0,
+                        isCurrency: true,
+                      ),
+                      _buildLiveCard(
+                        "Attendance Rate",
+                        Icons.check_circle,
+                        Colors.orange,
+                        null,
+                        customValue:
+                            _cachedChartData['attendanceRate']?.toInt() ?? 0,
+                        suffix: '%',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Today's Overview
+                  _buildTodayOverview(),
+                  const SizedBox(height: 20),
+
+                  // Period Selector + Charts in Row for Web
+                  if (isWeb)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 1,
+                          child: Column(
+                            children: [
+                              _buildPeriodSelector(),
+                              const SizedBox(height: 16),
+                              _buildAttendanceChart(),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 20),
+                        Expanded(flex: 1, child: _buildFeeChart()),
+                      ],
+                    )
+                  else
+                    Column(
+                      children: [
+                        _buildPeriodSelector(),
+                        const SizedBox(height: 16),
+                        _buildAttendanceChart(),
+                        const SizedBox(height: 20),
+                        _buildFeeChart(),
+                      ],
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  // Quick Actions - Responsive Grid
+                  _buildQuickActions(isWeb: isWeb),
+                  const SizedBox(height: 80),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -245,55 +350,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildStatsGrid() {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.1,
-      children: [
-        _buildLiveCard(
-          "Students",
-          Icons.people,
-          Colors.blue,
-          FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('students')
-              .snapshots(),
-        ),
-        _buildLiveCard(
-          "Teachers",
-          Icons.school,
-          Colors.purple,
-          FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('teachers')
-              .snapshots(),
-        ),
-        _buildLiveCard(
-          "Fees Collected",
-          Icons.currency_rupee,
-          Colors.green,
-          null,
-          customValue: _cachedChartData['totalCollected']?.toInt() ?? 0,
-          isCurrency: true,
-        ),
-        _buildLiveCard(
-          "Attendance Rate",
-          Icons.check_circle,
-          Colors.orange,
-          null,
-          customValue: _cachedChartData['attendanceRate']?.toInt() ?? 0,
-          suffix: '%',
-        ),
-      ],
-    );
-  }
-
   Widget _buildLiveCard(
     String title,
     IconData icon,
@@ -334,6 +390,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildTodayOverview() {
+    final isWeb = MediaQuery.of(context).size.width >= 900;
+
     return FutureBuilder<QuerySnapshot>(
       future:
           FirebaseFirestore.instance
@@ -383,7 +441,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
               const SizedBox(height: 16),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                mainAxisAlignment:
+                    isWeb
+                        ? MainAxisAlignment.center
+                        : MainAxisAlignment.spaceAround,
                 children: [
                   _OverviewItem(
                     title: "Present",
@@ -485,7 +546,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           const SizedBox(height: 20),
           SizedBox(
-            height: 200,
+            height: 250,
             child: LineChart(
               LineChartData(
                 gridData: const FlGridData(show: true),
@@ -618,7 +679,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           const SizedBox(height: 20),
           SizedBox(
-            height: 200,
+            height: 250,
             child: BarChart(
               BarChartData(
                 barGroups: barGroups,
@@ -693,7 +754,48 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildQuickActions() {
+  Widget _buildQuickActions({required bool isWeb}) {
+    final actionsPerRow = isWeb ? 6 : 2;
+
+    final actions = [
+      {
+        "icon": Icons.person_add,
+        "label": "Add Student",
+        "color": Colors.blue,
+        "page": StudentManagementPage(schoolId: AppConfig.schoolId),
+      },
+      {
+        "icon": Icons.school,
+        "label": "Add Teacher",
+        "color": Colors.purple,
+        "page": TeacherManagementPage(schoolId: AppConfig.schoolId),
+      },
+      {
+        "icon": Icons.currency_rupee,
+        "label": "Upload Fees",
+        "color": Colors.green,
+        "page": AdminFeeUploadPage(schoolId: AppConfig.schoolId),
+      },
+      {
+        "icon": Icons.analytics,
+        "label": "Analytics",
+        "color": Colors.orange,
+        "page": AdminAnalyticsPage(schoolId: AppConfig.schoolId),
+      },
+      {
+        "icon": Icons.calendar_today,
+        "label": "Academic Year",
+        "color": Colors.teal,
+        "page": const AdminAcademicYearPage(),
+      },
+      {
+        "icon": Icons.schedule,
+        "label": "Timetable",
+        "color": Colors.cyan,
+        "page": AdminCreateTimetablePage(schoolId: AppConfig.schoolId),
+      },
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -702,109 +804,40 @@ class _AdminDashboardState extends State<AdminDashboard> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        GridView.count(
-          crossAxisCount: 2,
+        GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 1.2,
-          children: [
-            _QuickActionCard(
-              icon: Icons.person_add,
-              label: "Add Student",
-              color: Colors.blue,
-              onTap:
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) => StudentManagementPage(
-                            schoolId: AppConfig.schoolId,
-                          ),
-                    ),
-                  ),
-            ),
-            _QuickActionCard(
-              icon: Icons.school,
-              label: "Add Teacher",
-              color: Colors.purple,
-              onTap:
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) => TeacherManagementPage(
-                            schoolId: AppConfig.schoolId,
-                          ),
-                    ),
-                  ),
-            ),
-            _QuickActionCard(
-              icon: Icons.currency_rupee,
-              label: "Upload Fees",
-              color: Colors.green,
-              onTap:
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) =>
-                              AdminFeeUploadPage(schoolId: AppConfig.schoolId),
-                    ),
-                  ),
-            ),
-            _QuickActionCard(
-              icon: Icons.analytics,
-              label: "Analytics",
-              color: Colors.orange,
-              onTap:
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) =>
-                              AdminAnalyticsPage(schoolId: AppConfig.schoolId),
-                    ),
-                  ),
-            ),
-            // NEW: Academic Year Management
-            _QuickActionCard(
-              icon: Icons.calendar_today,
-              label: "Academic Year",
-              color: Colors.teal,
-              onTap:
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const AdminAcademicYearPage(),
-                    ),
-                  ),
-            ),
-            // NEW: Create Timetable
-            _QuickActionCard(
-              icon: Icons.schedule,
-              label: "Timetable",
-              color: Colors.cyan,
-              onTap:
-                  () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) => AdminCreateTimetablePage(
-                            schoolId: AppConfig.schoolId,
-                          ),
-                    ),
-                  ),
-            ),
-          ],
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: actionsPerRow,
+            crossAxisSpacing: isWeb ? 16 : 12,
+            mainAxisSpacing: isWeb ? 16 : 12,
+            childAspectRatio: 1.2,
+          ),
+          itemCount: actions.length,
+          itemBuilder: (context, index) {
+            final action = actions[index];
+            return _QuickActionCard(
+              icon: action["icon"] as IconData,
+              label: action["label"] as String,
+              color: action["color"] as Color,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => action["page"] as Widget),
+                );
+              },
+            );
+          },
         ),
       ],
     );
   }
 
   Widget _buildDrawer(BuildContext context) {
+    final isWeb = MediaQuery.of(context).size.width >= 900;
+
     return Drawer(
+      width: isWeb ? 280 : null,
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
@@ -971,7 +1004,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 }
 
-// Helper Widgets
+// Helper Widgets (Keep as is - they work fine)
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;

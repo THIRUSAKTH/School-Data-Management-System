@@ -776,6 +776,6 @@ class _StudentManagementPageState extends State<StudentManagementPage> {
           ),
         ],
       ),
-    );
-  }
+);
+}
 }
