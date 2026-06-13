@@ -40,7 +40,7 @@ class _LoginPageState extends State<LoginPage> {
   Color get roleColor {
     switch (widget.role) {
       case "Admin":
-        return Colors.deepPurple;
+        return Color(0xFF0F9B8E);
       case "Teacher":
         return Colors.green;
       case "Parent":
@@ -210,14 +210,14 @@ class _LoginPageState extends State<LoginPage> {
                                   children: [
                                     Row(
                                       children: [
-                                        const Icon(Icons.email, size: 16, color: Colors.deepPurple),
+                                        const Icon(Icons.email, size: 16, color: Color(0xFF0F9B8E)),
                                         const SizedBox(width: 8),
                                         const Text("Email:", style: TextStyle(fontWeight: FontWeight.w500)),
                                         const SizedBox(width: 8),
                                         Text(
                                           defaultAdminEmail,
                                           style: const TextStyle(
-                                            color: Colors.deepPurple,
+                                            color: Color(0xFF0F9B8E),
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -226,14 +226,14 @@ class _LoginPageState extends State<LoginPage> {
                                     const SizedBox(height: 6),
                                     Row(
                                       children: [
-                                        const Icon(Icons.lock, size: 16, color: Colors.deepPurple),
+                                        const Icon(Icons.lock, size: 16, color: Color(0xFF0F9B8E)),
                                         const SizedBox(width: 8),
                                         const Text("Password:", style: TextStyle(fontWeight: FontWeight.w500)),
                                         const SizedBox(width: 8),
                                         Text(
                                           defaultAdminPassword,
                                           style: const TextStyle(
-                                            color: Colors.deepPurple,
+                                            color: Color(0xFF0F9B8E),
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -270,8 +270,8 @@ class _LoginPageState extends State<LoginPage> {
                             icon: const Icon(Icons.edit, size: 18),
                             label: const Text("Use Default Credentials"),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.deepPurple,
-                              side: const BorderSide(color: Colors.deepPurple),
+                              foregroundColor: Color(0xFF0F9B8E),
+                              side: const BorderSide(color: Color(0xFF0F9B8E)),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),

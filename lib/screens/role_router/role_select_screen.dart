@@ -7,7 +7,7 @@ class RoleSelectScreen extends StatelessWidget {
 
   final List<Map<String, dynamic>> details = const [
     {
-      "color": Colors.deepPurple,
+      "color": Color(0xFF0F9B8E),
       "role": "Admin",
       "roleDescription": "School Management & Administration",
       "text": "Sign in as Admin",
@@ -39,7 +39,7 @@ class RoleSelectScreen extends StatelessWidget {
         return false;
       },
       child: Scaffold(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: Color(0xFF0F9B8E),
         body: SafeArea(
           child: SingleChildScrollView(
             child: Center(
