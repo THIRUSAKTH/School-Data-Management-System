@@ -111,12 +111,12 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
   Future<void> _loadCustomSubjects() async {
     try {
       final doc =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('settings')
-              .doc('subjects')
-              .get();
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('settings')
+          .doc('subjects')
+          .get();
 
       if (doc.exists && doc.data()?['customSubjects'] != null) {
         if (mounted) {
@@ -133,11 +133,11 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
   Future<void> _loadClasses() async {
     try {
       final studentsSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('students')
-              .get();
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('students')
+          .get();
 
       final classesSet = <String>{};
       for (var doc in studentsSnapshot.docs) {
@@ -201,11 +201,11 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
   Future<void> _loadSubjects() async {
     try {
       final subjectsSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('subjects')
-              .get();
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('subjects')
+          .get();
 
       if (subjectsSnapshot.docs.isNotEmpty && mounted) {
         setState(() {
@@ -258,12 +258,12 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
   Future<void> _loadSections(String className) async {
     try {
       final studentsSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('students')
-              .where('class', isEqualTo: className)
-              .get();
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('students')
+          .where('class', isEqualTo: className)
+          .get();
 
       final sectionsSet = <String>{};
       for (var doc in studentsSnapshot.docs) {
@@ -284,33 +284,90 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
   }
 
   // ============= FILE PICKING METHODS =============
+
+  /// ✅ For FILES - using file_picker (NO permissions needed with withData: true)
   Future<void> _pickFiles() async {
-    final result = await FilePicker.platform.pickFiles(allowMultiple: true);
-    if (result != null && result.files.isNotEmpty && mounted) {
-      setState(() {
-        _selectedFiles.addAll(result.files);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("${result.files.length} file(s) selected"),
-          backgroundColor: Colors.green,
-        ),
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        withData: true, // 🔥 CRITICAL - gets file data without storage permission
       );
+      if (result != null && result.files.isNotEmpty && mounted) {
+        setState(() {
+          _selectedFiles.addAll(result.files);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("${result.files.length} file(s) selected"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error picking files: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error selecting files: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
+  /// ✅ For IMAGES - using image_picker (Works on Android 13+ without permissions)
   Future<void> _pickImages() async {
-    final images = await ImagePicker().pickMultiImage();
-    if (images.isNotEmpty && mounted) {
-      setState(() {
-        _selectedImages.addAll(images);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("${images.length} image(s) selected"),
-          backgroundColor: Colors.green,
-        ),
+    try {
+      // pickMultiImage uses system photo picker on Android 13+
+      // No READ_MEDIA_IMAGES permission needed!
+      final List<XFile> images = await ImagePicker().pickMultiImage();
+
+      if (images.isNotEmpty && mounted) {
+        setState(() {
+          _selectedImages.addAll(images);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("${images.length} image(s) selected"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error picking images: $e');
+      // Fallback for older Android versions or if pickMultiImage fails
+      _pickImagesFallback();
+    }
+  }
+
+  /// ✅ Fallback for older Android versions or single image selection
+  Future<void> _pickImagesFallback() async {
+    try {
+      final XFile? image = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
       );
+      if (image != null && mounted) {
+        setState(() {
+          _selectedImages.add(image);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("1 image selected"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error picking image fallback: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error selecting image: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -333,6 +390,8 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
   }
 
   // ============= FILE UPLOAD METHOD =============
+
+  /// ✅ UPLOAD FILES - Handles both FilePicker and ImagePicker files
   Future<void> _uploadFiles() async {
     if (_selectedFiles.isEmpty && _selectedImages.isEmpty) return;
 
@@ -343,23 +402,23 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
       barrierDismissible: false,
       builder:
           (context) => AlertDialog(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                Text(
-                  "Uploading ${_selectedFiles.length + _selectedImages.length} files...",
-                ),
-              ],
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              "Uploading ${_selectedFiles.length + _selectedImages.length} files...",
             ),
-          ),
+          ],
+        ),
+      ),
     );
 
     try {
       List<Map<String, dynamic>> uploadedFiles = [];
 
-      // Upload FilePicker files
+      // ✅ Upload FilePicker files (documents, PDFs, etc.)
       for (var file in _selectedFiles) {
         try {
           final fileName =
@@ -392,7 +451,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         }
       }
 
-      // Upload ImagePicker images
+      // ✅ Upload ImagePicker images
       for (var image in _selectedImages) {
         try {
           final fileName =
@@ -441,10 +500,18 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             backgroundColor: Colors.green,
           ),
         );
+      } else if (uploadedFiles.isEmpty &&
+          (_selectedFiles.isNotEmpty || _selectedImages.isNotEmpty)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Failed to upload files. Please try again."),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context);
       if (mounted) {
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Error uploading files: $e"),
@@ -646,7 +713,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             maxLines: 6,
             decoration: InputDecoration(
               hintText:
-                  "Enter detailed homework description...\n\nExample:\n• Complete exercise 5.2 from textbook\n• Write 10 sentences about your hobby\n• Practice multiplication tables 2-10",
+              "Enter detailed homework description...\n\nExample:\n• Complete exercise 5.2 from textbook\n• Write 10 sentences about your hobby\n• Practice multiplication tables 2-10",
               hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
               filled: true,
               fillColor: Colors.white,
@@ -721,6 +788,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             ],
           ),
 
+          // Selected Images
           if (_selectedImages.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Divider(),
@@ -768,6 +836,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             }).toList(),
           ],
 
+          // Selected Files
           if (_selectedFiles.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Divider(),
@@ -831,6 +900,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             }).toList(),
           ],
 
+          // Upload button
           if (_selectedImages.isNotEmpty || _selectedFiles.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -846,22 +916,23 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
                     ),
                   ),
                   child:
-                      _isUploading
-                          ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                          : Text(
-                            "Upload ${_selectedImages.length + _selectedFiles.length} File(s)",
-                          ),
+                  _isUploading
+                      ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                      : Text(
+                    "Upload ${_selectedImages.length + _selectedFiles.length} File(s)",
+                  ),
                 ),
               ),
             ),
 
+          // Uploaded Attachments
           if (_attachments.isNotEmpty) ...[
             const SizedBox(height: 12),
             const Divider(),
@@ -987,7 +1058,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
                         child: Text("Select Class"),
                       ),
                       ...classes.map(
-                        (className) => DropdownMenuItem(
+                            (className) => DropdownMenuItem(
                           value: className,
                           child: Text(className),
                         ),
@@ -1035,7 +1106,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
                         child: Text("Select Section"),
                       ),
                       ...sections.map(
-                        (section) => DropdownMenuItem(
+                            (section) => DropdownMenuItem(
                           value: section,
                           child: Text("Section $section"),
                         ),
@@ -1088,14 +1159,14 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
               prefixIcon: const Icon(Icons.book, color: Colors.deepPurple),
             ),
             items:
-                allSubjects
-                    .map(
-                      (subject) => DropdownMenuItem(
-                        value: subject,
-                        child: Text(subject),
-                      ),
-                    )
-                    .toList(),
+            allSubjects
+                .map(
+                  (subject) => DropdownMenuItem(
+                value: subject,
+                child: Text(subject),
+              ),
+            )
+                .toList(),
             onChanged: (value) => setState(() => selectedSubject = value!),
           ),
         ],
@@ -1146,7 +1217,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
                             style: TextStyle(
                               fontSize: 13,
                               color:
-                                  dueDate == null ? Colors.grey : Colors.black,
+                              dueDate == null ? Colors.grey : Colors.black,
                             ),
                           ),
                         ),
@@ -1185,7 +1256,7 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
                             style: TextStyle(
                               fontSize: 13,
                               color:
-                                  dueTime == null ? Colors.grey : Colors.black,
+                              dueTime == null ? Colors.grey : Colors.black,
                             ),
                           ),
                         ),
@@ -1238,10 +1309,10 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
   Widget _buildSubmitButton() {
     final isValid =
         _titleController.text.trim().isNotEmpty &&
-        _homeworkController.text.trim().isNotEmpty &&
-        selectedClass.isNotEmpty &&
-        selectedSection.isNotEmpty &&
-        dueDate != null;
+            _homeworkController.text.trim().isNotEmpty &&
+            selectedClass.isNotEmpty &&
+            selectedSection.isNotEmpty &&
+            dueDate != null;
 
     return SizedBox(
       width: double.infinity,
@@ -1257,22 +1328,22 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
           elevation: 2,
         ),
         child:
-            isLoading
-                ? const SizedBox(
-                  height: 22,
-                  width: 22,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
-                )
-                : Text(
-                  isEditing ? "Update Homework" : "Publish Homework",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+        isLoading
+            ? const SizedBox(
+          height: 22,
+          width: 22,
+          child: CircularProgressIndicator(
+            color: Colors.white,
+            strokeWidth: 2,
+          ),
+        )
+            : Text(
+          isEditing ? "Update Homework" : "Publish Homework",
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
@@ -1323,12 +1394,12 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
       final teacherUid = FirebaseAuth.instance.currentUser!.uid;
 
       final teacherDoc =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('teachers')
-              .where('uid', isEqualTo: teacherUid)
-              .get();
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('teachers')
+          .where('uid', isEqualTo: teacherUid)
+          .get();
 
       String teacherName = "Teacher";
       if (teacherDoc.docs.isNotEmpty) {
@@ -1351,9 +1422,9 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         "subject": selectedSubject,
         "dueDate": Timestamp.fromDate(dueDateTime),
         "dueTime":
-            dueTime != null
-                ? "${dueTime!.hour.toString().padLeft(2, '0')}:${dueTime!.minute.toString().padLeft(2, '0')}"
-                : null,
+        dueTime != null
+            ? "${dueTime!.hour.toString().padLeft(2, '0')}:${dueTime!.minute.toString().padLeft(2, '0')}"
+            : null,
         "isUrgent": isUrgent,
         "createdAt": FieldValue.serverTimestamp(),
         "updatedAt": FieldValue.serverTimestamp(),
@@ -1373,7 +1444,6 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             .doc(editingHomeworkId)
             .update(homeworkData);
 
-        // Show success snackbar - NO NAVIGATION
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("✅ Homework updated successfully!"),
@@ -1388,7 +1458,6 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
             .collection('homework')
             .add(homeworkData);
 
-        // Show success snackbar - NO NAVIGATION
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("✅ Homework published successfully!"),
@@ -1398,12 +1467,12 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         );
       }
 
-      // Send notifications (fire and forget - don't wait)
+      // Send notifications
       _sendHomeworkNotifications(
         homeworkId:
-            isEditing && editingHomeworkId != null
-                ? editingHomeworkId!
-                : DateTime.now().millisecondsSinceEpoch.toString(),
+        isEditing && editingHomeworkId != null
+            ? editingHomeworkId!
+            : DateTime.now().millisecondsSinceEpoch.toString(),
         title: _titleController.text.trim(),
         description: _homeworkController.text.trim(),
         className: selectedClass,
@@ -1413,7 +1482,6 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
         isUrgent: isUrgent,
       );
 
-      // Clear form for next submission
       _clearForm();
     } catch (e) {
       _showError("Error: $e");
@@ -1434,13 +1502,13 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
   }) async {
     try {
       final studentsSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('students')
-              .where('class', isEqualTo: className)
-              .where('section', isEqualTo: section)
-              .get();
+      await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('students')
+          .where('class', isEqualTo: className)
+          .where('section', isEqualTo: section)
+          .get();
 
       if (studentsSnapshot.docs.isEmpty) {
         debugPrint('No students found in class $className-$section');
@@ -1452,11 +1520,11 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
       final notificationTitle = "$urgencyPrefix$title";
 
       String notificationBody =
-          description.length > 100
-              ? '${description.substring(0, 100)}...'
-              : description;
+      description.length > 100
+          ? '${description.substring(0, 100)}...'
+          : description;
       notificationBody =
-          "$subject - $notificationBody (Due: $formattedDueDate)";
+      "$subject - $notificationBody (Due: $formattedDueDate)";
 
       int notificationCount = 0;
 
@@ -1490,20 +1558,20 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
               .doc(AppConfig.schoolId)
               .collection('notifications')
               .add({
-                'studentId': studentId,
-                'title': notificationTitle,
-                'message': notificationBody,
-                'type': 'homework',
-                'isRead': false,
-                'createdAt': FieldValue.serverTimestamp(),
-                'deletedFor': [],
-                'additionalData': {
-                  'homeworkId': homeworkId,
-                  'subject': subject,
-                  'dueDate': dueDate.toIso8601String(),
-                  'isUrgent': isUrgent,
-                },
-              });
+            'studentId': studentId,
+            'title': notificationTitle,
+            'message': notificationBody,
+            'type': 'homework',
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'deletedFor': [],
+            'additionalData': {
+              'homeworkId': homeworkId,
+              'subject': subject,
+              'dueDate': dueDate.toIso8601String(),
+              'isUrgent': isUrgent,
+            },
+          });
 
           notificationCount++;
         }
@@ -1520,25 +1588,25 @@ class _TeacherHomeworkPostPageState extends State<TeacherHomeworkPostPage> {
       context: context,
       builder:
           (context) => AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: const Text("Delete Homework"),
-            content: const Text(
-              "Are you sure you want to delete this homework? This cannot be undone.",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text("Delete"),
-              ),
-            ],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text("Delete Homework"),
+        content: const Text(
+          "Are you sure you want to delete this homework? This cannot be undone.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
     );
 
     if (confirm == true && editingHomeworkId != null) {

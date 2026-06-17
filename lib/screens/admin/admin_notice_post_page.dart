@@ -121,33 +121,90 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
   }
 
   // ============= FILE PICKING METHODS =============
+
+  /// ✅ For FILES - using file_picker (NO permissions needed with withData: true)
   Future<void> _pickFiles() async {
-    final result = await FilePicker.platform.pickFiles(allowMultiple: true);
-    if (result != null && result.files.isNotEmpty && mounted) {
-      setState(() {
-        _selectedFiles.addAll(result.files);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("${result.files.length} file(s) selected"),
-          backgroundColor: Colors.green,
-        ),
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        withData: true, // CRITICAL - gets file data without storage permission
       );
+      if (result != null && result.files.isNotEmpty && mounted) {
+        setState(() {
+          _selectedFiles.addAll(result.files);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("${result.files.length} file(s) selected"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error picking files: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error selecting files: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
+  /// ✅ For IMAGES - using image_picker (Works on Android 13+ without permissions)
   Future<void> _pickImages() async {
-    final images = await ImagePicker().pickMultiImage();
-    if (images.isNotEmpty && mounted) {
-      setState(() {
-        _selectedImages.addAll(images);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("${images.length} image(s) selected"),
-          backgroundColor: Colors.green,
-        ),
+    try {
+      // pickMultiImage uses system photo picker on Android 13+
+      // No READ_MEDIA_IMAGES permission needed!
+      final List<XFile> images = await ImagePicker().pickMultiImage();
+
+      if (images.isNotEmpty && mounted) {
+        setState(() {
+          _selectedImages.addAll(images);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("${images.length} image(s) selected"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error picking images: $e');
+      // Fallback for older Android versions or if pickMultiImage fails
+      _pickImagesFallback();
+    }
+  }
+
+  /// ✅ Fallback for older Android versions or single image selection
+  Future<void> _pickImagesFallback() async {
+    try {
+      final XFile? image = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
       );
+      if (image != null && mounted) {
+        setState(() {
+          _selectedImages.add(image);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("1 image selected"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error picking image fallback: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error selecting image: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -170,6 +227,8 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
   }
 
   // ============= FILE UPLOAD METHODS =============
+
+  /// ✅ UPLOAD FILES - Handles both FilePicker and ImagePicker files
   Future<void> _uploadFiles() async {
     if (_selectedFiles.isEmpty && _selectedImages.isEmpty) return;
 
@@ -197,7 +256,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
     try {
       List<Map<String, dynamic>> uploadedFiles = [];
 
-      // Upload FilePicker files
+      // ✅ Upload FilePicker files (documents, PDFs, etc.)
       for (var file in _selectedFiles) {
         try {
           final fileName =
@@ -231,7 +290,7 @@ class _AdminNoticePostPageState extends State<AdminNoticePostPage> {
         }
       }
 
-      // Upload ImagePicker images
+      // ✅ Upload ImagePicker images
       for (var image in _selectedImages) {
         try {
           final fileName =

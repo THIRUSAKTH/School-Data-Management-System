@@ -67,7 +67,6 @@ dependencies:
   confetti: ^0.7.0
   exif: ^3.1.4
   xml: ^6.3.0
-  permission_handler: ^11.0.0
   universal_html: ^2.3.0
   share_plus: ^7.2.1
 

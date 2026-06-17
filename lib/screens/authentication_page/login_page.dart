@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'package:schoolprojectjan/app_config.dart';
 import 'package:schoolprojectjan/screens/admin/admin_dashboard.dart';
 import 'package:schoolprojectjan/screens/authentication_page/change_password_screen.dart';
