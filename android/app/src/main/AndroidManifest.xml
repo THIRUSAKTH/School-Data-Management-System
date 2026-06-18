@@ -6,14 +6,14 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- For Android 5-10 (API 21-29) -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:ignore="ScopedStorage" />
+<!--    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />-->
+<!--    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:ignore="ScopedStorage" />-->
 
-    <!-- For Android 11-12 (API 30-32) - Optional for full file access -->
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
+<!--    &lt;!&ndash; For Android 11-12 (API 30-32) - Optional for full file access &ndash;&gt;-->
+<!--    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />-->
 
-    <!-- For Android 13+ (API 33+) -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+<!--    &lt;!&ndash; For Android 13+ (API 33+) &ndash;&gt;-->
+<!--    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />-->
 <!--    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />-->
 <!--    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />-->
 
@@ -24,7 +24,6 @@
         android:label="School Management"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true">
 
         <activity
