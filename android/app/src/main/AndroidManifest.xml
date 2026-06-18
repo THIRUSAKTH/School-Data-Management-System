@@ -2,23 +2,34 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.skiez.smartschoolapp">
 
+    <!-- ✅ Required permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- For Android 5-10 (API 21-29) -->
-<!--    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />-->
-<!--    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:ignore="ScopedStorage" />-->
-
-<!--    &lt;!&ndash; For Android 11-12 (API 30-32) - Optional for full file access &ndash;&gt;-->
-<!--    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />-->
-
-<!--    &lt;!&ndash; For Android 13+ (API 33+) &ndash;&gt;-->
-<!--    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />-->
-<!--    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />-->
-<!--    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />-->
-
     <!-- Push Notification Permission for Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ❌ FORCE REMOVE storage permissions from merged manifest -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:node="remove" />
+
+    <!-- ❌ FORCE REMOVE media permissions from merged manifest -->
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_IMAGES"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_VIDEO"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_AUDIO"
+        tools:node="remove" />
 
     <application
         android:label="School Management"
@@ -37,8 +48,7 @@
 
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
-                android:resource="@style/NormalTheme"
-                />
+                android:resource="@style/NormalTheme" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -49,7 +59,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- Add file provider for file picker (if using) -->
+        <!-- File provider for file picker -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
