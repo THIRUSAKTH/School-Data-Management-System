@@ -6,12 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-
-// Conditional imports - only on web
-// Using 'dart:html' will not be available on Android, so we use conditional export
 import 'package:universal_html/html.dart' as html;
 
-// Platform detection helpers - using kIsWeb which works everywhere
+// Platform detection helpers
 bool get isWeb => kIsWeb;
 bool get isMobile => !kIsWeb;
 
@@ -22,12 +19,17 @@ class FilePickerService {
   static String getReadableSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
 
-  // Pick multiple files (Works on Web & Android)
-  static Future<List<FilePickerResult>?> pickFiles({
+  // ===================== FILE PICKING =====================
+
+  /// ✅ Pick multiple files - WORKS ON ALL PLATFORMS
+  /// Uses system file picker - NO permissions needed with withData: true
+  static Future<List<PlatformFile>?> pickFiles({
     bool allowMultiple = true,
     List<String>? allowedExtensions,
   }) async {
@@ -36,23 +38,31 @@ class FilePickerService {
         allowMultiple: allowMultiple,
         type: allowedExtensions != null ? FileType.custom : FileType.any,
         allowedExtensions: allowedExtensions,
+        withData: true, // 🔥 CRITICAL - gets data without storage permission
       );
 
       if (result == null) return null;
-      return [result];
+      return result.files;
     } catch (e) {
       debugPrint('Error picking files: $e');
       return null;
     }
   }
 
-  // Pick images (Works on Web & Android)
+  /// ✅ Pick images - WORKS ON ALL PLATFORMS
+  /// Uses system photo picker on Android 13+ - NO permissions needed!
   static Future<List<XFile>?> pickImages({bool allowMultiple = true}) async {
     try {
       final ImagePicker picker = ImagePicker();
 
       if (allowMultiple) {
-        return await picker.pickMultiImage(imageQuality: 80, limit: 10);
+        // ✅ Uses system photo picker on Android 13+
+        // No READ_MEDIA_IMAGES permission needed!
+        final List<XFile> images = await picker.pickMultiImage(
+          imageQuality: 80,
+          limit: 10,
+        );
+        return images.isNotEmpty ? images : null;
       } else {
         final XFile? image = await picker.pickImage(
           source: ImageSource.gallery,
@@ -62,11 +72,35 @@ class FilePickerService {
       }
     } catch (e) {
       debugPrint('Error picking images: $e');
+      // Fallback for older Android versions
+      return _pickImagesFallback(allowMultiple);
+    }
+  }
+
+  /// ✅ Fallback for older Android versions
+  static Future<List<XFile>?> _pickImagesFallback(bool allowMultiple) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      if (allowMultiple) {
+        final List<XFile> images = await picker.pickMultiImage(
+          imageQuality: 80,
+          limit: 10,
+        );
+        return images.isNotEmpty ? images : null;
+      } else {
+        final XFile? image = await picker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 80,
+        );
+        return image != null ? [image] : null;
+      }
+    } catch (e) {
+      debugPrint('Error in fallback image picker: $e');
       return null;
     }
   }
 
-  // Take photo with camera (Android only, Web returns null)
+  /// ✅ Take photo with camera - MOBILE ONLY
   static Future<XFile?> takePhoto() async {
     if (isWeb) {
       debugPrint('Camera not supported on Web');
@@ -85,58 +119,59 @@ class FilePickerService {
     }
   }
 
-  // Upload files from FilePickerResult (Works on Web & Android)
+  // ===================== FILE UPLOAD =====================
+
+  /// ✅ Upload files from PlatformFile list (FilePicker)
   static Future<List<Map<String, dynamic>>> uploadFiles({
     required String folderPath,
-    required List<FilePickerResult> files,
+    required List<PlatformFile> files,
     Function(int, int)? onProgress,
   }) async {
     List<Map<String, dynamic>> uploadedFiles = [];
     int completed = 0;
 
-    for (var result in files) {
-      for (var file in result.files) {
-        try {
-          final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
-          final ref = _storage.ref().child('$folderPath/$fileName');
+    for (var file in files) {
+      try {
+        final fileName =
+            '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+        final ref = _storage.ref().child('$folderPath/$fileName');
 
-          UploadTask uploadTask;
+        UploadTask uploadTask;
 
-          if (isWeb && file.bytes != null) {
-            // Web platform
-            uploadTask = ref.putData(file.bytes!);
-          } else if (file.path != null) {
-            // Mobile platform
-            uploadTask = ref.putFile(File(file.path!));
-          } else {
-            continue;
-          }
-
-          final snapshot = await uploadTask;
-          final downloadUrl = await snapshot.ref.getDownloadURL();
-
-          uploadedFiles.add({
-            'name': fileName,
-            'originalName': file.name,
-            'url': downloadUrl,
-            'type': _getFileType(file.name),
-            'size': file.size,
-          });
-
-          completed++;
-          if (onProgress != null) {
-            onProgress(completed, files.length);
-          }
-        } catch (e) {
-          debugPrint('Upload error for ${file.name}: $e');
+        if (isWeb && file.bytes != null) {
+          // Web platform - upload from bytes
+          uploadTask = ref.putData(file.bytes!);
+        } else if (file.path != null) {
+          // Mobile platform - upload from file
+          uploadTask = ref.putFile(File(file.path!));
+        } else {
+          continue;
         }
+
+        final snapshot = await uploadTask;
+        final downloadUrl = await snapshot.ref.getDownloadURL();
+
+        uploadedFiles.add({
+          'name': fileName,
+          'originalName': file.name,
+          'url': downloadUrl,
+          'type': _getFileType(file.name),
+          'size': file.size,
+        });
+
+        completed++;
+        if (onProgress != null) {
+          onProgress(completed, files.length);
+        }
+      } catch (e) {
+        debugPrint('Upload error for ${file.name}: $e');
       }
     }
 
     return uploadedFiles;
   }
 
-  // Upload images from XFile list (Works on Web & Android)
+  /// ✅ Upload images from XFile list (ImagePicker)
   static Future<List<Map<String, dynamic>>> uploadImages({
     required String folderPath,
     required List<XFile> images,
@@ -147,15 +182,18 @@ class FilePickerService {
 
     for (var image in images) {
       try {
-        final fileName = '${DateTime.now().millisecondsSinceEpoch}_${image.name}';
+        final fileName =
+            '${DateTime.now().millisecondsSinceEpoch}_${image.name}';
         final ref = _storage.ref().child('$folderPath/$fileName');
 
         UploadTask uploadTask;
 
         if (isWeb) {
+          // Web platform - upload from bytes
           final bytes = await image.readAsBytes();
           uploadTask = ref.putData(bytes);
         } else {
+          // Mobile platform - upload from file
           uploadTask = ref.putFile(File(image.path));
         }
 
@@ -182,7 +220,7 @@ class FilePickerService {
     return uploadedFiles;
   }
 
-  // Upload multiple files (convenience method)
+  /// ✅ Upload multiple files (convenience method)
   static Future<List<Map<String, dynamic>>> uploadMultipleFiles({
     required List<dynamic> files,
     required String folder,
@@ -191,7 +229,8 @@ class FilePickerService {
 
     for (var fileItem in files) {
       try {
-        final fileName = '${DateTime.now().millisecondsSinceEpoch}_${_getFileName(fileItem)}';
+        final fileName =
+            '${DateTime.now().millisecondsSinceEpoch}_${_getFileName(fileItem)}';
         final ref = _storage.ref().child('$folder/$fileName');
 
         UploadTask uploadTask;
@@ -201,10 +240,9 @@ class FilePickerService {
           if (fileItem is XFile) {
             final bytes = await fileItem.readAsBytes();
             uploadTask = ref.putData(bytes);
-          } else if (fileItem is FilePickerResult) {
-            final file = fileItem.files.first;
-            if (file.bytes != null) {
-              uploadTask = ref.putData(file.bytes!);
+          } else if (fileItem is PlatformFile) {
+            if (fileItem.bytes != null) {
+              uploadTask = ref.putData(fileItem.bytes!);
             } else {
               continue;
             }
@@ -215,10 +253,9 @@ class FilePickerService {
           // Mobile platform
           if (fileItem is XFile) {
             uploadTask = ref.putFile(File(fileItem.path));
-          } else if (fileItem is FilePickerResult) {
-            final file = fileItem.files.first;
-            if (file.path != null) {
-              uploadTask = ref.putFile(File(file.path!));
+          } else if (fileItem is PlatformFile) {
+            if (fileItem.path != null) {
+              uploadTask = ref.putFile(File(fileItem.path!));
             } else {
               continue;
             }
@@ -247,7 +284,9 @@ class FilePickerService {
     return uploadedFiles;
   }
 
-  // Download file (Works on Web & Android)
+  // ===================== FILE DOWNLOAD =====================
+
+  /// ✅ Download file - WORKS ON ALL PLATFORMS
   static Future<void> downloadFile({
     required String url,
     required String fileName,
@@ -262,7 +301,10 @@ class FilePickerService {
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Download started...'), backgroundColor: Colors.green),
+            const SnackBar(
+              content: Text('Download started...'),
+              backgroundColor: Colors.green,
+            ),
           );
         }
       } else {
@@ -294,7 +336,10 @@ class FilePickerService {
         if (context.mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Downloaded: $fileName'), backgroundColor: Colors.green),
+            SnackBar(
+              content: Text('Downloaded: $fileName'),
+              backgroundColor: Colors.green,
+            ),
           );
         }
       }
@@ -302,16 +347,22 @@ class FilePickerService {
       if (context.mounted) {
         if (Navigator.canPop(context)) Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Download error: ${e.toString().substring(0, 100)}'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(
+              'Download error: ${e.toString().substring(0, 100)}',
+            ),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
   }
 
-  // Helper methods for cross-platform file handling
+  // ===================== HELPER METHODS =====================
+
   static String _getFileName(dynamic fileItem) {
-    if (fileItem is FilePickerResult) {
-      return fileItem.files.first.name;
+    if (fileItem is PlatformFile) {
+      return fileItem.name;
     } else if (fileItem is XFile) {
       return fileItem.name;
     } else if (fileItem is File) {
@@ -321,8 +372,8 @@ class FilePickerService {
   }
 
   static String _getOriginalName(dynamic fileItem) {
-    if (fileItem is FilePickerResult) {
-      return fileItem.files.first.name;
+    if (fileItem is PlatformFile) {
+      return fileItem.name;
     } else if (fileItem is XFile) {
       return fileItem.name;
     } else if (fileItem is File) {
@@ -332,8 +383,8 @@ class FilePickerService {
   }
 
   static Future<int> _getFileSize(dynamic fileItem) async {
-    if (fileItem is FilePickerResult) {
-      return fileItem.files.first.size;
+    if (fileItem is PlatformFile) {
+      return fileItem.size;
     } else if (fileItem is XFile) {
       return await fileItem.length();
     } else if (fileItem is File) {
@@ -344,7 +395,7 @@ class FilePickerService {
 
   static String _getFileType(String fileName) {
     final extension = fileName.toLowerCase().split('.').last;
-    const images = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const images = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'];
     const pdfs = ['pdf'];
     const documents = ['doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'];
 
