@@ -76,8 +76,8 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
-      firstDate: DateTime.now().subtract(Duration(days: 30)),
-      lastDate: DateTime.now().add(Duration(days: 365)),
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
     );
 
     if (picked != null) {
@@ -142,7 +142,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
           });
 
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('📎 Document uploaded successfully!'),
               backgroundColor: Colors.green,
             ),
@@ -173,7 +173,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
 
     if (_fromDate == null || _toDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Please select dates for leave'),
           backgroundColor: Colors.orange,
         ),
@@ -184,7 +184,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
     final days = _calculateDays();
     if (days <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Please select valid dates'),
           backgroundColor: Colors.orange,
         ),
@@ -204,7 +204,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
         SnackBar(
           content: Text('❌ Insufficient leave balance for $_selectedLeaveType'),
           backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
+          duration: const Duration(seconds: 3),
         ),
       );
       return;
@@ -275,7 +275,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
           borderRadius: BorderRadius.circular(20),
         ),
         child: Container(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -285,38 +285,38 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                   shape: BoxShape.circle,
                   color: Colors.green.withOpacity(0.1),
                 ),
-                padding: EdgeInsets.all(16),
-                child: Icon(
+                padding: const EdgeInsets.all(16),
+                child: const Icon(
                   Icons.check_circle,
                   color: Colors.green,
                   size: 80,
                 ),
               ),
-              SizedBox(height: 16),
-              Text(
+              const SizedBox(height: 16),
+              const Text(
                 '✅ Leave Request Submitted!',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              SizedBox(height: 8),
-              Text(
+              const SizedBox(height: 8),
+              const Text(
                 'Admin has been notified.\nYou will receive approval via notification.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey[600],
+                  color: Colors.grey,
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Container(
-                padding: EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.blue[50],
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.phone_in_talk, color: Colors.blue),
@@ -325,13 +325,13 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                       '📞 Admin will call you soon!',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Colors.blue[700],
+                        color: Colors.blue,
                       ),
                     ),
                   ],
                 ),
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
@@ -339,12 +339,12 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
-                  minimumSize: Size(double.infinity, 50),
+                  minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: Text(
+                child: const Text(
                   'OK',
                   style: TextStyle(fontSize: 16),
                 ),
@@ -360,7 +360,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Apply for Leave',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
@@ -368,12 +368,12 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.history),
+            icon: const Icon(Icons.history),
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => TeacherLeaveHistory(),
+                  builder: (context) => const TeacherLeaveHistory(),
                 ),
               );
             },
@@ -381,15 +381,15 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
         ],
       ),
       body: _isLoadingBalance
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Leave Balance Card
             _buildLeaveBalanceCard(),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
 
             // Application Form
             Card(
@@ -398,20 +398,20 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Padding(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         '📝 Leave Application Form',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
                       // Leave Type Dropdown
                       DropdownButtonFormField<String>(
@@ -420,7 +420,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          prefixIcon: Icon(Icons.event_note),
+                          prefixIcon: const Icon(Icons.event_note),
                           filled: true,
                           fillColor: Colors.grey[50],
                         ),
@@ -439,12 +439,12 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                                 color: Colors.blue,
                                 size: 20,
                               ),
-                              SizedBox(width: 8),
+                              const SizedBox(width: 8),
                               Text(type),
-                              Spacer(),
+                              const Spacer(),
                               if (_leaveBalance.containsKey(type))
                                 Container(
-                                  padding: EdgeInsets.symmetric(
+                                  padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
                                     vertical: 2,
                                   ),
@@ -453,7 +453,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    '${_leaveBalance[type]['remaining'] ?? 0} left',
+                                    '${_leaveBalance[type]?['remaining'] ?? 0} left',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.green[700],
@@ -477,7 +477,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                           return null;
                         },
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
                       // Date Range
                       Row(
@@ -491,7 +491,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  prefixIcon: Icon(Icons.calendar_today),
+                                  prefixIcon: const Icon(Icons.calendar_today),
                                   filled: true,
                                   fillColor: Colors.grey[50],
                                 ),
@@ -508,7 +508,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                               ),
                             ),
                           ),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: InkWell(
                               onTap: () => _selectDate(context, false),
@@ -518,7 +518,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  prefixIcon: Icon(Icons.calendar_today),
+                                  prefixIcon: const Icon(Icons.calendar_today),
                                   filled: true,
                                   fillColor: Colors.grey[50],
                                 ),
@@ -537,12 +537,12 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                           ),
                         ],
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
 
                       // Days count
                       if (_fromDate != null && _toDate != null)
                         Container(
-                          padding: EdgeInsets.symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 8,
                           ),
@@ -553,7 +553,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
+                              const Text(
                                 'Total Days:',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
@@ -568,7 +568,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                             ],
                           ),
                         ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
                       // Reason
                       TextFormField(
@@ -580,7 +580,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          prefixIcon: Icon(Icons.description),
+                          prefixIcon: const Icon(Icons.description),
                           filled: true,
                           fillColor: Colors.grey[50],
                         ),
@@ -594,9 +594,9 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                           return null;
                         },
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                      // Document Upload
+                      // Document Upload - FIXED NULL SAFETY
                       Container(
                         decoration: BoxDecoration(
                           border: Border.all(
@@ -609,7 +609,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                         child: Column(
                           children: [
                             ListTile(
-                              leading: Icon(
+                              leading: const Icon(
                                 Icons.attach_file,
                                 color: Colors.blue,
                               ),
@@ -622,7 +622,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                                 ),
                               ),
                               trailing: _isUploading
-                                  ? SizedBox(
+                                  ? const SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
@@ -630,19 +630,20 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                                 ),
                               )
                                   : _documentName != null
-                                  ? Icon(
+                                  ? const Icon(
                                 Icons.check_circle,
                                 color: Colors.green,
                               )
-                                  : Icon(
+                                  : const Icon(
                                 Icons.cloud_upload,
                                 color: Colors.blue,
                               ),
                               onTap: _pickDocument,
                             ),
-                            if (_documentName != null)
+                            // FIXED: Null safety for document name display
+                            if (_documentName != null && _documentName!.isNotEmpty)
                               Padding(
-                                padding: EdgeInsets.only(
+                                padding: const EdgeInsets.only(
                                   left: 16,
                                   right: 16,
                                   bottom: 8,
@@ -651,7 +652,8 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        '✅ ${_documentName.length > 30 ? _documentName.substring(0, 30) + '...' : _documentName}',
+                                        // FIXED: Safe null check with proper condition
+                                        '✅ ${_documentName!.length > 30 ? _documentName!.substring(0, 30) + '...' : _documentName!}',
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: Colors.green[700],
@@ -659,7 +661,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                                       ),
                                     ),
                                     IconButton(
-                                      icon: Icon(
+                                      icon: const Icon(
                                         Icons.close,
                                         size: 16,
                                         color: Colors.red,
@@ -677,7 +679,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                           ],
                         ),
                       ),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
                       // Submit Button
                       SizedBox(
@@ -686,13 +688,13 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                           onPressed: _isLoading ? null : _submitLeaveRequest,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
-                            padding: EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                           icon: _isLoading
-                              ? SizedBox(
+                              ? const SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
@@ -700,25 +702,25 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                               strokeWidth: 2,
                             ),
                           )
-                              : Icon(Icons.phone_callback),
+                              : const Icon(Icons.phone_callback),
                           label: Text(
                             _isLoading
                                 ? 'Submitting...'
                                 : '📞 Submit & Notify Admin',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                       ),
-                      SizedBox(height: 8),
-                      Text(
+                      const SizedBox(height: 8),
+                      const Text(
                         '⚠️ Admin will review your request and approve via call-style notification',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey[600],
+                          color: Colors.grey,
                         ),
                       ),
                     ],
@@ -745,18 +747,18 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
           BoxShadow(
             color: Colors.blue.withOpacity(0.3),
             blurRadius: 10,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 '📊 Your Leave Balance',
                 style: TextStyle(
                   color: Colors.white,
@@ -765,12 +767,12 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
                 ),
               ),
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
+                child: const Text(
                   '2026-2027',
                   style: TextStyle(
                     color: Colors.white70,
@@ -780,7 +782,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
               ),
             ],
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -798,18 +800,17 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
     final data = balance[type] ?? {'total': 0, 'used': 0, 'remaining': 0};
     final remaining = data['remaining'] ?? 0;
     final total = data['total'] ?? 0;
-    final percentage = total > 0 ? (remaining / total * 100) : 0;
 
     return Column(
       children: [
         Text(
           short,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white70,
             fontSize: 12,
           ),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Stack(
           alignment: Alignment.center,
           children: [
@@ -827,7 +828,7 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
             ),
             Text(
               '$remaining',
-              style: TextStyle(
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -835,10 +836,10 @@ class _TeacherLeaveApplicationState extends State<TeacherLeaveApplication> {
             ),
           ],
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: 4),
         Text(
           '/$total',
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white60,
             fontSize: 10,
           ),
