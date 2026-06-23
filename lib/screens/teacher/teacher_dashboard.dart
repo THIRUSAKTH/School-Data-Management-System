@@ -11,6 +11,10 @@ import 'select_class_attendance_page.dart';
 import 'attendance_report_page.dart';
 import 'teacher_homework_post_page.dart';
 
+// ✅ NEW: Import leave pages
+import 'teacher_leave_application.dart';
+import 'teacher_leave_history.dart';
+
 class TeacherDashboard extends StatefulWidget {
   const TeacherDashboard({super.key});
 
@@ -23,6 +27,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   int _todayClasses = 0;
   int _totalStudents = 0;
   int _pendingSubmissions = 0;
+  int _pendingLeaveRequests = 0; // ✅ NEW: For leave badge
   List<Map<String, dynamic>> _todaySchedule = [];
   List<Map<String, dynamic>> _assignedClasses = [];
   bool _isLoading = true;
@@ -33,6 +38,27 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     _loadTeacherData();
     _loadTodaySchedule();
     _loadPendingSubmissions();
+    _loadPendingLeaveRequests(); // ✅ NEW: Load pending leaves
+  }
+
+  // ✅ NEW: Load pending leave requests
+  Future<void> _loadPendingLeaveRequests() async {
+    try {
+      final teacherUid = FirebaseAuth.instance.currentUser!.uid;
+
+      final leaveSnapshot =
+          await FirebaseFirestore.instance
+              .collection('leave_requests')
+              .where('teacherId', isEqualTo: teacherUid)
+              .where('status', isEqualTo: 'pending')
+              .get();
+
+      setState(() {
+        _pendingLeaveRequests = leaveSnapshot.docs.length;
+      });
+    } catch (e) {
+      debugPrint('Error loading pending leaves: $e');
+    }
   }
 
   Future<void> _loadTeacherData() async {
@@ -199,7 +225,6 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     );
   }
 
-  // FIXED: Single navigation method for homework dashboard
   void _navigateToHomeworkDashboard() {
     Navigator.push(
       context,
@@ -209,13 +234,32 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     });
   }
 
-  // FIXED: Navigation for posting homework
   void _navigateToPostHomework() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const TeacherHomeworkPostPage()),
     ).then((_) {
       _loadPendingSubmissions();
+    });
+  }
+
+  // ✅ NEW: Navigate to Leave Application
+  void _navigateToLeaveApplication() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TeacherLeaveApplication()),
+    ).then((_) {
+      _loadPendingLeaveRequests();
+    });
+  }
+
+  // ✅ NEW: Navigate to Leave History
+  void _navigateToLeaveHistory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TeacherLeaveHistory()),
+    ).then((_) {
+      _loadPendingLeaveRequests();
     });
   }
 
@@ -228,6 +272,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         await _loadTeacherData();
         await _loadTodaySchedule();
         await _loadPendingSubmissions();
+        await _loadPendingLeaveRequests();
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -245,11 +290,147 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                     const SizedBox(height: 20),
                     _buildHomeworkSummaryCard(),
                     const SizedBox(height: 20),
+                    _buildLeaveSummaryCard(), // ✅ NEW: Leave Summary Card
+                    const SizedBox(height: 20),
                     _buildActionGrid(),
                     const SizedBox(height: 24),
                     _buildTodaySchedule(),
                   ],
                 ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Leave Summary Card
+  Widget _buildLeaveSummaryCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.deepOrange],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orange.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.event_note,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  "Leave Management",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (_pendingLeaveRequests > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    "${_pendingLeaveRequests} Pending",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _leaveStat(
+                  Icons.add,
+                  "Apply Leave",
+                  Colors.white,
+                  _navigateToLeaveApplication,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _leaveStat(
+                  Icons.history,
+                  "View History",
+                  Colors.white,
+                  _navigateToLeaveHistory,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _leaveStat(
+                  Icons.pending_actions,
+                  "Status",
+                  Colors.white,
+                  _navigateToLeaveHistory,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _leaveStat(
+    IconData icon,
+    String label,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontSize: 10),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -331,7 +512,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                   Icons.assignment,
                   "Post Homework",
                   Colors.white,
-                  _navigateToPostHomework, // FIXED: Using correct method
+                  _navigateToPostHomework,
                 ),
               ),
               const SizedBox(width: 12),
@@ -469,6 +650,12 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
                 "Classes",
                 _assignedClasses.length.toString(),
               ),
+              // ✅ NEW: Pending Leave Stat
+              _headerStat(
+                Icons.event_note,
+                "Leave Requests",
+                _pendingLeaveRequests.toString(),
+              ),
             ],
           ),
         ],
@@ -548,12 +735,19 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             );
           }),
           const SizedBox(width: 12),
-          // FIXED: Using correct method name
           _quickStat(
             Icons.assignment,
             "Homework",
             Colors.deepPurple,
             _navigateToHomeworkDashboard,
+          ),
+          // ✅ NEW: Leave Quick Stat
+          const SizedBox(width: 12),
+          _quickStat(
+            Icons.event_note,
+            "Leave",
+            Colors.orange,
+            _navigateToLeaveApplication,
           ),
         ],
       ),
@@ -599,12 +793,13 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
 
   Widget _buildActionGrid() {
     return GridView.count(
-      crossAxisCount: 2,
+      crossAxisCount: 3,
+      // ✅ Changed from 2 to 3
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.2,
+      childAspectRatio: 1.1,
       children: [
         _ActionCard(
           title: "Mark Attendance",
@@ -681,6 +876,20 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
               ),
             );
           },
+        ),
+        // ✅ NEW: Apply for Leave Button
+        _ActionCard(
+          title: "Apply Leave",
+          icon: Icons.event_note,
+          color: Colors.orange,
+          onTap: _navigateToLeaveApplication,
+        ),
+        // ✅ NEW: Leave History Button
+        _ActionCard(
+          title: "Leave History",
+          icon: Icons.history,
+          color: Colors.brown,
+          onTap: _navigateToLeaveHistory,
         ),
       ],
     );

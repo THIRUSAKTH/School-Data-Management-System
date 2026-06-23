@@ -21,6 +21,9 @@ import 'create_class_page.dart';
 import 'student_management_page.dart';
 import 'teacher_management_page.dart';
 
+// ✅ NEW: Import Leave Management
+import 'admin_leave_management.dart';
+
 class AdminDashboard extends StatefulWidget {
   final String schoolId;
 
@@ -35,6 +38,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Map<String, dynamic> _cachedChartData = {};
   DateTime _lastFetchTime = DateTime.now();
 
+  // ✅ NEW: Pending leave count for badge
+  int _pendingLeaveCount = 0;
+
   // Responsive breakpoints
   bool _isWeb(BuildContext context) => MediaQuery.of(context).size.width >= 900;
 
@@ -46,6 +52,24 @@ class _AdminDashboardState extends State<AdminDashboard> {
   void initState() {
     super.initState();
     _fetchChartData();
+    _loadPendingLeaveCount(); // ✅ NEW: Load pending leaves
+  }
+
+  // ✅ NEW: Load pending leave count
+  Future<void> _loadPendingLeaveCount() async {
+    try {
+      final snapshot =
+          await FirebaseFirestore.instance
+              .collection('leave_requests')
+              .where('status', isEqualTo: 'pending')
+              .get();
+
+      setState(() {
+        _pendingLeaveCount = snapshot.docs.length;
+      });
+    } catch (e) {
+      debugPrint('Error loading pending leaves: $e');
+    }
   }
 
   void _logout(BuildContext context) async {
@@ -181,7 +205,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
       drawer: _buildDrawer(context),
       appBar: _buildAppBar(),
       body: RefreshIndicator(
-        onRefresh: _fetchChartData,
+        onRefresh: () async {
+          await _fetchChartData();
+          await _loadPendingLeaveCount(); // ✅ NEW: Refresh leave count
+        },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.symmetric(
@@ -197,6 +224,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ✅ NEW: Pending Leave Alert Banner
+                  if (_pendingLeaveCount > 0) _buildPendingLeaveBanner(),
+
+                  if (_pendingLeaveCount > 0) const SizedBox(height: 16),
+
                   // Stats Grid - Responsive
                   GridView.count(
                     crossAxisCount: crossAxisCount,
@@ -296,6 +328,73 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  // ✅ NEW: Pending Leave Banner
+  Widget _buildPendingLeaveBanner() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AdminLeaveManagement()),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Colors.orange, Colors.deepOrange],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.event_note,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '📋 $_pendingLeaveCount Pending Leave Request${_pendingLeaveCount > 1 ? 's' : ''}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Text(
+                    'Tap to review and approve/reject',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.blue,
@@ -336,9 +435,49 @@ class _AdminDashboardState extends State<AdminDashboard> {
         },
       ),
       actions: [
+        // ✅ NEW: Leave Notification Icon with Badge
+        Stack(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.event_note),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminLeaveManagement(),
+                  ),
+                );
+              },
+              tooltip: "Leave Management",
+            ),
+            if (_pendingLeaveCount > 0)
+              Positioned(
+                right: 4,
+                top: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '$_pendingLeaveCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
         IconButton(
           icon: const Icon(Icons.refresh),
-          onPressed: _fetchChartData,
+          onPressed: () async {
+            await _fetchChartData();
+            await _loadPendingLeaveCount();
+          },
           tooltip: "Refresh",
         ),
         IconButton(
@@ -755,7 +894,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildQuickActions({required bool isWeb}) {
-    final actionsPerRow = isWeb ? 6 : 2;
+    final actionsPerRow = isWeb ? 7 : 2; // ✅ Changed from 6 to 7
 
     final actions = [
       {
@@ -793,6 +932,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
         "label": "Timetable",
         "color": Colors.cyan,
         "page": AdminCreateTimetablePage(schoolId: AppConfig.schoolId),
+      },
+      // ✅ NEW: Leave Management Quick Action
+      {
+        "icon": Icons.event_note,
+        "label": "Leave Mgmt",
+        "color": Colors.orange,
+        "page": const AdminLeaveManagement(),
       },
     ];
 
@@ -953,6 +1099,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
             AdminAnalyticsPage(schoolId: AppConfig.schoolId),
           ),
           const Divider(),
+          // ✅ NEW: Leave Management in Drawer
+          _drawerItem(
+            context,
+            Icons.event_note,
+            "Leave Management",
+            const AdminLeaveManagement(),
+          ),
           _drawerItem(
             context,
             Icons.business,
