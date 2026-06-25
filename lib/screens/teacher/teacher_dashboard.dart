@@ -1,3 +1,5 @@
+// lib/screens/teacher/teacher_dashboard.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -46,12 +48,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     try {
       final teacherUid = FirebaseAuth.instance.currentUser!.uid;
 
-      final leaveSnapshot =
-          await FirebaseFirestore.instance
-              .collection('leave_requests')
-              .where('teacherId', isEqualTo: teacherUid)
-              .where('status', isEqualTo: 'pending')
-              .get();
+      final leaveSnapshot = await FirebaseFirestore.instance
+          .collection('leave_requests')
+          .where('teacherId', isEqualTo: teacherUid)
+          .where('status', isEqualTo: 'pending')
+          .get();
 
       setState(() {
         _pendingLeaveRequests = leaveSnapshot.docs.length;
@@ -66,14 +67,13 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
 
     try {
       final teacherUid = FirebaseAuth.instance.currentUser!.uid;
-      final teacherDoc =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('teachers')
-              .where('uid', isEqualTo: teacherUid)
-              .limit(1)
-              .get();
+      final teacherDoc = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('teachers')
+          .where('uid', isEqualTo: teacherUid)
+          .limit(1)
+          .get();
 
       if (teacherDoc.docs.isNotEmpty) {
         final data = teacherDoc.docs.first.data();
@@ -86,14 +86,13 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
 
         int totalStudents = 0;
         for (var classInfo in _assignedClasses) {
-          final studentsSnapshot =
-              await FirebaseFirestore.instance
-                  .collection('schools')
-                  .doc(AppConfig.schoolId)
-                  .collection('students')
-                  .where('class', isEqualTo: classInfo['className'])
-                  .where('section', isEqualTo: classInfo['section'])
-                  .get();
+          final studentsSnapshot = await FirebaseFirestore.instance
+              .collection('schools')
+              .doc(AppConfig.schoolId)
+              .collection('students')
+              .where('class', isEqualTo: classInfo['className'])
+              .where('section', isEqualTo: classInfo['section'])
+              .get();
           totalStudents += studentsSnapshot.docs.length;
         }
 
@@ -112,14 +111,13 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
     try {
       final teacherUid = FirebaseAuth.instance.currentUser!.uid;
 
-      final homeworkSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('homework')
-              .where('teacherId', isEqualTo: teacherUid)
-              .where('isActive', isEqualTo: true)
-              .get();
+      final homeworkSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('homework')
+          .where('teacherId', isEqualTo: teacherUid)
+          .where('isActive', isEqualTo: true)
+          .get();
 
       int pending = 0;
 
@@ -128,14 +126,13 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
         final className = data['className'] ?? '';
         final section = data['section'] ?? '';
 
-        final studentsSnapshot =
-            await FirebaseFirestore.instance
-                .collection('schools')
-                .doc(AppConfig.schoolId)
-                .collection('students')
-                .where('class', isEqualTo: className)
-                .where('section', isEqualTo: section)
-                .get();
+        final studentsSnapshot = await FirebaseFirestore.instance
+            .collection('schools')
+            .doc(AppConfig.schoolId)
+            .collection('students')
+            .where('class', isEqualTo: className)
+            .where('section', isEqualTo: section)
+            .get();
 
         final totalStudents = studentsSnapshot.docs.length;
         final submittedBy = List<String>.from(data['submittedBy'] ?? []);
@@ -156,14 +153,13 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       final teacherUid = FirebaseAuth.instance.currentUser!.uid;
       final today = DateFormat('EEEE').format(DateTime.now()).toLowerCase();
 
-      final scheduleSnapshot =
-          await FirebaseFirestore.instance
-              .collection('schools')
-              .doc(AppConfig.schoolId)
-              .collection('timetable')
-              .where('teacherId', isEqualTo: teacherUid)
-              .where('day', isEqualTo: today)
-              .get();
+      final scheduleSnapshot = await FirebaseFirestore.instance
+          .collection('schools')
+          .doc(AppConfig.schoolId)
+          .collection('timetable')
+          .where('teacherId', isEqualTo: teacherUid)
+          .where('day', isEqualTo: today)
+          .get();
 
       if (scheduleSnapshot.docs.isNotEmpty) {
         final List<Map<String, dynamic>> schedule = [];
@@ -197,31 +193,30 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   void _logout(BuildContext context) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text("Logout"),
-            content: const Text("Are you sure you want to logout?"),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel"),
-              ),
-              TextButton(
-                onPressed: () async {
-                  await FirebaseAuth.instance.signOut();
-                  if (mounted) {
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      '/login',
-                      (route) => false,
-                    );
-                  }
-                },
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text("Logout"),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text("Logout"),
+        content: const Text("Are you sure you want to logout?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
           ),
+          TextButton(
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                      (route) => false,
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Logout"),
+          ),
+        ],
+      ),
     );
   }
 
@@ -277,26 +272,25 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
-        child:
-            _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 30),
-                    _buildHeaderCard(today),
-                    const SizedBox(height: 20),
-                    _buildQuickStatsRow(),
-                    const SizedBox(height: 20),
-                    _buildHomeworkSummaryCard(),
-                    const SizedBox(height: 20),
-                    _buildLeaveSummaryCard(), // ✅ NEW: Leave Summary Card
-                    const SizedBox(height: 20),
-                    _buildActionGrid(),
-                    const SizedBox(height: 24),
-                    _buildTodaySchedule(),
-                  ],
-                ),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 30),
+            _buildHeaderCard(today),
+            const SizedBox(height: 20),
+            _buildQuickStatsRow(),
+            const SizedBox(height: 20),
+            _buildHomeworkSummaryCard(),
+            const SizedBox(height: 20),
+            _buildLeaveSummaryCard(), // ✅ NEW: Leave Summary Card
+            const SizedBox(height: 20),
+            _buildActionGrid(),
+            const SizedBox(height: 24),
+            _buildTodaySchedule(),
+          ],
+        ),
       ),
     );
   }
@@ -407,11 +401,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   }
 
   Widget _leaveStat(
-    IconData icon,
-    String label,
-    Color color,
-    VoidCallback onTap,
-  ) {
+      IconData icon,
+      String label,
+      Color color,
+      VoidCallback onTap,
+      ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -541,11 +535,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   }
 
   Widget _homeworkStat(
-    IconData icon,
-    String label,
-    Color color,
-    VoidCallback onTap,
-  ) {
+      IconData icon,
+      String label,
+      Color color,
+      VoidCallback onTap,
+      ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -702,9 +696,9 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder:
-                    (_) =>
-                        SelectClassAttendancePage(schoolId: AppConfig.schoolId),
+                builder: (_) => SelectClassAttendancePage(
+                  schoolId: AppConfig.schoolId,
+                ),
               ),
             );
           }),
@@ -713,8 +707,9 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder:
-                    (_) => AttendanceReportPage(schoolId: AppConfig.schoolId),
+                builder: (_) => AttendanceReportPage(
+                  schoolId: AppConfig.schoolId,
+                ),
               ),
             );
           }),
@@ -755,11 +750,11 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
   }
 
   Widget _quickStat(
-    IconData icon,
-    String label,
-    Color color,
-    VoidCallback onTap,
-  ) {
+      IconData icon,
+      String label,
+      Color color,
+      VoidCallback onTap,
+      ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -793,8 +788,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
 
   Widget _buildActionGrid() {
     return GridView.count(
-      crossAxisCount: 3,
-      // ✅ Changed from 2 to 3
+      crossAxisCount: 3, // ✅ Changed from 2 to 3
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
@@ -809,9 +803,9 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder:
-                    (_) =>
-                        SelectClassAttendancePage(schoolId: AppConfig.schoolId),
+                builder: (_) => SelectClassAttendancePage(
+                  schoolId: AppConfig.schoolId,
+                ),
               ),
             );
           },
@@ -824,8 +818,9 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder:
-                    (_) => AttendanceReportPage(schoolId: AppConfig.schoolId),
+                builder: (_) => AttendanceReportPage(
+                  schoolId: AppConfig.schoolId,
+                ),
               ),
             );
           },
@@ -915,7 +910,7 @@ class _TeacherDashboardState extends State<TeacherDashboard> {
           )
         else
           ..._todaySchedule.map(
-            (classItem) => _scheduleTile(
+                (classItem) => _scheduleTile(
               classItem['time'],
               classItem['subject'],
               classItem['class'],

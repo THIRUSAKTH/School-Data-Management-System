@@ -3,373 +3,417 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import '../../models/leave_request_model.dart';
-import '../../services/leave_service.dart';
+import 'package:schoolprojectjan/app_config.dart';
+import 'teacher_leave_application.dart';
 
-class TeacherLeaveHistory extends StatefulWidget {
+class TeacherLeaveHistory extends StatelessWidget {
   const TeacherLeaveHistory({Key? key}) : super(key: key);
 
-  @override
-  _TeacherLeaveHistoryState createState() => _TeacherLeaveHistoryState();
-}
-
-class _TeacherLeaveHistoryState extends State<TeacherLeaveHistory> {
-  final LeaveService _leaveService = LeaveService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  String _selectedFilter = 'All';
+  // schools/school_1/leave_requests
+  static CollectionReference get _leaveCol => FirebaseFirestore.instance
+      .collection(AppConfig.schoolsCollection)
+      .doc(AppConfig.schoolId)
+      .collection('leave_requests');
 
   @override
   Widget build(BuildContext context) {
-    final user = _auth.currentUser!;
+    final uid = FirebaseAuth.instance.currentUser!.uid;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
-        title: Text('📋 Leave History'),
-        backgroundColor: Colors.blue[700],
+        backgroundColor: AppConfig.primaryColor,
+        foregroundColor: Colors.white,
         elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: Size.fromHeight(50),
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 40,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _buildFilterChip('All'),
-                        _buildFilterChip('Pending'),
-                        _buildFilterChip('Approved'),
-                        _buildFilterChip('Rejected'),
-                        _buildFilterChip('Cancelled'),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+        title: const Text('My Leaves', style: TextStyle(fontWeight: FontWeight.w600)),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_rounded),
+            tooltip: 'Apply Leave',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TeacherLeaveApplication()),
             ),
           ),
-        ),
+        ],
       ),
-      body: StreamBuilder<List<LeaveRequest>>(
-        stream: _leaveService.getLeaveHistory(user.uid),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _leaveCol
+            .where('teacherId', isEqualTo: uid)
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 60, color: Colors.red),
-                  SizedBox(height: 16),
-                  Text(
-                    'Error loading history',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                  Text(snapshot.error.toString()),
-                ],
-              ),
-            );
-          }
-
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            return Center(child: CircularProgressIndicator(color: AppConfig.primaryColor));
           }
 
-          final requests = snapshot.data ?? [];
-          final filteredRequests = _selectedFilter == 'All'
-              ? requests
-              : requests.where((r) => r.status == _selectedFilter.toLowerCase()).toList();
+          final docs     = snapshot.data?.docs ?? [];
+          final pending  = docs.where((d) => d['status'] == 'pending').length;
+          final approved = docs.where((d) => d['status'] == 'approved').length;
+          final rejected = docs.where((d) => d['status'] == 'rejected').length;
 
-          if (filteredRequests.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.history,
-                    size: 80,
-                    color: Colors.grey[400],
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    _selectedFilter == 'All'
-                        ? 'No leave requests found'
-                        : 'No ${_selectedFilter.toLowerCase()} requests',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Apply for leave to see it here',
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                    ),
-                  ),
-                ],
+          return Column(
+            children: [
+              // ── Summary header
+              Container(
+                color: AppConfig.primaryColor,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Row(
+                  children: [
+                    _SummaryTile(count: docs.length, label: 'Total',    color: Colors.white),
+                    const SizedBox(width: 8),
+                    _SummaryTile(count: pending,     label: 'Pending',  color: const Color(0xFFFFE4A0)),
+                    const SizedBox(width: 8),
+                    _SummaryTile(count: approved,    label: 'Approved', color: const Color(0xFFB9F5E0)),
+                    const SizedBox(width: 8),
+                    _SummaryTile(count: rejected,    label: 'Rejected', color: const Color(0xFFFFD0D0)),
+                  ],
+                ),
               ),
-            );
-          }
 
-          return ListView.builder(
-            padding: EdgeInsets.all(16),
-            itemCount: filteredRequests.length,
-            itemBuilder: (context, index) {
-              final request = filteredRequests[index];
-              return _buildLeaveCard(request);
-            },
+              // ── Leave balance strip
+              _LeaveBalanceStrip(
+                approvedDocs: docs.where((d) => d['status'] == 'approved').toList(),
+              ),
+
+              // ── History list
+              Expanded(
+                child: docs.isEmpty
+                    ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.event_busy_rounded, size: 64, color: Colors.grey.shade300),
+                      const SizedBox(height: 12),
+                      const Text('No leave requests yet',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF4A5568))),
+                      const SizedBox(height: 4),
+                      const Text('Tap + to apply for leave',
+                          style: TextStyle(fontSize: 13, color: Color(0xFF718096))),
+                    ],
+                  ),
+                )
+                    : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, i) {
+                    final data = docs[i].data() as Map<String, dynamic>;
+                    return _LeaveCard(data: data);
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
-    );
-  }
-
-  Widget _buildFilterChip(String label) {
-    final isSelected = _selectedFilter == label;
-    return Padding(
-      padding: EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (selected) {
-          setState(() {
-            _selectedFilter = label;
-          });
-        },
-        backgroundColor: Colors.grey[200],
-        selectedColor: Colors.blue[100],
-        labelStyle: TextStyle(
-          color: isSelected ? Colors.blue[700] : Colors.grey[600],
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const TeacherLeaveApplication()),
         ),
+        backgroundColor: AppConfig.primaryColor,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Apply Leave', style: TextStyle(fontWeight: FontWeight.w600)),
       ),
     );
   }
+}
 
-  Widget _buildLeaveCard(LeaveRequest request) {
-    Color statusColor;
-    IconData statusIcon;
-    String statusText;
+// ── Summary tile
+class _SummaryTile extends StatelessWidget {
+  final int count;
+  final String label;
+  final Color color;
+  const _SummaryTile({required this.count, required this.label, required this.color});
 
-    switch (request.status) {
-      case 'pending':
-        statusColor = Colors.orange;
-        statusIcon = Icons.hourglass_top;
-        statusText = 'Pending';
-        break;
-      case 'approved':
-        statusColor = Colors.green;
-        statusIcon = Icons.check_circle;
-        statusText = 'Approved';
-        break;
-      case 'rejected':
-        statusColor = Colors.red;
-        statusIcon = Icons.cancel;
-        statusText = 'Rejected';
-        break;
-      case 'cancelled':
-        statusColor = Colors.grey;
-        statusIcon = Icons.block;
-        statusText = 'Cancelled';
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusIcon = Icons.help;
-        statusText = 'Unknown';
-    }
-
-    return Card(
-      elevation: 2,
-      margin: EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: ExpansionTile(
-        leading: CircleAvatar(
-          backgroundColor: statusColor.withOpacity(0.2),
-          child: Icon(statusIcon, color: statusColor),
-        ),
-        title: Text(
-          '${request.leaveType} - ${request.days} day${request.days > 1 ? 's' : ''}',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-          '${DateFormat('dd MMM yyyy').format(request.fromDate)} - ${DateFormat('dd MMM yyyy').format(request.toDate)}',
-        ),
-        trailing: Container(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            statusText,
-            style: TextStyle(
-              color: statusColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-        ),
+      child: Column(
         children: [
-          Padding(
-            padding: EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.event_note, size: 16, color: Colors.grey[600]),
-                    SizedBox(width: 8),
-                    Text(
-                      'Leave Type: ${request.leaveType}',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                    SizedBox(width: 8),
-                    Text(
-                      '${DateFormat('dd MMM yyyy').format(request.fromDate)} - ${DateFormat('dd MMM yyyy').format(request.toDate)}',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.description, size: 16, color: Colors.grey[600]),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        request.reason,
-                        style: TextStyle(fontSize: 14),
-                      ),
-                    ),
-                  ],
-                ),
-                if (request.documentUrl != null) ...[
-                  SizedBox(height: 8),
-                  InkWell(
-                    onTap: () {
-                      // Open document
-                    },
-                    child: Row(
-                      children: [
-                        Icon(Icons.attach_file, size: 16, color: Colors.blue),
-                        SizedBox(width: 8),
-                        Text(
-                          'View Attachment',
-                          style: TextStyle(
-                            color: Colors.blue,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                if (request.approvedAt != null) ...[
-                  SizedBox(height: 8),
-                  Row(
+          Text('$count', style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 16)),
+          Text(label,    style: TextStyle(color: color.withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    ),
+  );
+}
+
+// ── Leave balance progress bars
+class _LeaveBalanceStrip extends StatelessWidget {
+  final List<QueryDocumentSnapshot> approvedDocs;
+  const _LeaveBalanceStrip({required this.approvedDocs});
+
+  int _used(String type) => approvedDocs
+      .where((d) => d['leaveType'] == type)
+      .fold(0, (sum, d) => sum + ((d['days'] as int?) ?? 1));
+
+  @override
+  Widget build(BuildContext context) {
+    const types = [
+      {'name': 'Casual Leave',  'quota': 12, 'color': Color(0xFF4F8EF7)},
+      {'name': 'Sick Leave',    'quota': 10, 'color': Color(0xFFE05C5C)},
+      {'name': 'Earned Leave',  'quota': 15, 'color': Color(0xFF3DB88B)},
+    ];
+
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Leave Balance (This Year)',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF718096))),
+          const SizedBox(height: 10),
+          Row(
+            children: types.map((t) {
+              final used      = _used(t['name'] as String);
+              final quota     = t['quota'] as int;
+              final remaining = (quota - used).clamp(0, quota);
+              final color     = t['color'] as Color;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                      SizedBox(width: 8),
-                      Text(
-                        'Approved on: ${DateFormat('dd MMM yyyy, HH:mm').format(request.approvedAt!)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(t['name'].toString().split(' ').first,
+                              style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+                          Text('$remaining/$quota',
+                              style: TextStyle(fontSize: 10, color: color)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: (used / quota).clamp(0.0, 1.0),
+                          backgroundColor: color.withOpacity(0.12),
+                          valueColor: AlwaysStoppedAnimation<Color>(color),
+                          minHeight: 6,
                         ),
                       ),
                     ],
                   ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Individual leave history card
+class _LeaveCard extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const _LeaveCard({required this.data});
+
+  Color get _statusColor {
+    switch (data['status']) {
+      case 'approved': return const Color(0xFF3DB88B);
+      case 'rejected': return const Color(0xFFE05C5C);
+      default:         return const Color(0xFFFF9F43);
+    }
+  }
+
+  String get _statusLabel {
+    switch (data['status']) {
+      case 'approved': return 'Approved';
+      case 'rejected': return 'Rejected';
+      default:         return 'Pending';
+    }
+  }
+
+  IconData get _statusIcon {
+    switch (data['status']) {
+      case 'approved': return Icons.check_circle_rounded;
+      case 'rejected': return Icons.cancel_rounded;
+      default:         return Icons.hourglass_top_rounded;
+    }
+  }
+
+  Color get _typeColor {
+    switch (data['leaveType']) {
+      case 'Casual Leave':    return const Color(0xFF4F8EF7);
+      case 'Sick Leave':      return const Color(0xFFE05C5C);
+      case 'Earned Leave':    return const Color(0xFF3DB88B);
+      case 'Maternity Leave': return const Color(0xFFB47FEB);
+      default:                return const Color(0xFFFF9F43);
+    }
+  }
+
+  String get _typeShort {
+    switch (data['leaveType']) {
+      case 'Casual Leave':    return 'CL';
+      case 'Sick Leave':      return 'SL';
+      case 'Earned Leave':    return 'EL';
+      case 'Maternity Leave': return 'ML';
+      default:                return 'LOP';
+    }
+  }
+
+  DateTime? _parseDate(dynamic v) {
+    if (v == null) return null;
+    if (v is Timestamp) return v.toDate();
+    if (v is String)    return DateTime.tryParse(v);
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final from      = _parseDate(data['fromDate']);
+    final to        = _parseDate(data['toDate']);
+    final applied   = _parseDate(data['appliedAt']);
+    final days      = data['days'] ?? 1;
+    final leaveType = data['leaveType'] ?? '';
+    final reason    = data['reason'] ?? '';
+    final status    = data['status'] ?? 'pending';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFEDF2F7)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        children: [
+          // ── Top row
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(
+                    color: _typeColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(child: Text(_typeShort,
+                      style: TextStyle(color: _typeColor, fontWeight: FontWeight.w700, fontSize: 13))),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(leaveType,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF1A202C))),
+                      if (from != null && to != null)
+                        Text(
+                          '${DateFormat('dd MMM').format(from)} – ${DateFormat('dd MMM yyyy').format(to)}',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF718096)),
+                        ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _statusColor.withOpacity(0.35)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_statusIcon, size: 11, color: _statusColor),
+                          const SizedBox(width: 4),
+                          Text(_statusLabel,
+                              style: TextStyle(color: _statusColor, fontSize: 11, fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('$days day${days > 1 ? 's' : ''}',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF718096))),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // ── Bottom details
+          Container(
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF7FAFC),
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(14)),
+              border: Border(top: BorderSide(color: Color(0xFFEDF2F7))),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (reason.isNotEmpty) ...[
+                  Text(reason, style: const TextStyle(fontSize: 13, color: Color(0xFF4A5568))),
+                  const SizedBox(height: 4),
                 ],
-                if (request.rejectionReason != null) ...[
-                  SizedBox(height: 8),
+                if (applied != null)
+                  Text(
+                    'Applied: ${DateFormat('dd MMM yyyy, hh:mm a').format(applied)}',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFFA0AEC0)),
+                  ),
+
+                // Approved note
+                if (status == 'approved') ...[
+                  const SizedBox(height: 8),
                   Container(
-                    padding: EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      borderRadius: BorderRadius.circular(8),
+                      color: const Color(0xFFF0FFF4),
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(color: const Color(0xFF9AE6B4)),
                     ),
                     child: Row(
-                      children: [
-                        Icon(Icons.info_outline, size: 16, color: Colors.red),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Rejected: ${request.rejectionReason}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.red[700],
-                            ),
-                          ),
-                        ),
+                      children: const [
+                        Icon(Icons.check_circle_outline_rounded, size: 13, color: Color(0xFF3DB88B)),
+                        SizedBox(width: 6),
+                        Text('Your leave has been approved by Admin',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF276749))),
                       ],
                     ),
                   ),
                 ],
-                if (request.status == 'pending') ...[
-                  SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text('Cancel Leave Request'),
-                            content: Text('Are you sure you want to cancel this leave request?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, false),
-                                child: Text('No'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(context, true),
-                                child: Text(
-                                  'Yes, Cancel',
-                                  style: TextStyle(color: Colors.red),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
 
-                        if (confirm == true) {
-                          try {
-                            await _leaveService.cancelLeaveRequest(request.id!);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('✅ Leave request cancelled'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Failed to cancel: $e'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                // Rejection reason
+                if (status == 'rejected' && data['rejectionReason'] != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF5F5),
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(color: const Color(0xFFFEB2B2)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_outline_rounded, size: 13, color: Color(0xFFE05C5C)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Rejected: ${data['rejectionReason']}',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF742A2A)),
+                          ),
                         ),
-                      ),
-                      icon: Icon(Icons.cancel, size: 18),
-                      label: Text('Cancel Request'),
+                      ],
                     ),
                   ),
                 ],
